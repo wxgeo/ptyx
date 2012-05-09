@@ -26,8 +26,8 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-_version_ = "0.3.3"
-_release_date_ = (6, 1, 2012)
+_version_ = "0.4"
+_release_date_ = (9, 1, 2012)
 
 print 'Ptyx ' + _version_ + ' ' + '/'.join(str(d) for d in _release_date_)
 
@@ -38,7 +38,7 @@ param = {
                     'tex_command': 'pdflatex -interaction=nonstopmode',
                     'sympy_is_default': True,
                     'sympy_path': None,
-                    'tabvar_path': None,
+                    'tablatex': None,
                     'debug': False,
                     'floating_point': ',',
                     }
@@ -61,7 +61,7 @@ for pathname in ('sympy_path', 'wxgeometrie_path'):
     path = param[pathname]
     if path is not None:
         path = os.path.normpath(os.path.expanduser(path))
-        sys.path.append(path)
+        sys.path.insert(0, path)
         param[pathname] = path
 
 try:
@@ -73,10 +73,10 @@ except ImportError:
     param['sympy_is_default'] = False
 
 try:
-    import wxgeometrie.modules.tablatex.tabvar as tabvar
+    from wxgeometrie.modules import tablatex
 except ImportError:
-    print("WARNING: tabvar not found.")
-    tabvar = None
+    print("WARNING: tablatex not found.")
+    tablatex = None
 
 try:
     import numpy
@@ -97,17 +97,17 @@ class CustomOutput(object):
         self.logfile_name = logfile_name
 
     def write(self, string_):
-        sys.__stdout__.write(string_)
-        if not self.logfile_name:
-            if logfile_name:
-                open(logfile_name, 'w').close()
-            self.logfile_name = True
-        if self.logfile_name:
-            try:
-                f = open(self.logfile_name, 'a')
-                f.write(string_)
-            finally:
-                f.close()
+        try:
+            sys.__stdout__.write(string_)
+            if self.logfile_name:
+                try:
+                    f = open(self.logfile_name, 'a')
+                    f.write(string_)
+                finally:
+                    f.close()
+        except Exception:
+            sys.stderr = sys.__stderr__
+            raise
 
 
 
@@ -146,6 +146,8 @@ _special_cases =  [
                 r'(?P<name1>CASE)[ ]*(?P<case>\{[0-9 ]+\}|\[[0-9 ]+\])',
                 #            #IFNUM{int}{code}
                 r'(?P<name6>IFNUM)[ ]*(?P<num>\{[0-9 ]+\}|\[[0-9 ]+\])[ ]*\{',
+                #            #IFTHEN{condition}{code}
+                r'(?P<name7>TEST)[ ]*\{(?P<cond>[^}]+)\}[ ]*\{',
                 r'(?P<name2>IF|ELIF)[ ]*\{',
                 r'(?P<name3>PYTHON|SYMPY|RAND|TABVAR|TABSIGN|TABVAL|GEO|ELSE|SIGN|COMMENT|END)',
                 ]
@@ -245,7 +247,7 @@ def _exec_python_code(code, context):
 
 
 def _apply_flag(result, context, **flags):
-    ''' [num] and [rand] special parameters to result.
+    '''Apply [num] and [rand] special parameters to result.
 
     Note that both parameters require that result is iterable, otherwise, nothing occures.
     If result is iterable, an element of result is returned, choosed according to current flag.'''
@@ -287,24 +289,31 @@ def _apply_flag(result, context, **flags):
     #~ return sympy.latex(result)[1:-1]
 
 
-def print_sympy_expr(expr):
-        if isinstance(expr, float) or (sympy and isinstance(expr, sympy.Float)):
-            # -0.06000000000000001 means probably -0.06, since floating point arithmetic approximations
-            # Python str() handles this better than sympy.latex()
-            latex = str(float(expr))
-            #TODO: sympy.Float instance may only be part of an other expression.
-            # It would be much better to subclass sympy LaTeX printer
+def print_sympy_expr(expr, **flags):
+    if isinstance(expr, float) or (sympy and isinstance(expr, sympy.Float)) \
+            or flags.get('float'):
+        # -0.06000000000000001 means probably -0.06 ; that's because
+        # floating point arithmetic is not based on decimal numbers, and
+        # so some decimal numbers do not have exact internal representation.
+        # Python str() handles this better than sympy.latex()
+        latex = str(float(expr))
+        #TODO: sympy.Float instance may only be part of an other expression.
+        # It would be much better to subclass sympy LaTeX printer
 
-            # In french, german... a comma is used as floating point.
-            latex = latex.rstrip('0').rstrip('.')
+        # Strip unused trailing 0.
+        latex = latex.rstrip('0').rstrip('.')
+        # In french, german... a comma is used as floating point.
+        # However, if `float` flag is set, floating point is left unchanged
+        # (useful for Tikz for example).
+        if not flags.get('float'):
             latex = latex.replace('.', param['floating_point'])
-        elif sympy and expr is sympy.oo:
-            latex = r'+\infty'
-        else:
-            latex = sympy.latex(expr)
-        #TODO: subclass sympy LaTeX printer (cf. mathlib in wxgeometrie)
-        latex = latex.replace(r'\operatorname{log}', r'\operatorname{ln}')
-        return latex
+    elif sympy and expr is sympy.oo:
+        latex = r'+\infty'
+    else:
+        latex = sympy.latex(expr)
+    #TODO: subclass sympy LaTeX printer (cf. mathlib in wxgeometrie)
+    latex = latex.replace(r'\operatorname{log}', r'\operatorname{ln}')
+    return latex
 
 global_context['latex'] = print_sympy_expr
 
@@ -365,7 +374,7 @@ def _eval_python_expr(code, context, **flags):
     if not display_result:
         return ''
     if sympy_code:
-        latex = print_sympy_expr(result)
+        latex = print_sympy_expr(result, **flags)
     else:
         latex = str(result)
 
@@ -435,6 +444,7 @@ def convert_ptyx_to_latex(text, context = None):
             name = m.group('name1') or m.group('name2') or m.group('name3') or m.group('name4') or m.group('name5')
             num = m.group('num')
             case = m.group('case')
+            cond = m.group('cond')
             #~ op = m.group('op')
             #~ cond_op = m.group('cond_op')
             #~ context['text'] += text[:m.start()]
@@ -467,10 +477,13 @@ def convert_ptyx_to_latex(text, context = None):
                     _exec_python_code(text[:start], context)
                     context.auto_sympify = False
                 elif last_node in ('TABVAR', 'TABSIGN', 'TABVAL'):
-                    assert tabvar is not None
+                    assert tablatex is not None
                     context_text_backup = context['text']
                     context['text'] = ''
                     # We check if any options have to be passed to TABVAR, TABSIGN, TABVAL
+                    # Exemples:
+                    # TABSIGN[cellspace=True]
+                    # TABVAR[derivee=False,limites=False]
                     m_opts = re.match(r'(\n| )*(\[|{)(?P<opts>[^]]+)(\]|})', text[:start])
                     options = {}
                     if m_opts:
@@ -484,7 +497,7 @@ def convert_ptyx_to_latex(text, context = None):
                                 options[arg] = eval(val, context)
                     tbvcode = convert_ptyx_to_latex(text[:start], context).strip()
                     context['text'] = context_text_backup
-                    func = getattr(tabvar, last_node.lower())
+                    func = getattr(tablatex, last_node.lower())
                     write(func(tbvcode, **options))
                 else:
                     if param['debug']:
@@ -512,8 +525,11 @@ def convert_ptyx_to_latex(text, context = None):
                 # Mode '-':
                 # a '-' will be displayed at the beginning of the next result, and the result
                 # will be embedded in parenthesis if negative.
-                # Mode '?':
+                # Mode '?' (alias 'SIGN'):
                 # '>0', '<0' or '=0' will be displayed after the next result, depending on it's sign.
+                # Mode '=':
+                # Affiche '=' ou '\approx' après un arrondi, selon si le résultat
+                # est exact ou non.
 
             elif name == 'COMMENT':
                 tree.append(name)
@@ -581,6 +597,8 @@ def convert_ptyx_to_latex(text, context = None):
                                 flags['sympy'] = False
                             elif 'sympy'.startswith(flag):
                                 flags['sympy'] = True
+                            elif flag == 'float':
+                                flags['float'] = True
                             elif flag == 'num':
                                 print "WARNING: 'num' flag is deprecated. Use #SELECT command instead."
                                 flags['select'] = True
@@ -602,7 +620,11 @@ def convert_ptyx_to_latex(text, context = None):
                             print code
                             print "***"
                             assert test
-                    elif num is None or int(num) == context.get('NUM', 0):
+                    elif cond is not None: #TEST
+                        if eval(cond, context):
+                            text = code + text[end:]
+                            continue
+                    elif num is None or int(num[1:-1]) == context.get('NUM', 0):
                         result = _eval_python_expr(code, context, **flags)
                         write(result)
 
