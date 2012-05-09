@@ -26,8 +26,8 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-_version_ = "0.3.3"
-_release_date_ = (6, 1, 2012)
+_version_ = "0.3.4"
+_release_date_ = (9, 5, 2012)
 
 print 'Ptyx ' + _version_ + ' ' + '/'.join(str(d) for d in _release_date_)
 
@@ -679,6 +679,7 @@ if __name__ == '__main__':
     parser.add_option("-a", "--auto_make_dir", action = "store_true", help = "Switch to --make_directory mode, except if .ptyx file is already in a directory with the same name (e.g. myfile123/myfile123.ptyx).")
     parser.add_option("-b", "--debug", action = "store_true", help = "Debug mode.")
     parser.add_option("-s", "--start", default = 0, help = "Number of the first generated file (initial value of internal NUM counter). Default is 0.")
+    parser.add_option("-c", "--cat", action = "store_true", help = "Cat all generated pdf files inside a single one. The pdftk command must be installed.")
 
     options, args = parser.parse_args()
 
@@ -743,3 +744,9 @@ if __name__ == '__main__':
                         del_log = options.remove, del_aux = options.remove,
                         make_pdf_file = ('pdf' in formats),
                         )
+        if options.cat and total > 1:
+            if not ('pdf' in formats):
+                print("Warning: --cat option meaningless if pdf output isn't selected.")
+            else:
+                files = ' '.join('%s-%s.pdf' % (output_name, num) for num in xrange(start, start + total))
+                os.system('pdftk ' + files + ' output ' + output_name + '.pdf')
