@@ -9,7 +9,7 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 # --------------------------------------
 #    PTYX
 #    Python LaTeX preprocessor
-#    Copyright (C) 2009  Nicolas Pourcelot
+#    Copyright (C) 2009-2013  Nicolas Pourcelot
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -26,8 +26,8 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-_version_ = "0.4.1"
-_release_date_ = (9, 5, 2012)
+_version_ = "0.6"
+_release_date_ = (16, 01, 2013)
 
 
 print 'Ptyx ' + _version_ + ' ' + '/'.join(str(d) for d in _release_date_)
@@ -39,19 +39,20 @@ param = {
                     'tex_command': 'pdflatex -interaction=nonstopmode',
                     'sympy_is_default': True,
                     'sympy_path': None,
-                    'tablatex': None,
+                    'wxgeometrie': None,
+                    'wxgeometrie_path': None,
                     'debug': False,
                     'floating_point': ',',
                     }
 # </default_configuration>
 
 # <personnal_configuration>
-param['sympy_path'] = '~/Programmation/wxgeometrie/wxgeometrie'
-param['wxgeometrie_path'] = '~/Programmation/wxgeometrie'
+param['sympy_path'] = '~/Dropbox/Programmation/wxgeometrie/wxgeometrie'
+param['wxgeometrie_path'] = '~/Dropbox/Programmation/wxgeometrie'
 # </personnal_configuration>
 
 
-import optparse, re, random, os, tempfile, shutil, sys, codecs
+import optparse, re, random, os, tempfile, shutil, sys, codecs, csv
 
 if sys.platform == 'win32':
     sys.stdout = codecs.getwriter('cp850')(sys.stdout)
@@ -74,16 +75,27 @@ except ImportError:
     param['sympy_is_default'] = False
 
 try:
-    from wxgeometrie.modules import tablatex
+    import wxgeometrie
+    try:
+        from wxgeometrie.modules import tablatex
+        from wxgeometrie.mathlib.printers import custom_latex
+    except ImportError:
+        print("WARNING: current wxgeometrie version is not compatible.")
 except ImportError:
-    print("WARNING: tablatex not found.")
-    tablatex = None
+    print("WARNING: wxgeometrie not found.")
+    wxgeometrie = None
 
 try:
     import numpy
 except ImportError:
     print("WARNING: numpy not found.")
     numpy = None
+
+
+def pth(path):
+        path = os.path.expanduser(path)
+        path = os.path.normpath(path)
+        return os.path.realpath(path)
 
 
 #~ def is_negative_number(value):
@@ -130,24 +142,33 @@ class SpecialDict(dict):
 
 global_context = SpecialDict()
 
-math_list = ('cos', 'sin', 'tan', 'ln', 'exp', 'diff', 'limit', 'integrate', 'E', 'pi', 'I', 'oo', 'gcd', 'lcm')
+math_list = ('cos', 'sin', 'tan', 'ln', 'exp', 'diff', 'limit',
+             'integrate', 'E', 'pi', 'I', 'oo', 'gcd', 'lcm', 'floor',
+             'ceiling',)
 
 if sympy is not None:
     global_context['sympy'] = sympy
     global_context['sympify'] = global_context['SY'] = sympy.sympify
     for name in math_list:
         global_context[name] = getattr(sympy, name)
+    global_context['x'] = sympy.Symbol('x')
+
 if numpy is not None:
     global_context['numpy'] = numpy
 
 global_context['sign'] = lambda x: ('+' if x > 0 else '-')
+global_context['round'] = round
+global_context['rand'] = global_context['random'] = random.random
+global_context['ceil'] = global_context['ceiling']
+global_context['randint'] = random.randint
+
 
 _special_cases =  [
                 #           #CASE{int}
                 r'(?P<name1>CASE)[ ]*(?P<case>\{[0-9 ]+\}|\[[0-9 ]+\])',
                 #            #IFNUM{int}{code}
                 r'(?P<name6>IFNUM)[ ]*(?P<num>\{[0-9 ]+\}|\[[0-9 ]+\])[ ]*\{',
-                #            #IFTHEN{condition}{code}
+                #            #TEST{condition}{code}
                 r'(?P<name7>TEST)[ ]*\{(?P<cond>[^}]+)\}[ ]*\{',
                 r'(?P<name2>IF|ELIF)[ ]*\{',
                 r'(?P<name3>PYTHON|SYMPY|RAND|TABVAR|TABSIGN|TABVAL|GEO|ELSE|SIGN|COMMENT|END)',
@@ -264,7 +285,7 @@ def _apply_flag(result, context, **flags):
             print "** ERROR while rounding value: **"
             print result
             print "-----"
-            print context['text'][-100:]
+            print ''.join(context['text'])[-100:]
             print "-----"
             raise
         context.result_is_exact = (result == round_result)
@@ -308,6 +329,8 @@ def print_sympy_expr(expr, **flags):
         # (useful for Tikz for example).
         if not flags.get('float'):
             latex = latex.replace('.', param['floating_point'])
+    elif wxgeometrie is not None:
+        return custom_latex(expr, profile={'mode':'plain'})
     elif sympy and expr is sympy.oo:
         latex = r'+\infty'
     else:
@@ -330,7 +353,7 @@ def _eval_python_expr(code, context, **flags):
     # Special shortcuts
     display_result = True
     # If code ends with ';', the result will not be included in the LaTeX file.
-    # So, \python{5;} will affect 5 to _, but will not display 5 on final document.
+    # So, #{5;} will affect 5 to _, but will not display 5 on final document.
     if code[-1] == ';':
         code = code[:-1]
         display_result = False
@@ -357,9 +380,14 @@ def _eval_python_expr(code, context, **flags):
                 result = sympy.sympify(code, locals = context)
                 if isinstance(result, basestring):
                     result = result.replace('**', '^')
-            except SympifyError:
+            except (SympifyError, AttributeError):
+                # sympy.sympify() can't parse attributes and methods inside
+                # code for now (AttributeError is raised then).
                 sympy_code = False
                 print('Warning: sympy error. Switching to standard evaluation mode.')
+            except Exception:
+                print("Uncatched error when evaluating %s" % repr(code))
+                raise
         if not sympy_code:
             result = eval(code, context)
         i = varname.find('[')
@@ -406,10 +434,18 @@ def _eval_python_expr(code, context, **flags):
                 latex += '<0'
         elif mode == '=':
             if context.result_is_exact:
-                latex = ' = ' + latex
+                symb = ' = '
             else:
-                latex = r' \approx ' + latex
-
+                symb = r' \approx '
+            # Search backward for temporary `None` marker in list, and replace
+            # by appropriate symbol.
+            textlist = context['text']
+            for i, elt in enumerate(reversed(textlist)):
+                if elt is None:
+                    textlist[len(textlist) - i - 1] = symb
+                    break
+            else:
+                print("Debug warning: `None` couldn't be found when scanning context !")
     return latex
 
 
@@ -420,9 +456,9 @@ def _eval_python_expr(code, context, **flags):
 def convert_ptyx_to_latex(text, context = None):
     if context is None:
         context = global_context.copy()
-    context['text'] = ''
+    context['text'] = []
     def write(arg, context = context, str = str):
-        context['text'] += str(arg)
+        context['text'].append(str(arg))
     context['write'] = write
     tree = ['root']
     conditions = [True]
@@ -437,7 +473,7 @@ def convert_ptyx_to_latex(text, context = None):
         else:
             m = re.search(RE_PTYX_TAGS, text)
             if m is None:
-                context['text'] += text
+                write(text)
                 break
 
             flag = m.group('flag1') or m.group('flag2')
@@ -478,9 +514,9 @@ def convert_ptyx_to_latex(text, context = None):
                     _exec_python_code(text[:start], context)
                     context.auto_sympify = False
                 elif last_node in ('TABVAR', 'TABSIGN', 'TABVAL'):
-                    assert tablatex is not None
+                    assert wxgeometrie is not None
                     context_text_backup = context['text']
-                    context['text'] = ''
+                    context['text'] = []
                     # We check if any options have to be passed to TABVAR, TABSIGN, TABVAL
                     # Exemples:
                     # TABSIGN[cellspace=True]
@@ -517,6 +553,13 @@ def convert_ptyx_to_latex(text, context = None):
             if name in ('-', '+', '*', '?', 'SIGN', '='):
                 if all(conditions):
                     context.op_mode = name if name != 'SIGN' else '?'
+                    # All operations occur just before number, except for `=`.
+                    # Between `=` and the result, some formating instructions
+                    # may occure (like '\fbox{' for example).
+                    if name == '=':
+                        context['text'].append(None)
+                        # `None` is used as a temporary marker, and will be
+                        # replaced by '=' or '\approx' later.
                 # Mode '+':
                 # a '+' will be displayed at the beginning of the next result if positive ;
                 # if result is negative, nothing will be done, and if null, no result at all will be displayed.
@@ -529,8 +572,9 @@ def convert_ptyx_to_latex(text, context = None):
                 # Mode '?' (alias 'SIGN'):
                 # '>0', '<0' or '=0' will be displayed after the next result, depending on it's sign.
                 # Mode '=':
-                # Affiche '=' ou '\approx' après un arrondi, selon si le résultat
-                # est exact ou non.
+                # Display '=' or '\approx' when a rounded result is requested :
+                # if rounded is equal to exact one, '=' is displayed.
+                # Else, '\approx' is displayed instead.
 
             elif name == 'COMMENT':
                 tree.append(name)
@@ -631,7 +675,9 @@ def convert_ptyx_to_latex(text, context = None):
 
         text = text[end:]
 
-    return context['text']
+    # Filter list, since some `None` may remain if a lonely `#=` appears in document.
+    # (Yet, this shouldn't happen if document is properly written).
+    return ''.join(txt for txt in context['text'] if txt)
 
 
 
@@ -693,27 +739,60 @@ def compile(input, output, make_tex_file = False, make_pdf_file = True, del_log 
 if __name__ == '__main__':
 
     # Options parsing
-    parser = optparse.OptionParser(prog = "Ptyx", usage = "usage: %prog [options] filename",  version = "%prog " + _version_)
-    parser.add_option("-n", "--number", help = "Number of pdf files to generate.\nEx: ptyx -n 5 my_file.ptyx")
+    parser = optparse.OptionParser(prog = "Ptyx",
+            usage = "usage: %prog [options] filename",
+            version = "%prog " + _version_)
+    parser.add_option("-n", "--number",
+            help = "Number of pdf files to generate.\n \
+                   Ex: ptyx -n 5 my_file.ptyx")
     #~ parser.add_option("-o", "--output", help = "Name of the output file (without extension).")
-    parser.add_option("-f", "--format", help = "Output format (default is " + '+'.join(param['format']) + ").\nEx: ptyx -f tex my_file.ptyx")
-    parser.add_option("-r", "--remove", action = "store_true", help = "Remove any generated .log and .aux file after compilation.\nNote that references in LaTeX code could be lost.")
-    parser.add_option("-m", "--make_directory", action = "store_true", help = "Create a new directory to store all generated files.")
-    parser.add_option("-a", "--auto_make_dir", action = "store_true", help = "Switch to --make_directory mode, except if .ptyx file is already in a directory with the same name (e.g. myfile123/myfile123.ptyx).")
-    parser.add_option("-b", "--debug", action = "store_true", help = "Debug mode.")
-    parser.add_option("-s", "--start", default = 0, help = "Number of the first generated file (initial value of internal NUM counter). Default is 0.")
-    parser.add_option("-c", "--cat", action = "store_true", help = "Cat all generated pdf files inside a single one. The pdftk command must be installed.")
+    parser.add_option("-f", "--format",
+            help = "Output format (default is "
+                   + '+'.join(param['format'])
+                   + ").\nEx: ptyx -f tex my_file.ptyx")
+    parser.add_option("-r", "--remove", action = "store_true",
+            help = "Remove any generated .log and .aux file after compilation.\n \
+                    Note that references in LaTeX code could be lost.")
+    parser.add_option("-m", "--make_directory", action = "store_true",
+            help = "Create a new directory to store all generated files.")
+    parser.add_option("-a", "--auto_make_dir", action = "store_true",
+            help = "Switch to --make_directory mode, except if .ptyx file \
+                   is already in a directory with the same name \
+                   (e.g. myfile123/myfile123.ptyx).")
+    parser.add_option("-b", "--debug", action = "store_true",
+            help = "Debug mode.")
+    parser.add_option("-s", "--start", default = 0,
+            help = "Number of the first generated file \
+                   (initial value of internal NUM counter). Default is 0.")
+    parser.add_option("-c", "--cat", action = "store_true",
+            help = "Cat all generated pdf files inside a single one. \
+                   The pdftk command must be installed.")
+    parser.add_option("--names",
+            help = "Name of a CSV file containing a column of names \
+                   (and optionnaly a second column with fornames). \n \
+                   The names will be used to generate the #NAME tag \
+                   replacement value.\n \
+                   Additionnaly, if `-n` option is not specified, \
+                   default value will be the number of names in the CSV file.")
+
 
     options, args = parser.parse_args()
 
-    total = global_context['TOTAL'] = (int(options.number) if options.number else param['total'])
+    number = options.number
+    total = global_context['TOTAL'] = (int(number) if number else param['total'])
 
     formats = options.format.split('+') if options.format else param['format']
     if options.debug:
         param['debug'] = True
 
-    start = options.start
+    start = int(options.start)
 
+    if options.names:
+        with open(pth(options.names)) as f:
+            names = [' '.join(l) for l in csv.reader(f)]
+        total = global_context['TOTAL'] = (int(number) if number else len(names))
+    else:
+        names = []
 
     #~ output = options.output if options.output else 'newfile'
 
@@ -734,9 +813,7 @@ if __name__ == '__main__':
     make_tex = ('tex' in formats)
 
     for input_name in arguments:
-        input_name = os.path.expanduser(input_name)
-        input_name = os.path.normpath(input_name)
-        input_name = os.path.realpath(input_name)
+        input_name = pth(input_name)
         os.chdir(os.path.split(input_name)[0])
         if input_name.endswith('.ptyx'):
             output_name = input_name[:-5]
@@ -760,6 +837,7 @@ if __name__ == '__main__':
             print output_name
         for num in xrange(start, start + total):
             global_context['NUM'] = num
+            global_context['NAME'] = (names[num] if names else '')
             suffixe = '-' + str(num) if total > 1 else ''
             # Output is redirected to a .log file
             sys.stdout = sys.stderr = CustomOutput((output_name + suffixe + '-python.log') if not options.remove else '')
