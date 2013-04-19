@@ -26,8 +26,8 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-_version_ = "0.6"
-_release_date_ = (16, 01, 2013)
+_version_ = "0.6.2"
+_release_date_ = (12, 04, 2013)
 
 
 print 'Ptyx ' + _version_ + ' ' + '/'.join(str(d) for d in _release_date_)
@@ -36,7 +36,7 @@ print 'Ptyx ' + _version_ + ' ' + '/'.join(str(d) for d in _release_date_)
 param = {
                     'total': 1,
                     'format': ['pdf', 'tex'],
-                    'tex_command': 'pdflatex -interaction=nonstopmode',
+                    'tex_command': 'pdflatex -interaction=nonstopmode --shell-escape --enable-write18',
                     'sympy_is_default': True,
                     'sympy_path': None,
                     'wxgeometrie': None,
@@ -69,6 +69,7 @@ for pathname in ('sympy_path', 'wxgeometrie_path'):
 try:
     import sympy
     from sympy.core.sympify import SympifyError
+    from sympy import S
 except ImportError:
     print("** ERROR: sympy not found ! **")
     sympy = None
@@ -162,16 +163,24 @@ global_context['rand'] = global_context['random'] = random.random
 global_context['ceil'] = global_context['ceiling']
 global_context['randint'] = random.randint
 
+def randsignint(a=2, b=9):
+    val = (-1)**random.randint(0, 1)*random.randint(a, b)
+    if param['sympy_is_default']:
+        val = S(val)
+    return val
+
+global_context['randsignint'] = randsignint
+del randsignint
 
 _special_cases =  [
-                #           #CASE{int}
-                r'(?P<name1>CASE)[ ]*(?P<case>\{[0-9 ]+\}|\[[0-9 ]+\])',
+                #           #CASE{int} ou #SEED{int}
+                r'(?P<name1>CASE|SEED)[ ]*(?P<case>\{[0-9 ]+\}|\[[0-9 ]+\])',
                 #            #IFNUM{int}{code}
                 r'(?P<name6>IFNUM)[ ]*(?P<num>\{[0-9 ]+\}|\[[0-9 ]+\])[ ]*\{',
                 #            #TEST{condition}{code}
                 r'(?P<name7>TEST)[ ]*\{(?P<cond>[^}]+)\}[ ]*\{',
                 r'(?P<name2>IF|ELIF)[ ]*\{',
-                r'(?P<name3>PYTHON|SYMPY|RAND|TABVAR|TABSIGN|TABVAL|GEO|ELSE|SIGN|COMMENT|END)',
+                r'(?P<name3>PYTHON|SYMPY|RAND|TABVAR|TABSIGN|TABVAL|GEO|ELSE|SIGN|COMMENT|END|DEBUG)',
                 ]
 _other_ones =  [
                 #           #+, #-,  #*, #=  (special operators)
@@ -502,7 +511,15 @@ def convert_ptyx_to_latex(text, context = None):
             print _context.keys()
             print zip(tree, conditions)
 
-        if name == 'END':
+        if name == 'DEBUG':
+            while True:
+                command = raw_input('Debug point. Enter command, or quit (q! + ENTER):')
+                if command == 'q!':
+                    break
+                else:
+                    print(eval(command))
+
+        elif name == 'END':
             condition = conditions.pop()
             last_node = tree.pop()
             assert tree
@@ -597,11 +614,6 @@ def convert_ptyx_to_latex(text, context = None):
                 code = text[end:closing]
                 end = closing + 1 # include closing bracket
                 eval_func = sympy.sympify if param['sympy_is_default'] else eval
-                if all(conditions):
-                    # Lambdify condition for lazy evaluation
-                    condition = lambda:eval_func(code, locals = context)
-                else:
-                    condition = lambda:None
 
                 if name == 'IF':
                     tree.append('IF')
@@ -609,14 +621,18 @@ def convert_ptyx_to_latex(text, context = None):
                     # while None means 'one of previous node led to a True condition' ; so condition will never be True
                     # again in the current IF/ELIF/ELIF/[...]/ELSE succession.
                     # Note that False/None distinction is essential to correctly interpret next ELIF or ELSE.
-                    conditions.append(condition())
+                    #
+                    # In case of nested IF, there is no need to evaluate present condition
+                    # if others conditions failed.
+                    conditions.append(eval_func(code, locals = context)
+                                      if all(conditions) else None)
 
                 else: # ELIF
                     assert tree[-1] == 'IF'
                     if conditions[-1]:
                         conditions[-1] = None
                     elif conditions[-1] is False: # False, not None !
-                        conditions[-1] = condition()
+                        conditions[-1] = eval_func(code, locals = context)
 
             elif name  == 'ELSE':
                 assert tree[-1] == 'IF'
@@ -625,6 +641,10 @@ def convert_ptyx_to_latex(text, context = None):
             elif name == 'PARAM':
                 tree.append(name)
                 conditions.append(True)
+
+            elif name == 'SEED':
+                if context.get('NUM', 0) == 0:
+                    random.seed(int(case[1:-1]))
 
             else:
                 if varname:
@@ -660,7 +680,7 @@ def convert_ptyx_to_latex(text, context = None):
                     if name == 'ASSERT':
                         test = eval(code, context)
                         if not test:
-                            print "Error in assertion:"
+                            print "Error in assertion (NUM=%s):" % context['NUM']
                             print "***"
                             print code
                             print "***"
