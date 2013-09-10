@@ -52,14 +52,14 @@ A ptyx file is essentially a LaTeX file, with a .ptyx extension, (optionally) so
 To include python code in a ptyx file, use the #PYTHON and #END balise.
 A special *write()* command is avalaible, to generate on the flow latex code from python.
 
-    Ceci est un exemple d'\emph{addition} simple~:\quad
+    This a simple \emph{addition}:\quad
     #PYTHON
     from random import randint
     a = randint(5, 9)
     b = randint(2, 4)
     write('%s + %s = %s\\' % (a, b, a + b))
     #END
-    Et ceci est un exemple de \emph{soustraction}~:\quad
+    Now, some basic \emph{subtraction}:\quad
     #PYTHON
     write('%s - %s = %s\\' % (a, b, a - b))
     #END
