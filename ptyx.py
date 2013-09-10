@@ -339,7 +339,7 @@ def print_sympy_expr(expr, **flags):
         if not flags.get('float'):
             latex = latex.replace('.', param['floating_point'])
     elif wxgeometrie is not None:
-        return custom_latex(expr, profile={'mode':'plain'})
+        return custom_latex(expr, mode='plain')
     elif sympy and expr is sympy.oo:
         latex = r'+\infty'
     else:
