@@ -161,7 +161,6 @@ global_context['sign'] = lambda x: ('+' if x > 0 else '-')
 global_context['round'] = round
 global_context['rand'] = global_context['random'] = random.random
 global_context['ceil'] = global_context['ceiling']
-global_context['randint'] = random.randint
 
 def randsignint(a=2, b=9):
     val = (-1)**random.randint(0, 1)*random.randint(a, b)
@@ -169,8 +168,12 @@ def randsignint(a=2, b=9):
         val = S(val)
     return val
 
+def randint(a=2, b=9):
+    return random.randint(a, b)
+
+global_context['randint'] = randint
 global_context['randsignint'] = randsignint
-del randsignint
+del randsignint, randint
 
 _special_cases =  [
                 #           #CASE{int} ou #SEED{int}
