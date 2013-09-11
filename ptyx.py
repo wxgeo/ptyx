@@ -26,8 +26,8 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-_version_ = "0.6.2"
-_release_date_ = (12, 04, 2013)
+_version_ = "0.7"
+_release_date_ = (11, 09, 2013)
 
 
 print 'Ptyx ' + _version_ + ' ' + '/'.join(str(d) for d in _release_date_)
@@ -52,7 +52,8 @@ param['wxgeometrie_path'] = '~/Dropbox/Programmation/wxgeometrie'
 # </personnal_configuration>
 
 
-import optparse, re, random, os, tempfile, shutil, sys, codecs, csv
+import optparse, re, random, os, tempfile, sys, codecs, csv
+from functools import partial
 
 if sys.platform == 'win32':
     sys.stdout = codecs.getwriter('cp850')(sys.stdout)
@@ -162,17 +163,18 @@ global_context['round'] = round
 global_context['rand'] = global_context['random'] = random.random
 global_context['ceil'] = global_context['ceiling']
 
-def randsignint(a=2, b=9):
-    val = (-1)**random.randint(0, 1)*random.randint(a, b)
+def randint(a=2, b=9):
+    val = random.randint(a, b)
     if param['sympy_is_default']:
         val = S(val)
     return val
 
-def randint(a=2, b=9):
-    return random.randint(a, b)
+def randsignint(a=2, b=9):
+    return (-1)**randint(0, 1)*randint(a, b)
 
 global_context['randint'] = randint
 global_context['randsignint'] = randsignint
+global_context['srandint'] = randsignint
 del randsignint, randint
 
 _special_cases =  [
@@ -465,13 +467,19 @@ def _eval_python_expr(code, context, **flags):
 
 
 
-def convert_ptyx_to_latex(text, context = None):
+def convert_ptyx_to_latex(text, context=None, clear_text=True):
     if context is None:
         context = global_context.copy()
-    context['text'] = []
-    def write(arg, context = context, str = str):
-        context['text'].append(str(arg))
-    context['write'] = write
+    if clear_text:
+        context['text'] = []
+    def write(arg, context=context, parse=False):
+        if parse and isinstance(arg, basestring) and '#' in arg:
+            if param['debug']:
+                print('Parsing %s...' % repr(arg))
+            convert_ptyx_to_latex(arg, context=context, clear_text=False)
+        else:
+            context['text'].append(str(arg))
+    context['write'] = partial(write, parse=True)
     tree = ['root']
     conditions = [True]
 
@@ -480,7 +488,7 @@ def convert_ptyx_to_latex(text, context = None):
             name = 'END'
             start = text.find('#END')
             if start == -1:
-                raise SyntaxError, '#END not found while parsing #' + tree[-1] +' bloc !'
+                raise SyntaxError, ('#END not found while parsing #%s bloc !' % tree[-1])
             end = start + 4
         else:
             m = re.search(RE_PTYX_TAGS, text)
@@ -525,7 +533,8 @@ def convert_ptyx_to_latex(text, context = None):
         elif name == 'END':
             condition = conditions.pop()
             last_node = tree.pop()
-            assert tree
+            # tree should contain ['root'] at least
+            assert tree, ('Error: lonely #END found after %s.' % repr(text[:start]))
             if condition and all(conditions):
                 if last_node == 'PARAM':
                     _exec_python_code(text[:start], param)
@@ -753,7 +762,7 @@ def compile(input, output, make_tex_file = False, make_pdf_file = True, del_log 
                 else:
                     os.rename(aux_name, output + '.aux')
         finally:
-            textfile.close()
+            texfile.close()
 
 
 
