@@ -26,8 +26,8 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-_version_ = "0.7"
-_release_date_ = (11, 09, 2013)
+_version_ = "0.8"
+_release_date_ = (22, 9, 2013)
 
 
 print 'Ptyx ' + _version_ + ' ' + '/'.join(str(d) for d in _release_date_)
@@ -37,6 +37,7 @@ param = {
                     'total': 1,
                     'format': ['pdf', 'tex'],
                     'tex_command': 'pdflatex -interaction=nonstopmode --shell-escape --enable-write18',
+                    'quiet_tex_command': 'pdflatex -interaction=batchmode --shell-escape --enable-write18',
                     'sympy_is_default': True,
                     'sympy_path': None,
                     'wxgeometrie': None,
@@ -52,7 +53,7 @@ param['wxgeometrie_path'] = '~/Dropbox/Programmation/wxgeometrie'
 # </personnal_configuration>
 
 
-import optparse, re, random, os, tempfile, sys, codecs, csv
+import optparse, re, random, os, tempfile, sys, codecs, csv, shutil
 from functools import partial
 
 if sys.platform == 'win32':
@@ -169,13 +170,15 @@ def randint(a=2, b=9):
         val = S(val)
     return val
 
+
+
 def randsignint(a=2, b=9):
     return (-1)**randint(0, 1)*randint(a, b)
 
 global_context['randint'] = randint
 global_context['randsignint'] = randsignint
 global_context['srandint'] = randsignint
-del randsignint, randint
+
 
 _special_cases =  [
                 #           #CASE{int} ou #SEED{int}
@@ -715,35 +718,35 @@ def convert_ptyx_to_latex(text, context=None, clear_text=True):
 
 
 
-def compile(input, output, make_tex_file = False, make_pdf_file = True, del_log = False, del_aux = False):
+def compile_file(input_name, output_name, make_tex_file=False,
+                 make_pdf_file=True, options=None):
+    remove = getattr(options, 'remove', False)
+    quiet = getattr(options, 'quiet', False)
     input_file = None
     try:
-        input_file = open(input, 'rU')
+        input_file = open(input_name, 'rU')
         text = input_file.read()
     finally:
         if input_file is not None:
             input_file.close()
-    dir = os.path.split(output)[0]
-    extra = (' -output-directory ' + dir if dir else '')
-    #~ if head:
-        #~ os.chdir(head)
+    dir_name = os.path.split(output_name)[0]
+    extra = (' -output-directory ' + dir_name if dir_name else '')
     latex = convert_ptyx_to_latex(text)
     if make_tex_file:
         try:
-            texfile = open(output + '.tex', 'w')
+            texfile = open(output_name + '.tex', 'w')
             texfile.write(latex)
             if make_pdf_file:
                 texfile.flush()
                 os.system(param['tex_command'] + extra + ' ' + texfile.name)
-                if del_log:
-                    os.remove(output + '.log')
-                if del_aux:
-                    os.remove(output + '.aux')
+                if remove:
+                    os.remove(output_name + '.log')
+                    os.remove(output_name + '.aux')
         finally:
             texfile.close()
     else:
         try:
-            texfile = tempfile.NamedTemporaryFile(suffix = '.tex')
+            texfile = tempfile.NamedTemporaryFile(suffix='.tex')
             texfile.write(latex)
             if make_pdf_file:
                 tmp_name  = os.path.split(texfile.name)[1][:-4] # without .tex extension
@@ -751,16 +754,20 @@ def compile(input, output, make_tex_file = False, make_pdf_file = True, del_log 
                 log_name = tmp_name + '.log'
                 aux_name = tmp_name + '.aux'
                 texfile.flush()
-                os.system(param['tex_command'] + extra + ' ' + texfile.name)
-                os.rename(pdf_name, output + '.pdf')
-                if del_log:
+                if quiet:
+                    command = param['quiet_tex_command']
+                else:
+                    command = param['tex_command']
+                os.system(command + extra + ' ' + texfile.name)
+                os.rename(pdf_name, output_name + '.pdf')
+                if remove:
                     os.remove(log_name)
                 else:
-                    os.rename(log_name, output + '.log')
-                if del_aux:
+                    os.rename(log_name, output_name + '.log')
+                if remove:
                     os.remove(aux_name)
                 else:
-                    os.rename(aux_name, output + '.aux')
+                    os.rename(aux_name, output_name + '.aux')
         finally:
             texfile.close()
 
@@ -785,6 +792,10 @@ if __name__ == '__main__':
     parser.add_option("-r", "--remove", action = "store_true",
             help = "Remove any generated .log and .aux file after compilation.\n \
                     Note that references in LaTeX code could be lost.")
+    parser.add_option("-R", "--remove-all", action = "store_true",
+            help = "Remove any generated .log and .aux file after compilation.\n \
+                    If --cat option or --compress option is used, remove also \
+                    all pdf files, except for the concatenated one.")
     parser.add_option("-m", "--make_directory", action = "store_true",
             help = "Create a new directory to store all generated files.")
     parser.add_option("-a", "--auto_make_dir", action = "store_true",
@@ -793,12 +804,16 @@ if __name__ == '__main__':
                    (e.g. myfile123/myfile123.ptyx).")
     parser.add_option("-b", "--debug", action = "store_true",
             help = "Debug mode.")
+    parser.add_option("-q", "--quiet", action = "store_true",
+            help = "Suppress most of latex processor output.")
     parser.add_option("-s", "--start", default = 0,
             help = "Number of the first generated file \
                    (initial value of internal NUM counter). Default is 0.")
     parser.add_option("-c", "--cat", action = "store_true",
             help = "Cat all generated pdf files inside a single one. \
                    The pdftk command must be installed.")
+    parser.add_option("-C", "--compress", action = "store_true",
+            help = "Like --cat, but compress final pdf file using pdf2ps and ps2pdf.")
     parser.add_option("--names",
             help = "Name of a CSV file containing a column of names \
                    (and optionnaly a second column with fornames). \n \
@@ -809,6 +824,8 @@ if __name__ == '__main__':
 
 
     options, args = parser.parse_args()
+
+    options.remove = options.remove or options.remove_all
 
     number = options.number
     total = global_context['TOTAL'] = (int(number) if number else param['total'])
@@ -854,6 +871,8 @@ if __name__ == '__main__':
             if make_tex:
                 output_name += '_'
             # the trailing _ avoids name conflicts with the .tex file generated
+        else:
+            output_name = input_name + '_'
 
         head, tail = os.path.split(output_name)
         if options.auto_make_dir:
@@ -873,13 +892,47 @@ if __name__ == '__main__':
             suffixe = '-' + str(num) if total > 1 else ''
             # Output is redirected to a .log file
             sys.stdout = sys.stderr = CustomOutput((output_name + suffixe + '-python.log') if not options.remove else '')
-            compile(input_name, output_name + suffixe, make_tex_file = make_tex, \
-                        del_log = options.remove, del_aux = options.remove,
-                        make_pdf_file = ('pdf' in formats),
+            compile_file(input_name, output_name + suffixe, make_tex_file=make_tex, \
+                        make_pdf_file=('pdf' in formats), options=options
                         )
-        if options.cat and total > 1:
+        if options.compress or (options.cat and total > 1):
+            # pdftk and ghostscript must be installed.
             if not ('pdf' in formats):
-                print("Warning: --cat option meaningless if pdf output isn't selected.")
+                print("Warning: --cat or --compress option meaningless if pdf output isn't selected.")
             else:
-                files = ' '.join('%s-%s.pdf' % (output_name, num) for num in xrange(start, start + total))
-                os.system('pdftk ' + files + ' output ' + output_name + '.pdf')
+                pdf_name = output_name + '.pdf'
+                if total > 1:
+                    filenames = ['%s-%s.pdf' % (output_name, num) for num in xrange(start, start + total)]
+                    files = ' '.join(filenames)
+                    os.system('pdftk ' + files + ' output ' + pdf_name)
+                    if options.remove_all:
+                        for name in filenames:
+                            os.remove(name)
+                if options.compress:
+                    temp_dir = tempfile.mkdtemp()
+                    compressed_pdf_name = os.path.join(temp_dir, 'compresse.pdf')
+                    command = \
+                        """command pdftops \
+                        -paper match \
+                        -nocrop \
+                        -noshrink \
+                        -nocenter \
+                        -level3 \
+                        -q \
+                        "%s" - \
+                        | command ps2pdf14 \
+                        -dEmbedAllFonts=true \
+                        -dUseFlateCompression=true \
+                        -dProcessColorModel=/DeviceCMYK \
+                        -dConvertCMYKImagesToRGB=false \
+                        -dOptimize=true \
+                        -dPDFSETTINGS=/prepress \
+                        - "%s" """ % (pdf_name, compressed_pdf_name)
+                    os.system(command)
+                    old_size = os.path.getsize(pdf_name)
+                    new_size = os.path.getsize(compressed_pdf_name)
+                    if new_size < old_size:
+                        shutil.copyfile(compressed_pdf_name, pdf_name)
+                        print('Compression ratio: {0:.2f}'.format(old_size/new_size))
+                    else:
+                        print('Warning: compression failed.')
