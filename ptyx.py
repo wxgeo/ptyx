@@ -164,20 +164,39 @@ global_context['round'] = round
 global_context['rand'] = global_context['random'] = random.random
 global_context['ceil'] = global_context['ceiling']
 
-def randint(a=2, b=9):
-    val = random.randint(a, b)
+def randint(a=2, b=9, exclude=()):
+    while True:
+        val = random.randint(a, b)
+        if val not in exclude:
+            break
     if param['sympy_is_default']:
         val = S(val)
     return val
 
+def srandint(a=2, b=9, exclude=()):
+    while True:
+        val = (-1)**randint(0, 1)*randint(a, b)
+        if val not in exclude:
+            return val
 
 
-def randsignint(a=2, b=9):
-    return (-1)**randint(0, 1)*randint(a, b)
+def randchoice(*items):
+    if len(items) == 1 and hasattr(items[0], '__iter__'):
+        return randchoice(*items[0])
+    val = random.choice(items)
+    if isinstance(val, (int, long, float, complex)):
+        val = S(val)
+    return val
+
+def srandchoice(*items):
+    return (-1)**randint(0, 1)*randchoice(*items)
+
 
 global_context['randint'] = randint
-global_context['randsignint'] = randsignint
-global_context['srandint'] = randsignint
+global_context['randsignint'] = srandint
+global_context['srandint'] = srandint
+global_context['randchoice'] = randchoice
+global_context['srandchoice'] = srandchoice
 
 
 _special_cases =  [
@@ -443,11 +462,11 @@ def _eval_python_expr(code, context, **flags):
                 latex = r'\left(' + latex + r'\right)'
             latex = '-' + latex
         elif mode == '?':
-            if result == 0:
-                latex += '=0'
-            elif result > 0:
+            #~ if result == 0:
+                #~ latex += '=0'
+            if result > 0:
                 latex += '>0'
-            else:
+            elif result < 0:
                 latex += '<0'
         elif mode == '=':
             if context.result_is_exact:
