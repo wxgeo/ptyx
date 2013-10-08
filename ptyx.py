@@ -841,6 +841,10 @@ if __name__ == '__main__':
                    Additionnaly, if `-n` option is not specified, \
                    default value will be the number of names in the CSV file.")
 
+    # Limit seeds, to be able to retrieve seed manually if needed.
+    seed_value = random.randint(0, 100000)
+    print('Default seed value: %s' % seed_value)
+    random.seed(seed_value)
 
     options, args = parser.parse_args()
 
