@@ -278,6 +278,7 @@ def find_closing_bracket(expr, start = 0, brackets = '{}'):
 #TABVAL[options]...#END
 #TABVAR[options]...#END
 #TEST{bool}{...}
+#TEST_ELSE{bool}{...}{...}
 #+, #-,  #*, #=, #? (special operators)
 #varname or #[option,int]varname
 ## options : sympy, python, float
@@ -330,226 +331,14 @@ class SyntaxTreeGenerator(object):
             '?':            (0, None),
             }
 
+    def __init__(self):
+        self.syntax_tree = ['ROOT']
 
-
-
-
-
-
-
-
-class LatexGenerator(object):
-
-    tags_without_arg = ('#-', '#+', '#*', '#=', '#?')
-    tags_
-
-
-    def __init__(self, context):
-        self.content = []
-        self.context = context
-        self.macros = {}
-
-    @property
-    def NUM(self):
-        return self.context.get('NUM', 0)
-
-    def parse(self, item):
-        if isinstance(item, list):
-            self.parse_block(item)
-        else:
-            self.parse_plain(item)
-
-    def parse_plain(self, text):
-        pass
-
-    def parse_block(self, tag, arg, content):
-        u"""Parse a block of pTyX syntax tree.
-
-        Return True if block content was recursively parsed, and False else.
-
-        In particular, when parsing an IF block, True will be returned if and
-        only if the block condition was satisfied.
-        """
-        try:
-            parse_content = getattr(self, 'parse_%s_block' % tag)(arg, content)
-            if not parse_content:
-                return False
-        except AttributeError:
-            print("Warning: method 'parse_%s_block' not found" % tag)
-
-        last_item_tag = None
-        for item in content:
-            if isinstance(item, basestring):
-                self.write(self.parse_text(item))
-                last_item_tag = None
-            else:
-                assert isinstance(item, list) and len(item) >= 2
-                item_tag, item_arg = item[0:2]
-                item_content = item[2:]
-                # If an IF or ELIF block was executed, all successive ELIF
-                # or ELSE blocks must be skipped.
-                if last_item_tag in ('IF', 'ELIF') and item_tag in ('ELIF', 'ELSE'):
-                    continue
-                if last_item_tag == 'CASE' and item_tag in ('CASE', 'ELSE'):
-                    continue
-                inner_content_parsed = self.parse_block(item_tag, item_arg, item_content)
-                if inner_content_parsed or item_tag not in ('IF', 'ELIF', 'CASE'):
-                    # item block was processed.
-                    # (A non processed block is typically an IF or CASE block whose condition was not satisfied).
-                    last_item_tag = item_tag
-        return True
-
-
-    def parse_IF_tag(self, arg, content):
-        return eval(arg, self.context):
-
-    parse_ELIF_tag = parse_IF_tag
-
-    def parse_CASE_tag(self, arg, content):
-        return eval(arg, self.context) == self.NUM
-
-    def parse_PYTHON_tag(self, arg, content):
-        assert isinstance(content, basestring)
-        self._exec_python_code(content, self.context)
-        return False
-
-    #Remove comments before generating tree ?
-    def parse_COMMENT_tag(self, arg, content):
-        return False
-
-    def parse_ASSERT_tag(self, arg, content):
-        assert not content
-        test = eval(arg, self.context)
-        if not test:
-            print "Error in assertion (NUM=%s):" % self.NUM
-            print "***"
-            print code
-            print "***"
-            assert test
-        assert not arg
-        return False
-
-    def parse_NEW_MACRO_tag(self, arg, content):
-        self.macros[arg] = content
-        return False
-
-    def parse_MACRO_tag(self, arg, content):
-        if arg in self.macros:
-            content = self.macros[arg]
-        else:
-            raise NameError, ('Error: MACRO "%s" undefined.' % arg)
-        return True
-
-    def parse_SHUFFLE_tag(self, arg, content):
-        content = random.shuffle(content)
-        return True
-
-    def parse_ITEM_tag(self, arg, content):
-        return True
-
-    def parse_SEED_tag(self, arg, content):
-        assert not content
-        if self.NUM == 0:
-            random.seed(int(arg))
-        return False
-
-    def parse_PICK_tag(self, arg, content):
-        assert not content
-        varname, values = arg.split('=')
-        values = values.split(',')
-
-        self.context[varname.strip](self.NUM)
-        return False
-
-    def parse_options(self, arg):
-        u'Parse a tag options, following the syntax {key1=val1,...}.'
-        options_list = arg.split(',')
-        options = {}
-        for option in options_list:
-            key, val = option.split('=')
-            options[key] = eval(val, self.context)
-        return options
-
-    def parse_TABVAL_tag(self, arg, content):
-        options = self.parse_options(arg)
-
-
-
-                                assert wxgeometrie is not None
-                    context_text_backup = context['POINTER']
-                    context['POINTER'] = []
-                    # We check if any options have to be passed to TABVAR, TABSIGN, TABVAL
-                    # Exemples:
-                    # TABSIGN[cellspace=True]
-                    # TABVAR[derivee=False,limites=False]
-                    m_opts = re.match(r'(\n| )*(\[|{)(?P<opts>[^]]+)(\]|})', text[:start])
-                    options = {}
-                    if m_opts:
-                        text = text[m_opts.end():]
-                        start -= m_opts.end()
-                        end -= m_opts.end()
-                        opts = m_opts.group('opts').split(',')
-                        for opt in opts:
-                            if '=' in opt:
-                                arg, val = opt.split('=', 1)
-                                options[arg] = eval(val, context)
-                    tbvcode = convert_ptyx_to_latex(text[:start], context).strip()
-                    context['POINTER'] = context_text_backup
-                    func = getattr(tablatex, last_node.lower())
-                    write(func(tbvcode, **options))
-
-
-
-
-    def _exec(code, context):
-        u"""exec is encapsulated in this function so as to avoid problems
-        with free variables in nested functions."""
-        try:
-            exec(code, context)
-        except:
-            print "** ERROR found in the following code: **"
-            print(code)
-            print "-----"
-            print repr(code)
-            print "-----"
-            raise
-
-
-
-    def _exec_python_code(code, context):
-        code = code.replace('\r', '')
-        code = code.rstrip().lstrip('\n')
-        # Indentation test
-        initial_indent = len(code) - len(code.lstrip(' '))
-        if initial_indent:
-            # remove initial indentation
-            code = '\n'.join(line[initial_indent:] for line in code.split('\n'))
-        _exec(code, context)
-        return code
-
-
-
-"""
-                r'(?P<name1>CASE|SEED)[ ]*(?P<case>\{[0-9 ]+\}|\[[0-9 ]+\])',
-                #            #IFNUM{int}{code}
-                r'(?P<name6>IFNUM)[ ]*(?P<num>\{[0-9 ]+\}|\[[0-9 ]+\])[ ]*\{',
-                #            #TEST{condition}{code}
-                r'(?P<name7>TEST)[ ]*\{(?P<cond>[^}]+)\}[ ]*\{',
-                r'(?P<name2>IF|ELIF)[ ]*\{',
-                r'(?P<name3>PYTHON|SYMPY|RAND|TABVAR|TABSIGN|TABVAL|GEO|ELSE|SIGN|COMMENT|END|DEBUG|SHUFFLE|ITEM)',
-                ]
-_other_ones =  [
-                #           #+, #-,  #*, #=  (special operators)
-                r'(?P<name4>[-+*=?])',
-                #           #RAND[option,int]{code} or #SEL[option,int]{code} or #[option,int]{code}
-                r'(?P<name5>RAND|ASSERT|SEL(ECT)?)?(\[(?P<flag1>[0-9, a-z]+)\])?[ ]*\{',
-                #           #varname or #[option,int]varname
-                r'(\[(?P<flag2>[0-9, a-z]+)\])?(?P<varname>[A-Za-z_]+[0-9_]*)',
-"""
-
-
-
-
+    def parse(self, text):
+        position = 0
+        hash_position = text.find('#', position)
+        if hash_position != -1:
+            text[hash_position:].startswith()
 
 
 
@@ -557,10 +346,6 @@ _other_ones =  [
 
 
 class LatexGenerator(object):
-
-    tags_without_arg = ('#-', '#+', '#*', '#=', '#?')
-    tags_
-
 
     def __init__(self, context):
         self.content = []
