@@ -308,10 +308,52 @@ class Node(object):
         #~ self.args = []
         self.children = []
 
-    def add_child(child):
+    def add_child(self, child):
+        if not child:
+            return None
         self.children.append(child)
-        child.parent = self
+        if isinstance(child, Node):
+            child.parent = self
         return child
+
+    def display(self, color=True, indent=0):
+        texts = ['%s+ Node %s' % (indent*' ', self._format(self.name, color))]
+        for child in self.children:
+            if isinstance(child, Node):
+                texts.append(child.display(color, indent + 2))
+            else:
+                texts.append('%s  - text: %s' % (indent*' ', repr(child.split('\n')[0])))
+        return '\n'.join(texts)
+
+    def _format(self, val, color):
+        if not color:
+            return str(val)
+        if isinstance(val, basestring):
+            return self.yellow(val)
+        elif isinstance(val, int):
+            return self.blue(str(val))
+        return val
+
+    def blue(self, s):
+        return '\033[0;36m' + s + '\033[0m'
+
+    def blue2(self, s):
+        return '\033[1;36m' + s + '\033[0m'
+
+    def red(self, s):
+        return '\033[0;31m' + s + '\033[0m'
+
+    def green(self, s):
+        return '\033[0;32m' + s + '\033[0m'
+
+    def green2(self, s):
+        return '\033[1;32m' + s + '\033[0m'
+
+    def yellow(self, s):
+        return '\033[0;33m' + s + '\033[0m'
+
+    def white(self, s):
+        return '\033[1;37m' + s + '\033[0m'
 
 
 
@@ -327,12 +369,15 @@ class SyntaxTreeGenerator(object):
             'IF':           (1, ['ELIF', 'ELSE', '@END']),
             'ELIF':         (1, ['ELIF', 'ELSE', '@END']),
             'ELSE':         (0, ['@END']),
+            'END':          (0, None),
             'IFNUM':        (2, None),
             'MACRO':        (1, None),
             'NEW_MACRO':    (1, ['@END']),
             'PICK':         (1, None),
             'PYTHON':       (0, ['@END']),
             'RAND':         (1, None),
+            # ROOT isn't a real tag, and is never closed.
+            'ROOT':         (0, []),
             'SEED':         (1, None),
             'SHUFFLE':      (0, ['@END']),
             # Do *NOT* consume #END tag, which must be used to end #SHUFFLE block.
@@ -370,8 +415,12 @@ class SyntaxTreeGenerator(object):
             if position == -1:
                 break
             position += 1
-            for tag in sorted_tags:
+            for tag in self.sorted_tags:
                 if text[position:].startswith(tag):
+                    if position + len(tag) == len(text):
+                        # Last text character reached.
+                        position += len(tag)
+                        break
                     next_character = text[position + len(tag)]
                     if not(next_character == '_' or next_character.isalnum()):
                         position += len(tag)
@@ -385,41 +434,52 @@ class SyntaxTreeGenerator(object):
                     # Default tag name is EVAL.
                     tag = 'EVAL'
 
-            # Tag name found.
+
+            node.add_child(text[last_position:tag_position])
+
             if tag in node._closing_tags:
                 # Close node, but don't consume tag.
                 node = node.parent
-                position = tag_position
-                continue
-            if '@' + tag in node._closing_tags:
+            elif '@' + tag in node._closing_tags:
                 # Close node and consume tag.
                 node = node.parent
-            else:
-                node.add_child(text[last_position:tag_position])
-                # Open a new node for this new command.
-                number_of_args, closing_tags = self.tags[node.name]
-                new_node = node.add_child(Node(tag))
+                continue
+
+            # Tag #END is not a true tag: it doesn't correspond to any command.
+            if tag != 'END':
+                # Create and enter new node.
+                node = node.add_child(Node(tag))
                 # Detect command optional argument.
                 # XXX: tolerate \n and spaces before bracket.
                 if text[position] == '[':
-                    end = find_closing_bracket(text, position, brackets='[]')
+                    end = find_closing_bracket(text, position + 1, brackets='[]')
                     new_node.options = text[position + 1:end]
                     position = end + 1
                 # Detect command arguments.
                 # Each argument become a node with its number as name.
+                number_of_args, closing_tags = self.tags[node.name]
                 for i in range(number_of_args):
                     if text[position] == '{':
+                        position += 1
                         end = find_closing_bracket(text, position, brackets='{}')
+                        new_pos = end + 1
                     else:
                         end = position
                         while end < len(text) and text[end].isalnum():
                             end += 1
-                    arg_node = new_node.add_child(Node(i))
-                    self.parse(arg_node, text[position + 1:end]
-                if closing_tags is not None:
-                    # Enter inside node.
-                    node = new_node
-                node._closing_tags = closing_tags
+                        new_pos = end
+                    # Each argument is a node itself.
+                    # Nodes corresponding to commands arguments have no name,
+                    # but are numbered instead.
+                    arg = node.add_child(Node(i))
+                    self.parse(arg, text[position:end])
+                    position = new_pos
+                if closing_tags is None:
+                    # Quit node (tag is self-closing).
+                    node = node.parent
+                else:
+                    node._closing_tags = closing_tags
+
         node.add_child(text[last_position:])
 
 
@@ -449,8 +509,8 @@ class LatexGenerator(object):
     def parse_text(self, text):
         pass
 
-    def parse_block(self, tag, args, content):
-        u"""Parse a block of pTyX syntax tree.
+    def parse_node(self, tag, args, content):
+        u"""Parse a node in a pTyX syntax tree.
 
         Return True if block content was recursively parsed, and False else.
 
