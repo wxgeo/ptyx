@@ -297,12 +297,32 @@ def find_closing_bracket(expr, start = 0, brackets = '{}'):
 
 
 
+class Node(object):
+    u"""A node.
+
+    name is the tag name, or the argument number."""
+    def __init__(self, name):
+        self.parent = None
+        self.name = name
+        self.options = None
+        #~ self.args = []
+        self.children = []
+
+    def add_child(child):
+        self.children.append(child)
+        child.parent = self
+        return child
+
+
+
+
 
 class SyntaxTreeGenerator(object):
     tags = {'ASSERT':       (1, None),
             'CASE':         (1, ['CASE', 'ELSE', '@END']),
             'COMMENT':      (0, ['@END']),
             'DEBUG':        (0, None),
+            'EVAL':         (1, None),
             'GEO':          (0, ['@END']),
             'IF':           (1, ['ELIF', 'ELSE', '@END']),
             'ELIF':         (1, ['ELIF', 'ELSE', '@END']),
@@ -331,14 +351,77 @@ class SyntaxTreeGenerator(object):
             '?':            (0, None),
             }
 
-    def __init__(self):
-        self.syntax_tree = ['ROOT']
+    # Tags sorted by length (longer first).
+    # This is used for matching tests.
+    sorted_tags = sorted(tags, key=len,reverse=True)
 
-    def parse(self, text):
+    def __init__(self, text):
+        #~ self.syntax_tree = ['ROOT', None, []]
+        self.syntax_tree = Node('ROOT')
+        self.parse(self.syntax_tree, text)
+
+    def parse(self, node, text):
         position = 0
-        hash_position = text.find('#', position)
-        if hash_position != -1:
-            text[hash_position:].startswith()
+        #~ number_of_args = 0
+        node._closing_tags = []
+        while True:
+            last_position = position
+            position = tag_position = text.find('#', position)
+            if position == -1:
+                break
+            position += 1
+            for tag in sorted_tags:
+                if text[position:].startswith(tag):
+                    next_character = text[position + len(tag)]
+                    if not(next_character == '_' or next_character.isalnum()):
+                        position += len(tag)
+                        break
+            else:
+                if text[position].isdigit():
+                    # LaTeX uses #0, #1, #2...
+                    continue
+                else:
+                    # This is not a known tag name.
+                    # Default tag name is EVAL.
+                    tag = 'EVAL'
+
+            # Tag name found.
+            if tag in node._closing_tags:
+                # Close node, but don't consume tag.
+                node = node.parent
+                position = tag_position
+                continue
+            if '@' + tag in node._closing_tags:
+                # Close node and consume tag.
+                node = node.parent
+            else:
+                node.add_child(text[last_position:tag_position])
+                # Open a new node for this new command.
+                number_of_args, closing_tags = self.tags[node.name]
+                new_node = node.add_child(Node(tag))
+                # Detect command optional argument.
+                # XXX: tolerate \n and spaces before bracket.
+                if text[position] == '[':
+                    end = find_closing_bracket(text, position, brackets='[]')
+                    new_node.options = text[position + 1:end]
+                    position = end + 1
+                # Detect command arguments.
+                # Each argument become a node with its number as name.
+                for i in range(number_of_args):
+                    if text[position] == '{':
+                        end = find_closing_bracket(text, position, brackets='{}')
+                    else:
+                        end = position
+                        while end < len(text) and text[end].isalnum():
+                            end += 1
+                    arg_node = new_node.add_child(Node(i))
+                    self.parse(arg_node, text[position + 1:end]
+                if closing_tags is not None:
+                    # Enter inside node.
+                    node = new_node
+                node._closing_tags = closing_tags
+        node.add_child(text[last_position:])
+
 
 
 
@@ -357,11 +440,11 @@ class LatexGenerator(object):
     def NUM(self):
         return self.context.get('NUM', 0)
 
-    def parse(self, item):
-        if isinstance(item, list):
-            self.parse_block(item)
-        else:
-            self.parse_plain(item)
+    #~ def parse(self, item):
+        #~ if isinstance(item, list):
+            #~ self.parse_block(item)
+        #~ else:
+            #~ self.parse_plain(item)
 
     def parse_text(self, text):
         pass
