@@ -13,9 +13,10 @@ def test_find_closing_bracket():
     text = '{hello{world} !} etc.'
     assert find_closing_bracket(text, 1) == 15
 
+
 def test_syntax_tree():
-    text = "#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END"
     s = SyntaxTreeGenerator()
+    text = "#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END"
     s.parse(text)
     tree = \
 """+ Node ROOT
@@ -38,6 +39,18 @@ def test_syntax_tree():
         - text: 'variable+1'
     - text: ' !'"""
     assertEq(s.syntax_tree.display(color=False), tree)
+
+    text = "#PYTHON#some comment\nvariable = 2\n#END#ASSERT{variable == 2}"
+    s.parse(text)
+    tree = \
+"""+ Node ROOT
+  + Node PYTHON
+    - text: '#some comment [...]'
+  + Node ASSERT
+    + Node 0
+      - text: 'variable == 2'"""
+    assertEq(s.syntax_tree.display(color=False), tree)
+
 
 def test_latex_code_generator():
     test = "#{variable=3;b=1;}#{a=2}#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END ok"

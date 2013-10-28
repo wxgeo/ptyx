@@ -286,14 +286,6 @@ def find_closing_bracket(expr, start = 0, brackets = '{}'):
 
 
 
-# For each tag, indicate:
-#   1. The number of arguments.
-#   2. If the tag opens a block, a list of all the tags closing the block.
-#
-#  Notice that by default, the tag closing the block will not be consumed.
-#  This means that the same tag will be parsed again to open or close another block.
-#  To consume the closing tag, prefix the tag name with the '@' symbol.
-#  This is usually the wished behaviour for #END tag.
 
 
 
@@ -337,7 +329,14 @@ class Node(object):
             if isinstance(child, Node):
                 texts.append(child.display(color, indent + 2))
             else:
-                texts.append('%s  - text: %s' % (indent*' ', repr(child.split('\n')[0])))
+                lines = child.split('\n')
+                text = lines[0]
+                if len(lines) > 1:
+                    text += ' [...]'
+                text = repr(text)
+                if color:
+                    text = self.green(text)
+                texts.append('%s  - text: %s' % (indent*' ', text))
         return '\n'.join(texts)
 
     def _format(self, val, color):
@@ -358,8 +357,8 @@ class Node(object):
     #~ def red(self, s):
         #~ return '\033[0;31m' + s + '\033[0m'
 #~
-    #~ def green(self, s):
-        #~ return '\033[0;32m' + s + '\033[0m'
+    def green(self, s):
+        return '\033[0;32m' + s + '\033[0m'
 #~
     #~ def green2(self, s):
         #~ return '\033[1;32m' + s + '\033[0m'
@@ -380,6 +379,14 @@ class Node(object):
 
 
 class SyntaxTreeGenerator(object):
+    # For each tag, indicate:
+    #   1. The number of arguments.
+    #   2. If the tag opens a block, a list of all the tags closing the block.
+    #
+    #  Notice that by default, the tag closing the block will not be consumed.
+    #  This means that the same tag will be parsed again to open or close another block.
+    #  To consume the closing tag, prefix the tag name with the '@' symbol.
+    #  This is usually the wished behaviour for #END tag.
     tags = {'ASSERT':       (1, None),
             'CASE':         (1, ['CASE', 'ELSE', '@END']),
             'COMMENT':      (0, ['@END']),
@@ -434,22 +441,29 @@ class SyntaxTreeGenerator(object):
 
     def _parse(self, node, text):
         position = 0
-        #~ number_of_args = 0
         node._closing_tags = []
+
         while True:
+            # --------------
+            # Find next tag.
+            # --------------
+            # A tag starts with '#'.
             last_position = position
             position = tag_position = text.find('#', position)
             if position == -1:
+                # No tag anymore.
                 break
             position += 1
             for tag in self.sorted_tags:
                 if text[position:].startswith(tag):
+                    # This look like we found a tag.
                     if position + len(tag) == len(text):
-                        # Last text character reached.
+                        # Last text character reached -> yes, tag found !
                         position += len(tag)
                         break
                     next_character = text[position + len(tag)]
                     if not(next_character == '_' or next_character.isalnum()):
+                        # Next character is not alphanumeric -> yes, tag found !
                         position += len(tag)
                         break
             else:
@@ -461,6 +475,9 @@ class SyntaxTreeGenerator(object):
                     # Default tag name is EVAL.
                     tag = 'EVAL'
 
+            # ------------------------
+            # Deal with new found tag.
+            # ------------------------
 
             node.add_child(text[last_position:tag_position])
 
@@ -472,8 +489,16 @@ class SyntaxTreeGenerator(object):
                 node = node.parent
                 continue
 
+            # Don't parse #PYTHON ... #END content.
+            if tag == 'PYTHON':
+                end = text.index('#END', position)
+                # Create and enter new node.
+                node = node.add_child(Node(tag))
+                node.add_child(text[position:end])
+                node = node.parent
+                position = end + 4
             # Tag #END is not a true tag: it doesn't correspond to any command.
-            if tag != 'END':
+            elif tag != 'END':
                 # Create and enter new node.
                 node = node.add_child(Node(tag))
                 # Detect command optional argument.
