@@ -6,7 +6,7 @@ import sys
 #~ print sys.path
 sys.path.append('..')
 
-from ptyx2 import SyntaxTreeGenerator, find_closing_bracket
+from ptyx2 import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket
 from testlib import assertEq
 
 def test_find_closing_bracket():
@@ -15,7 +15,8 @@ def test_find_closing_bracket():
 
 def test_syntax_tree():
     text = "#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END"
-    s = SyntaxTreeGenerator(text)
+    s = SyntaxTreeGenerator()
+    s.parse(text)
     tree = \
 """+ Node ROOT
   + Node IF
@@ -38,3 +39,14 @@ def test_syntax_tree():
     - text: ' !'"""
     assertEq(s.syntax_tree.display(color=False), tree)
 
+def test_latex_code_generator():
+    test = "#{variable=3;b=1;}#{a=2}#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END ok"
+    g = LatexGenerator()
+    g.parse(test)
+    assertEq(g.read(), '2some text here ok')
+
+
+
+
+# À TESTER :
+# "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> voir si 'message 3' s'affiche bien.

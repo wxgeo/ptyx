@@ -305,7 +305,6 @@ class Node(object):
         self.parent = None
         self.name = name
         self.options = None
-        #~ self.args = []
         self.children = []
 
     def add_child(self, child):
@@ -315,6 +314,22 @@ class Node(object):
         if isinstance(child, Node):
             child.parent = self
         return child
+
+    #~ @property
+    #~ def content(self):
+        #~ if len(self.children) != 1:
+            #~ raise ValueError, "Ambiguous: node has several subnodes."
+        #~ return self.children[0]
+
+    def arg(self, i):
+        u"Return argument number i content."
+        child = self.children[i]
+        if child.name != i:
+            raise ValueError, 'Incorect argument number.'
+        if len(child.children) != 1:
+            raise ValueError, ("Don't use pTyX code inside %s argument number %s." % (self.name, i + 1))
+        return child.children[0]
+
 
     def display(self, color=True, indent=0):
         texts = ['%s+ Node %s' % (indent*' ', self._format(self.name, color))]
@@ -337,25 +352,30 @@ class Node(object):
     def blue(self, s):
         return '\033[0;36m' + s + '\033[0m'
 
-    def blue2(self, s):
-        return '\033[1;36m' + s + '\033[0m'
-
-    def red(self, s):
-        return '\033[0;31m' + s + '\033[0m'
-
-    def green(self, s):
-        return '\033[0;32m' + s + '\033[0m'
-
-    def green2(self, s):
-        return '\033[1;32m' + s + '\033[0m'
-
+    #~ def blue2(self, s):
+        #~ return '\033[1;36m' + s + '\033[0m'
+#~
+    #~ def red(self, s):
+        #~ return '\033[0;31m' + s + '\033[0m'
+#~
+    #~ def green(self, s):
+        #~ return '\033[0;32m' + s + '\033[0m'
+#~
+    #~ def green2(self, s):
+        #~ return '\033[1;32m' + s + '\033[0m'
+#~
     def yellow(self, s):
         return '\033[0;33m' + s + '\033[0m'
+#~
+    #~ def white(self, s):
+        #~ return '\033[1;37m' + s + '\033[0m'
 
-    def white(self, s):
-        return '\033[1;37m' + s + '\033[0m'
 
 
+
+#TODO:
+# #PYTHON...#END content should not be parsed.
+# (No need to parse #COMMENT...#END content too).
 
 
 
@@ -400,12 +420,19 @@ class SyntaxTreeGenerator(object):
     # This is used for matching tests.
     sorted_tags = sorted(tags, key=len,reverse=True)
 
-    def __init__(self, text):
-        #~ self.syntax_tree = ['ROOT', None, []]
-        self.syntax_tree = Node('ROOT')
-        self.parse(self.syntax_tree, text)
 
-    def parse(self, node, text):
+    def parse(self, text):
+        u"""Parse pTyX code and generate a syntax tree.
+
+        :param text: some pTyX code.
+        :type text: string
+
+        .. note:: To access generated syntax tree, use `.syntax_tree` attribute.
+        """
+        self.syntax_tree = Node('ROOT')
+        self._parse(self.syntax_tree, text)
+
+    def _parse(self, node, text):
         position = 0
         #~ number_of_args = 0
         node._closing_tags = []
@@ -453,7 +480,7 @@ class SyntaxTreeGenerator(object):
                 # XXX: tolerate \n and spaces before bracket.
                 if text[position] == '[':
                     end = find_closing_bracket(text, position + 1, brackets='[]')
-                    new_node.options = text[position + 1:end]
+                    node.options = text[position + 1:end]
                     position = end + 1
                 # Detect command arguments.
                 # Each argument become a node with its number as name.
@@ -468,11 +495,11 @@ class SyntaxTreeGenerator(object):
                         while end < len(text) and text[end].isalnum():
                             end += 1
                         new_pos = end
-                    # Each argument is a node itself.
-                    # Nodes corresponding to commands arguments have no name,
+                    # Each argument of a command is a node itself.
+                    # Nodes corresponding to arguments have no name,
                     # but are numbered instead.
                     arg = node.add_child(Node(i))
-                    self.parse(arg, text[position:end])
+                    self._parse(arg, text[position:end])
                     position = new_pos
                 if closing_tags is None:
                     # Quit node (tag is self-closing).
@@ -490,26 +517,32 @@ class SyntaxTreeGenerator(object):
 
 class LatexGenerator(object):
 
-    def __init__(self, context):
-        self.content = []
-        self.context = context
-        self.context['LATEX'] = []
+    convert_tags = {'+': 'ADD', '-': 'SUB', '*': 'MUL', '=': 'EQUAL', '?': 'SIGN'}
+
+    def __init__(self):
+        self.parser = SyntaxTreeGenerator()
+        self.clear()
+
+    def clear(self):
         self.macros = {}
+        self.context = global_context.copy()
+        self.context['LATEX'] = []
+        # When write() is called from inside a #PYTHON ... #END code block,
+        # its argument may contain pTyX code needing parsing.
+        self.context['write'] = partial(self.write, parse=True)
+        # Internal flags
+        self.flags = {}
+
+    def parse(self, text):
+        self.parser.parse(text)
+        self.parse_node(self.parser.syntax_tree)
 
     @property
     def NUM(self):
         return self.context.get('NUM', 0)
 
-    #~ def parse(self, item):
-        #~ if isinstance(item, list):
-            #~ self.parse_block(item)
-        #~ else:
-            #~ self.parse_plain(item)
 
-    def parse_text(self, text):
-        pass
-
-    def parse_node(self, tag, args, content):
+    def parse_node(self, node):
         u"""Parse a node in a pTyX syntax tree.
 
         Return True if block content was recursively parsed, and False else.
@@ -517,144 +550,256 @@ class LatexGenerator(object):
         In particular, when parsing an IF block, True will be returned if and
         only if the block condition was satisfied.
         """
+        tag = self.convert_tags.get(node.name, node.name)
         try:
-            return getattr(self, 'parse_%s_block' % tag)(args, content)
+            method = getattr(self, 'parse_%s_tag' % tag)
         except AttributeError:
-            print("Warning: method 'parse_%s_block' not found" % tag)
+            print("Warning: method 'parse_%s_tag' not found" % tag)
+        return method(node)
 
-
-    def parse_content(self, content, function=None, **options):
+    def parse_children(self, children, function=None, **options):
         if function is not None:
+            # Store generated text in a temporary location, instead of self.context['LATEX'].
+            # Function `function` will then be applied to this text,
+            # before text is appended to self.context['LATEX'].
             backup = self.context['LATEX']
             self.context['LATEX'] = []
 
-        last_item_tag = None
-        for item in content:
-            if isinstance(item, basestring):
-                self.write(self.parse_text(item))
-                last_item_tag = None
+        if_state = case_state = False
+        for child in children:
+            if isinstance(child, basestring):
+                self.write(child)
+                if_state = case_state = False
             else:
-                assert isinstance(item, list) and len(item) >= 2
-                item_tag, item_arg = item[0:2]
-                item_content = item[2:]
-                # If an IF or ELIF block was executed, all successive ELIF
-                # or ELSE blocks must be skipped.
-                if last_item_tag in ('IF', 'ELIF') and item_tag in ('ELIF', 'ELSE'):
-                    continue
-                if last_item_tag == 'CASE' and item_tag in ('CASE', 'ELSE'):
-                    continue
-                block_parsed = self.parse_block(item_tag, item_arg, item_content)
-                if block_parsed or item_tag not in ('IF', 'ELIF', 'CASE'):
-                    # item block was processed.
-                    # (A non processed block is typically an IF or CASE block whose condition was not satisfied).
-                    last_item_tag = item_tag
+                # All remaining children should be nodes now.
+                assert isinstance(child, Node)
+                child_name = child.name
+                # Nodes are either numbered, or have a name.
+                # Numbered nodes correspond to command arguments. Those should
+                # have been processed before, and not be passed to parse_children().
+                assert isinstance(child_name, basestring)
+
+                # If an IF or ELIF node was processed, all successive ELIF
+                # or ELSE nodes must be skipped.
+                # So, once an IF or ELIF node is processed, `if_state` is set to True,
+                # to indicate that next ELIF or ELSE nodes must be skipped.
+                # (The same for CASE.)
+                if child_name == 'IF':
+                    if_state = self.parse_node(child)
+                elif child_name == 'ELIF':
+                    # Don't process ELIF node if previous IF node was processed.
+                    if if_state:
+                        continue
+                    if_state = self.parse_node(child)
+                elif child_name == 'ELSE':
+                    # Don't process ELSE node if previous IF or CASE node was processed.
+                    if if_state or case_state:
+                        continue
+                elif child_name == 'CASE':
+                    if case_state:
+                        continue
+                    case_state = self.parse_node(child)
+                else:
+                    self.parse_node(child)
+
+                # Initialize case_state and if_state
+                if child_name != 'CASE':
+                    case_state = False
+                if child_name not in ('IF', 'ELIF'):
+                    if_state = False
 
             if function is not None:
                 code = function(''.join(self.context['LATEX']), **options)
                 self.context['LATEX'] = backup
                 self.write(code)
-        return True
 
-    def parse_options(self, arg):
+
+    def parse_options(self, node):
         u'Parse a tag options, following the syntax {key1=val1,...}.'
-        options_list = arg.split(',')
-        options = {}
-        for option in options_list:
-            key, val = option.split('=')
-            options[key] = eval(val, self.context)
-        return options
+        options = node.options
+        args = []
+        kw = {}
+        if options is not None:
+            options_list = options.split(',')
+            for option in options_list:
+                if '=' in option:
+                    key, val = option.split('=')
+                    kw[key.strip()] = val.strip()
+                else:
+                    args.append(option.strip())
+        return args, kw
 
-    def write(self, text):
-        self.context['LATEX'].append(text)
+
+    def write(self, text, parse=False):
+        u"""Append a piece of LaTeX text to context['LATEX'].
+
+        :param text: a block of text, which may contain pTyX code.
+        :type text: string
+        :param parse: indicate text have to be parsed.
+        :type parse: bool
+
+        .. note:: Param `parse` defaults to False, since in most cases text is already
+                  parsed at this state.
+                  As an exception, when called from inside a #PYTHON [...] #END
+                  code block, write() may be applied to unparsed text.
+        """
+        # Parsing at this stage is quite expansive yet unnecessary most of the time,
+        # so some basic testing is done before.
+        if parse and '#' in text:
+            if param['debug']:
+                print('Parsing %s...' % repr(text))
+            self.parse(text)
+        else:
+            self.context['LATEX'].append(text)
 
 
-    def parse_IF_tag(self, args, content):
-        test = eval(args[0], self.context)
+
+    def read(self):
+        return ''.join(self.context['LATEX'])
+
+    def parse_IF_tag(self, node):
+        test = eval(node.arg(0), self.context)
         if test:
-            self.parse_content(content)
+            self.parse_children(node.children[1:])
         return test
 
     parse_ELIF_tag = parse_IF_tag
 
-    def parse_CASE_tag(self, args, content):
-        test = eval(args[0], self.context) == self.NUM
+    def parse_ELSE_tag(self, node):
+        self.parse_children(node.children)
+
+    def parse_IFNUM_tag(self, node):
+        if eval(node.arg(0), self.context) == self.NUM:
+            self.parse_children(node.children[1:])
+
+    def parse_CASE_tag(self, node):
+        test = eval(node.arg(0), self.context) == self.NUM
         if test:
-            self.parse_content(content)
+            self.parse_children(node.children[1:])
         return test
 
-    def parse_PYTHON_tag(self, args, content):
-        assert isinstance(content, basestring)
-        self._exec_python_code(content, self.context)
+    def parse_PYTHON_tag(self, node):
+        assert len(node.children == 1)
+        python_code = node.children[0]
+        assert isinstance(python_code, basestring)
+        self._exec_python_code(python_code, self.context)
 
     #Remove comments before generating tree ?
-    def parse_COMMENT_tag(self, arg, content):
+    def parse_COMMENT_tag(self, node):
         pass
 
-    def parse_ASSERT_tag(self, args, content):
-        assert not content
-        test = eval(args[0], self.context)
+    def parse_ASSERT_tag(self, node):
+        code = node.arg(0)
+        test = eval(code, self.context)
         if not test:
             print "Error in assertion (NUM=%s):" % self.NUM
             print "***"
             print code
             print "***"
             assert test
-            assert False
 
-    def parse_NEW_MACRO_tag(self, arg, content):
-        name = args[0]
-        self.macros[name] = content
+    def parse_EVAL_tag(self, node):
+        args, kw = self.parse_options(node)
+        for arg in args:
+            if arg.isdigit():
+                self.flags['round'] = int(arg)
+            elif arg == 'float':
+                self.flags['float'] = True
+            else:
+                raise ValueError, ('Unknown flag: ' + repr(arg))
+        # XXX: support options round, float, (sympy, python,) pick and rand
+        code = node.arg(0)
+        assert isinstance(code, basestring), type(code)
+        self.write(self._eval_python_expr(code))
+        self.flags.clear()
 
-    def parse_MACRO_tag(self, args, content):
-        name = args[0]
+    def parse_NEW_MACRO_tag(self, node):
+        name = node.arg(0)
+        self.macros[name] = node.children[1:]
+
+    def parse_MACRO_tag(self, node):
+        name = node.arg(0)
         if name not in self.macros:
             raise NameError, ('Error: MACRO "%s" undefined.' % name)
-        self.parse_content(self.macros[name])
+        self.parse_children(self.macros[name])
 
-    def parse_SHUFFLE_tag(self, args, content):
-        content = random.shuffle(content)
-        self.parse_content(content)
+    def parse_SHUFFLE_tag(self, node):
+        children = random.shuffle(node.children)
+        self.parse_children(children)
 
-    def parse_ITEM_tag(self, args, content):
-        self.parse_content(content)
+    def parse_ITEM_tag(self, node):
+        self.parse_children(node.children)
 
-    def parse_SEED_tag(self, args, content):
-        assert not content
+    def parse_SEED_tag(self, node):
         if self.NUM == 0:
-            random.seed(int(args[0]))
+            random.seed(int(node.arg(0)))
 
-    def parse_PICK_tag(self, args, content):
-        assert not content
-        varname, values = args[0].split('=')
-        values = values.split(',')
-        self.context[varname.strip] = values[self.NUM%len(values)]
+    #~ def parse_PICK_tag(self, node):
+        #~ assert len(node.children) == 1
+        #~ varname, values = node.children[0].split('=')
+        #~ values = values.split(',')
+        #~ self.context[varname.strip] = values[self.NUM%len(values)]
 
-    def parse_TABVAL_tag(self, args, content):
+    def parse_PICK_tag(self, node):
+        self.flags['pick'] = True
+        self.parse_EVAL_tag(self, node)
+
+    def parse_RAND_tag(self, node):
+        self.flags['rand'] = True
+        self.parse_EVAL_tag(self, node)
+
+    def parse_ROOT_tag(self, node):
+        self.parse_children(node.children)
+
+    def parse_TABVAL_tag(self, node):
         from wxgeometrie import tabval
-        options = self.parse_options(args[0])
-        self.parse_content(content, function=tabval, **options)
+        options = self.parse_options(node.options)
+        self.parse_children(node.children, function=tabval, **options)
 
-    def parse_TABVAR_tag(self, args, content):
+    def parse_TABVAR_tag(self, node):
         from wxgeometrie import tabvar
-        options = self.parse_options(args[0])
-        self.parse_content(content, function=tabvar, **options)
+        options = self.parse_options(node.options)
+        self.parse_children(node.children, function=tabvar, **options)
 
-    def parse_TABSIGN_tag(self, args, content):
+    def parse_TABSIGN_tag(self, node):
         from wxgeometrie import tabsign
-        options = self.parse_options(args[0])
-        self.parse_content(content, function=tabsign, **options)
+        options = self.parse_options(node.options)
+        self.parse_children(node.children, function=tabsign, **options)
 
-    def parse_TEST_tag(self, args, content):
-        if eval(args[0], self.context):
-            self.parse_content(args[1])
+    def parse_TEST_tag(self, node):
+        if eval(node.arg(0), self.context):
+            self.parse_children(node.children[1:])
 
+    def parse_ADD_tag(self, node):
+        self.flags['+'] = True
 
+    def parse_SUB_tag(self, node):
+        self.flags['-'] = True
 
+    def parse_MUL_tag(self, node):
+        self.flags['*'] = True
 
+    def parse_EQUAL_tag(self, node):
+        self.flags['='] = True
+        self.write('#=')
 
+    def parse_SIGN_tag(self, node):
+        last_value = self.context['_']
+        if last_value > 0:
+            self.write('>0')
+        elif last_value < 0:
+            self.write('<0')
 
+    def parse_SYMPY_tag(self, node):
+        raise NotImplementedError
 
-    def _exec(code, context):
+    def parse_GEO_tag(self, node):
+        raise NotImplementedError
+
+    def parse_DEBUG_tag(self, node):
+        raise NotImplementedError
+
+    def _exec(self, code, context):
         u"""exec is encapsulated in this function so as to avoid problems
         with free variables in nested functions."""
         try:
@@ -667,9 +812,7 @@ class LatexGenerator(object):
             print "-----"
             raise
 
-
-
-    def _exec_python_code(code, context):
+    def _exec_python_code(self, code, context):
         code = code.replace('\r', '')
         code = code.rstrip().lstrip('\n')
         # Indentation test
@@ -677,69 +820,134 @@ class LatexGenerator(object):
         if initial_indent:
             # remove initial indentation
             code = '\n'.join(line[initial_indent:] for line in code.split('\n'))
-        _exec(code, context)
+        self._exec(code, context)
         return code
 
-"IFNUM|SYMPY|RAND|GEO|SIGN|DEBUG|[-+*=?])"
-                #           #RAND[option,int]{code} or #SEL[option,int]{code} or #[option,int]{code}
-                #           #varname or #[option,int]varname
+
+    def _eval_python_expr(self, code):
+        flags = self.flags
+        context = self.context
+        if not code:
+            return ''
+        sympy_code = flags.get('sympy', param['sympy_is_default'])
+
+        # Special shortcuts
+        display_result = True
+        # If code ends with ';', the result will not be included in the LaTeX file.
+        # So, #{5;} will affect 5 to _, but will not display 5 on final document.
+        if code[-1] == ';':
+            code = code[:-1]
+            display_result = False
+
+        if ';' in code:
+            for subcode in code.split(';'):
+                result = self._eval_python_expr(subcode)
+                # Only last result will be displayed
+        else:
+            if sympy_code and sympy is None:
+                raise ImportError, 'sympy library not found.'
+            varname = ''
+            i = code.find('=')
+            if i != -1 and len(code) > i + 1 and code[i + 1] != '=':
+                varname = code[:i].strip()
+                code = code[i + 1:]
+            # Last value will be accessible through '_' variable
+            if not varname:
+                varname = '_'
+            if ' if ' in code and not ' else ' in code:
+                code += " else ''"
+            if sympy_code:
+                try:
+                    result = sympy.sympify(code, locals = context)
+                    if isinstance(result, basestring):
+                        result = result.replace('**', '^')
+                except (SympifyError, AttributeError):
+                    # sympy.sympify() can't parse attributes and methods inside
+                    # code for now (AttributeError is raised then).
+                    sympy_code = False
+                    print('Warning: sympy error. Switching to standard evaluation mode.')
+                except Exception:
+                    print("Uncatched error when evaluating %s" % repr(code))
+                    raise
+            if not sympy_code:
+                result = eval(code, context)
+            i = varname.find('[')
+            # for example, varname == 'mylist[i]' or 'mylist[2]'
+            if i == -1:
+                _ = context[varname] = result = self._apply_flag(result)
+            else:
+                key = eval(varname[i+1:-1], context)
+                varname = varname[:i]
+                _ = context[varname][key] = result = self._apply_flag(result)
+            context['_']  = _
+
+        if not display_result:
+            return ''
+        if sympy_code:
+            latex = print_sympy_expr(result, **flags)
+        else:
+            latex = str(result)
+
+        def neg(latex):
+            return latex.lstrip()[0] == '-'
+
+        if flags.get('+'):
+            if not neg(latex):
+                latex = '+' + latex
+        elif flags.get('*'):
+            if neg(latex):
+                latex = r'\left(' + latex + r'\right)'
+            latex = r'\times ' + latex
+        elif flags.get('-'):
+            if neg(latex):
+                latex = r'\left(' + latex + r'\right)'
+            latex = '-' + latex
+        elif flags.get('='):
+            if flags.get('result_is_exact'):
+                symb = ' = '
+            else:
+                symb = r' \approx '
+            # Search backward for temporary `#=` marker in list, and replace
+            # by appropriate symbol.
+            textlist = context['LATEX']
+            for i, elt in enumerate(reversed(textlist)):
+                if elt == '#=':
+                    textlist[len(textlist) - i - 1] = symb
+                    break
+            else:
+                print("Debug warning: `#=` couldn't be found when scanning context !")
+        return latex
 
 
+    def _apply_flag(self, result):
+        '''Apply [num] and [rand] special parameters to result.
+
+        Note that both parameters require that result is iterable, otherwise, nothing occures.
+        If result is iterable, an element of result is returned, choosed according to current flag.'''
+        flags = self.flags
+        context = self.context
+        if  hasattr(result, '__iter__'):
+            if flags.get('rand', False):
+                result = random.choice(result)
+            elif flags.get('select', False):
+                result = result[context['NUM']%len(result)]
+        if flags.has_key('round'):
+            try:
+                round_result = round(result, flags['round'])
+            except ValueError:
+                print "** ERROR while rounding value: **"
+                print result
+                print "-----"
+                print ''.join(self.context['LATEX'])[-100:]
+                print "-----"
+                raise
+            flags['result_is_exact'] = (result == round_result)
+            result = round_result
+        else:
+            context.result_is_exact = True
+        return result
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-def _apply_flag(result, context, **flags):
-    '''Apply [num] and [rand] special parameters to result.
-
-    Note that both parameters require that result is iterable, otherwise, nothing occures.
-    If result is iterable, an element of result is returned, choosed according to current flag.'''
-    if  hasattr(result, '__iter__'):
-        if flags.get('rand', False):
-            result = random.choice(result)
-        elif flags.get('select', False):
-            result = result[context['NUM']%len(result)]
-    if flags.has_key('round'):
-        try:
-            round_result = round(result, flags['round'])
-        except ValueError:
-            print "** ERROR while rounding value: **"
-            print result
-            print "-----"
-            print ''.join(context['POINTER'])[-100:]
-            print "-----"
-            raise
-        context.result_is_exact = (result == round_result)
-        result = round_result
-    else:
-        context.result_is_exact = True
-    return result
-
-
-#~ def _eval_sympy_expr(code, context, flag = None):
-    #~ if sympy is None:
-        #~ raise ImportError, 'sympy library not found.'
-    #~ varname = ''
-    #~ i = code.find('='):
-    #~ if i != -1 and len(code) > i + 1 and code[i + 1] != '=':
-        #~ varname = code[:i]
-        #~ code = code[i + 1:]
-    #~ if not varname:
-        #~ varname = '_'
-    #~ result = sympy.sympify(code, locals = context)
-    #~ result = _apply_flag(result, flag)
-    #~ context[varname] = result
-    #~ return sympy.latex(result)[1:-1]
 
 
 def print_sympy_expr(expr, **flags):
@@ -770,114 +978,13 @@ def print_sympy_expr(expr, **flags):
     latex = latex.replace(r'\operatorname{log}', r'\operatorname{ln}')
     return latex
 
+
 global_context['latex'] = print_sympy_expr
 
 if sympy is not None:
     sympy.Basic.__str__ = print_sympy_expr
 
 
-def _eval_python_expr(code, context, **flags):
-    if not code:
-        return ''
-    sympy_code = flags.get('sympy', param['sympy_is_default'])
-
-    # Special shortcuts
-    display_result = True
-    # If code ends with ';', the result will not be included in the LaTeX file.
-    # So, #{5;} will affect 5 to _, but will not display 5 on final document.
-    if code[-1] == ';':
-        code = code[:-1]
-        display_result = False
-
-    if ';' in code:
-        for subcode in code.split(';'):
-            result = _eval_python_expr(subcode, context, **flags)
-            # Only last result will be displayed
-    else:
-        if sympy_code and sympy is None:
-            raise ImportError, 'sympy library not found.'
-        varname = ''
-        i = code.find('=')
-        if i != -1 and len(code) > i + 1 and code[i + 1] != '=':
-            varname = code[:i].strip()
-            code = code[i + 1:]
-        # Last value will be accessible through '_' variable
-        if not varname:
-            varname = '_'
-        if ' if ' in code and not ' else ' in code:
-            code += " else ''"
-        if sympy_code:
-            try:
-                result = sympy.sympify(code, locals = context)
-                if isinstance(result, basestring):
-                    result = result.replace('**', '^')
-            except (SympifyError, AttributeError):
-                # sympy.sympify() can't parse attributes and methods inside
-                # code for now (AttributeError is raised then).
-                sympy_code = False
-                print('Warning: sympy error. Switching to standard evaluation mode.')
-            except Exception:
-                print("Uncatched error when evaluating %s" % repr(code))
-                raise
-        if not sympy_code:
-            result = eval(code, context)
-        i = varname.find('[')
-        # for example, varname == 'mylist[i]' or 'mylist[2]'
-        if i == -1:
-            context[varname] = result = _apply_flag(result, context, **flags)
-        else:
-            key = eval(varname[i+1:-1], context)
-            varname = varname[:i]
-            context[varname][key] = result = _apply_flag(result, context, **flags)
-
-
-    if not display_result:
-        return ''
-    if sympy_code:
-        latex = print_sympy_expr(result, **flags)
-    else:
-        latex = str(result)
-
-
-    def neg(latex):
-        return latex.lstrip()[0] == '-'
-
-    if context.op_mode:
-        mode = context.op_mode
-        context.op_mode = None
-        if mode == '+':
-            if not neg(latex):
-                latex = '+' + latex
-        elif mode == '*':
-            if neg(latex):
-                latex = r'\left(' + latex + r'\right)'
-            latex = r'\times ' + latex
-        elif mode == '-':
-            if neg(latex):
-                latex = r'\left(' + latex + r'\right)'
-            latex = '-' + latex
-        elif mode == '?':
-            if result == 0:
-                latex += '=0'
-            elif result > 0:
-                latex += '>0'
-            else:
-                latex += '<0'
-        elif mode == '=':
-            if context.result_is_exact:
-                symb = ' = '
-            else:
-                symb = r' \approx '
-            # Search backward for temporary `None` marker in list, and replace
-            # by appropriate symbol.
-            textlist = context['POINTER']
-            for i, elt in enumerate(reversed(textlist)):
-                if elt is None:
-                    textlist[len(textlist) - i - 1] = symb
-                    break
-            else:
-                print("Debug warning: `None` couldn't be found when scanning context !")
-    return latex
 
 
 
