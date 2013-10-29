@@ -16,6 +16,13 @@ def test_find_closing_bracket():
 
 def test_syntax_tree():
     s = SyntaxTreeGenerator()
+    text = 'hello world !'
+    s.parse(text)
+    tree = \
+"""+ Node ROOT
+  - text: 'hello world !'"""
+    assertEq(s.syntax_tree.display(color=False), tree)
+
     text = "#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END"
     s.parse(text)
     tree = \
