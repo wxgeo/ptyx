@@ -80,7 +80,7 @@ except ImportError:
 try:
     import wxgeometrie
     try:
-        from wxgeometrie.modules import tablatex
+        #~ from wxgeometrie.modules import tablatex
         from wxgeometrie.mathlib.printers import custom_latex
     except ImportError:
         print("WARNING: current wxgeometrie version is not compatible.")
@@ -372,11 +372,6 @@ class Node(object):
 
 
 
-#TODO:
-# #PYTHON...#END content should not be parsed.
-# (No need to parse #COMMENT...#END content too).
-
-
 
 class SyntaxTreeGenerator(object):
     # For each tag, indicate:
@@ -537,10 +532,18 @@ class SyntaxTreeGenerator(object):
 
 
 
+# XXX: Currently, ptyx files are opened as string, not as unicode.
+# Pro:
+# - Ptyx doesn't have to be encoding aware (no need to specify encoding before proceeding).
+# Contra:
+# - Python variables defined in a ptyx file must not contain unicode context.
+# - This will break in Python 3+.
+# TODO: Use unicode instead. Autodetect encoding on Linux (`file --mime-encoding FILENAME`).
 
 
 
 class LatexGenerator(object):
+    u"""Convert text containing ptyx tags to plain LaTeX."""
 
     convert_tags = {'+': 'ADD', '-': 'SUB', '*': 'MUL', '=': 'EQUAL', '?': 'SIGN'}
 
@@ -559,6 +562,11 @@ class LatexGenerator(object):
         self.flags = {}
 
     def parse(self, text):
+        u"""Convert text containing ptyx tags to plain LaTeX.
+
+        :param text: a pTyX file content, to be converted to plain LaTeX.
+        :type text: str
+        """
         self.parser.parse(text)
         self.parse_node(self.parser.syntax_tree)
 
@@ -777,17 +785,17 @@ class LatexGenerator(object):
         self.parse_children(node.children)
 
     def parse_TABVAL_tag(self, node):
-        from wxgeometrie import tabval
+        from wxgeometrie.modules.tablatex import tabval
         options = self.parse_options(node.options)
         self.parse_children(node.children, function=tabval, **options)
 
     def parse_TABVAR_tag(self, node):
-        from wxgeometrie import tabvar
+        from wxgeometrie.modules.tablatex import tabvar
         options = self.parse_options(node.options)
         self.parse_children(node.children, function=tabvar, **options)
 
     def parse_TABSIGN_tag(self, node):
-        from wxgeometrie import tabsign
+        from wxgeometrie.modules.tablatex import tabsign
         options = self.parse_options(node.options)
         self.parse_children(node.children, function=tabsign, **options)
 
@@ -796,19 +804,33 @@ class LatexGenerator(object):
             self.parse_children(node.children[1:])
 
     def parse_ADD_tag(self, node):
+        # a '+' will be displayed at the beginning of the next result if positive ;
+        # if result is negative, nothing will be done, and if null, no result at all will be displayed.
         self.flags['+'] = True
 
     def parse_SUB_tag(self, node):
+        # a '-' will be displayed at the beginning of the next result, and the result
+        # will be embedded in parenthesis if negative.
         self.flags['-'] = True
 
     def parse_MUL_tag(self, node):
+        # a '\times' will be displayed at the beginning of the next result, and the result
+        # will be embedded in parenthesis if negative.
         self.flags['*'] = True
 
     def parse_EQUAL_tag(self, node):
+        # Display '=' or '\approx' when a rounded result is requested :
+        # if rounded is equal to exact one, '=' is displayed.
+        # Else, '\approx' is displayed instead.
         self.flags['='] = True
+        # All other operations (#+, #-, #*) occur just before number, but between `=` and
+        # the result, some formating instructions may occure (like '\fbox{' for example).
+        # So, `#=` is used as a temporary marker, and will be replaced by '=' or '\approx' later.
         self.write('#=')
 
     def parse_SIGN_tag(self, node):
+        # '>0' or '<0' will be displayed after the next result, depending on it's sign.
+        # (If result is zero, this won't do anything.)
         last_value = self.context['_']
         if last_value > 0:
             self.write('>0')
@@ -822,7 +844,12 @@ class LatexGenerator(object):
         raise NotImplementedError
 
     def parse_DEBUG_tag(self, node):
-        raise NotImplementedError
+        while True:
+            command = raw_input('Debug point. Enter command, or quit (q! + ENTER):')
+            if command == 'q!':
+                break
+            else:
+                print(eval(command, self.context))
 
     def _exec(self, code, context):
         u"""exec is encapsulated in this function so as to avoid problems
@@ -1010,323 +1037,19 @@ if sympy is not None:
     sympy.Basic.__str__ = print_sympy_expr
 
 
+latex_generator = LatexGenerator()
 
 
-
-
-
-
-def convert_ptyx_to_latex(text, context=None, clear_text=True):
-    u"""Convert text containing ptyx tags to plain LaTeX.
-
-    :param text: a pTyX file content, to be converted to plain LaTeX.
-    :type text: str
-    :param context: current space name.
-                    Nota: parsed text blocks are stored in context['POINTER'].
-    :type context: dict or None
-    :param clear_text: reset context['POINTER'] to [].
-    :type clear_text: bool
-    :rtype: string
-    """
-    # XXX: Currently, ptyx files are opened as string, not as unicode.
-    # Pro:
-    # - Ptyx doesn't have to be encoding aware (no need to specify encoding before proceeding).
-    # Contra:
-    # - Python variables defined in a ptyx file must not contain unicode context.
-    # - This will break in Python 3+.
-    # TODO: Use unicode instead. Autodetect encoding on Linux (`file --mime-encoding FILENAME`).
-    if context is None:
-        context = global_context.copy()
-    if clear_text:
-        context['DOCUMENT-ROOT'] = []
-        context['POINTER'] = context['DOCUMENT-ROOT']
-
-    def write(block, context=context, parse=False):
-        u"""Append a block of text to context['POINTER'].
-
-        :param block: a block of (usually parsed) text, or a list of such blocks.
-        :type block: string or list
-        :param context: current name space.
-        :type context: bool
-        :param parse: indicate text have to be parsed.
-        :type parse: bool
-
-        .. note:: Param `parse` defaults to False, since in most cases text is already
-                  parsed at this state.
-                  As an exception, when called from inside a #PYTHON [...] #END bloc,
-                  write() may be applied to unparsed text.
-
-        .. note:: `block` is a string of parsed text, or a (possibly nested) list of strings.
-                  Lists are generared by #SHUFFLE #ITEM [...] [#ITEM [...]...] #END structures.
-        """
-        assert isinstance(block, (basestring, list))
-        if parse and isinstance(block, basestring) and '#' in block:
-            if param['debug']:
-                print('Parsing %s...' % repr(block))
-            convert_ptyx_to_latex(block, context=context, clear_text=False)
-        else:
-            context['POINTER'].append(block)
-
-    context['write'] = partial(write, parse=True)
-    tree = ['root']
-    conditions = [True]
-
-    while True:
-        if tree[-1] in ('SYMPY', 'PYTHON', 'TABVAR', 'TABSIGN', 'TABVAL'):
-            # Those tags don't support nested tags.
-            name = 'END'
-            start = text.find('#END')
-            if start == -1:
-                raise SyntaxError, ('#END not found while parsing #%s bloc !' % tree[-1])
-            end = start + 4
-        else:
-            m = re.search(RE_PTYX_TAGS, text)
-            if m is None:
-                write(text)
-                break
-
-            flag = m.group('flag1') or m.group('flag2')
-            varname = m.group('varname')
-            name = m.group('name1') or m.group('name2') or m.group('name3') or m.group('name4') or m.group('name5')
-            num = m.group('num')
-            case = m.group('case')
-            cond = m.group('cond')
-            #~ op = m.group('op')
-            #~ cond_op = m.group('cond_op')
-            #~ context['POINTER'] += text[:m.start()]
-            #~ # By default, skip the balise
-            start = m.start()
-            end = m.end()
-
-        if param['debug']:
-            print('------')
-            print('#' + str(name))
-            print(repr(text[start:start + 30] + '...'))
-            _context = context.copy()
-            _context['__builtins__'] = None
-            _context.pop('write')
-            _context.pop('text')
-            _context.pop('NUM')
-            _context.pop('TOTAL')
-            print _context.keys()
-            print zip(tree, conditions)
-
-        if name == 'DEBUG':
-            while True:
-                command = raw_input('Debug point. Enter command, or quit (q! + ENTER):')
-                if command == 'q!':
-                    break
-                else:
-                    print(eval(command))
-
-        elif name == 'END':
-            condition = conditions.pop()
-            last_node = tree.pop()
-            # tree should contain ['root'] at least
-            assert tree, ('Error: lonely #END found after %s.' % repr(text[:start]))
-            if condition and all(conditions):
-                if last_node == 'PARAM':
-                    _exec_python_code(text[:start], param)
-                elif last_node in ('SYMPY', 'PYTHON'):
-                    context.auto_sympify = (last_node == 'SYMPY' )
-                    _exec_python_code(text[:start], context)
-                    context.auto_sympify = False
-                elif last_node in ('TABVAR', 'TABSIGN', 'TABVAL'):
-                    assert wxgeometrie is not None
-                    context_text_backup = context['POINTER']
-                    context['POINTER'] = []
-                    # We check if any options have to be passed to TABVAR, TABSIGN, TABVAL
-                    # Exemples:
-                    # TABSIGN[cellspace=True]
-                    # TABVAR[derivee=False,limites=False]
-                    m_opts = re.match(r'(\n| )*(\[|{)(?P<opts>[^]]+)(\]|})', text[:start])
-                    options = {}
-                    if m_opts:
-                        text = text[m_opts.end():]
-                        start -= m_opts.end()
-                        end -= m_opts.end()
-                        opts = m_opts.group('opts').split(',')
-                        for opt in opts:
-                            if '=' in opt:
-                                arg, val = opt.split('=', 1)
-                                options[arg] = eval(val, context)
-                    tbvcode = convert_ptyx_to_latex(text[:start], context).strip()
-                    context['POINTER'] = context_text_backup
-                    func = getattr(tablatex, last_node.lower())
-                    write(func(tbvcode, **options))
-                else:
-                    if param['debug']:
-                        print('------')
-                        print('WRITING (1):')
-                        print(text[:start])
-                    write(text[:start])
-
-        else:
-            if all(conditions):
-                if param['debug']:
-                    print('------')
-                    print('WRITING (2):')
-                    print(text[:start])
-                write(text[:start])
-            if name in ('-', '+', '*', '?', 'SIGN', '='):
-                if all(conditions):
-                    context.op_mode = name if name != 'SIGN' else '?'
-                    # All operations occur just before number, except for `=`.
-                    # Between `=` and the result, some formating instructions
-                    # may occure (like '\fbox{' for example).
-                    if name == '=':
-                        context['POINTER'].append(None)
-                        # `None` is used as a temporary marker, and will be
-                        # replaced by '=' or '\approx' later.
-                # Mode '+':
-                # a '+' will be displayed at the beginning of the next result if positive ;
-                # if result is negative, nothing will be done, and if null, no result at all will be displayed.
-                # Mode '*':
-                # a '\times' will be displayed at the beginning of the next result, and the result
-                # will be embedded in parenthesis if negative.
-                # Mode '-':
-                # a '-' will be displayed at the beginning of the next result, and the result
-                # will be embedded in parenthesis if negative.
-                # Mode '?' (alias 'SIGN'):
-                # '>0', '<0' or '=0' will be displayed after the next result, depending on it's sign.
-                # Mode '=':
-                # Display '=' or '\approx' when a rounded result is requested :
-                # if rounded is equal to exact one, '=' is displayed.
-                # Else, '\approx' is displayed instead.
-
-            elif name == 'COMMENT':
-                tree.append(name)
-                conditions.append(False)
-
-            elif name == 'CASE':
-                condition = (int(case[1:-1]) == context.get('NUM', 0))
-                if tree[-1] == name:
-                    conditions[-1] = condition
-                else:
-                    tree.append(name)
-                    conditions.append(condition)
-
-            elif name in ('PYTHON', 'SYMPY', 'TABVAR', 'TABSIGN', 'TABVAL'):
-                tree.append(name)
-                conditions.append(True)
-
-            elif name in ('IF', 'ELIF'):
-                closing = find_closing_bracket(text, end)
-                code = text[end:closing]
-                end = closing + 1 # include closing bracket
-                eval_func = sympy.sympify if param['sympy_is_default'] else eval
-
-                if name == 'IF':
-                    tree.append('IF')
-                    # False means 'there was never a True before in the current IF/ELIF/ELIF/[...]/ELSE succession ',
-                    # while None means 'one of previous node led to a True condition' ; so condition will never be True
-                    # again in the current IF/ELIF/ELIF/[...]/ELSE succession.
-                    # Note that False/None distinction is essential to correctly interpret next ELIF or ELSE.
-                    #
-                    # In case of nested IF, there is no need to evaluate present condition
-                    # if others conditions failed.
-                    conditions.append(eval_func(code, locals = context)
-                                      if all(conditions) else None)
-
-                else: # ELIF
-                    assert tree[-1] == 'IF'
-                    if conditions[-1]:
-                        conditions[-1] = None
-                    elif conditions[-1] is False: # False, not None !
-                        conditions[-1] = eval_func(code, locals = context)
-
-            elif name  == 'ELSE':
-                assert tree[-1] == 'IF'
-                conditions[-1] = (conditions[-1] is False)
-
-            elif name == 'SHUFFLE':
-                tree.append(name)
-                bloc_list = []
-
-            elif name == 'ITEM':
-                bloc_list.append('')
-
-            elif name == 'PARAM':
-                tree.append(name)
-                conditions.append(True)
-
-            elif name == 'SEED':
-                if context.get('NUM', 0) == 0:
-                    random.seed(int(case[1:-1]))
-
-            else:
-                if varname:
-                    code = varname
-                else:
-                    closing = find_closing_bracket(text, end)
-                    code = text[end:closing]
-                    end = closing + 1
-                if all(conditions):
-                    flags = {}
-                    if flag is not None:
-                        for flag in flag.split(','):
-                            flag = flag.strip()
-                            if 'python'.startswith(flag):
-                                flags['sympy'] = False
-                            elif 'sympy'.startswith(flag):
-                                flags['sympy'] = True
-                            elif flag == 'float':
-                                flags['float'] = True
-                            elif flag == 'num':
-                                print "WARNING: 'num' flag is deprecated. Use #SELECT command instead."
-                                flags['select'] = True
-                            else:
-                                try:
-                                    flags['round'] = int(flag)
-                                except ValueError:
-                                    print 'WARNING: Unknown flag "%s".' %flag
-
-                    if name == 'RAND':
-                        flags['rand'] = True
-                    elif name in ('SEL', 'SELECT'):
-                        flags['select'] = True
-                    if name == 'ASSERT':
-                        test = eval(code, context)
-                        if not test:
-                            print "Error in assertion (NUM=%s):" % context['NUM']
-                            print "***"
-                            print code
-                            print "***"
-                            assert test
-                    elif cond is not None: #TEST
-                        if eval(cond, context):
-                            text = code + text[end:]
-                            continue
-                    elif num is None or int(num[1:-1]) == context.get('NUM', 0):
-                        result = _eval_python_expr(code, context, **flags)
-                        write(result)
-
-        text = text[end:]
-
-    # Denest context['DOCUMENT-ROOT']
-
-    # Filter list, since some `None` may remain if a lonely `#=` appears in document.
-    # (Yet, this shouldn't happen if document is properly written).
-    return ''.join(txt for txt in context['POINTER'] if txt)
-
-
-
-
-
-def compile_file(input_name, output_name, make_tex_file=False,
+def make_file(syntax_tree, output_name, make_tex_file=False,
                  make_pdf_file=True, options=None):
     remove = getattr(options, 'remove', False)
     quiet = getattr(options, 'quiet', False)
-    input_file = None
-    try:
-        input_file = open(input_name, 'rU')
-        text = input_file.read()
-    finally:
-        if input_file is not None:
-            input_file.close()
+
     dir_name = os.path.split(output_name)[0]
     extra = (' -output-directory ' + dir_name if dir_name else '')
-    latex = convert_ptyx_to_latex(text)
+    latex_generator.clear()
+    latex_generator.parse_node(syntax_tree)
+    latex = latex_generator.read()
     if make_tex_file:
         try:
             texfile = open(output_name + '.tex', 'w')
@@ -1481,13 +1204,18 @@ if __name__ == '__main__':
             output_name = output_name + os.sep + tail
 
             print output_name
+
+        with open(input_name, 'rU') as input_file:
+            text = input_file.read()
+        syntax_tree = latex_generator.parser.parse(text)
+
         for num in xrange(start, start + total):
             global_context['NUM'] = num
             global_context['NAME'] = (names[num] if names else '')
             suffixe = '-' + str(num) if total > 1 else ''
             # Output is redirected to a .log file
             sys.stdout = sys.stderr = CustomOutput((output_name + suffixe + '-python.log') if not options.remove else '')
-            compile_file(input_name, output_name + suffixe, make_tex_file=make_tex, \
+            make_file(syntax_tree, output_name + suffixe, make_tex_file=make_tex, \
                         make_pdf_file=('pdf' in formats), options=options
                         )
         if options.compress or (options.cat and total > 1):
