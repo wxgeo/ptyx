@@ -65,8 +65,29 @@ def test_latex_code_generator():
     g.parse(test)
     assertEq(g.read(), '2some text here ok')
 
+def test_CALC():
+    test = "$#CALC{\dfrac{2}{3}+1}=#RESULT$ et $#CALC[a]{\dfrac{2}{3}-1}=#a$"
+    g = LatexGenerator()
+    g.parse(test)
+    assertEq(g.read(), r'$\dfrac{2}{3}+1=\frac{5}{3}$ et $\dfrac{2}{3}-1=- \frac{1}{3}$')
 
-
+def test_TABVAR():
+    test = "$#{a=2;}\\alpha=#{alpha=3},\\beta=#{beta=5}\n\n#TABVAR[limites=False,derivee=False]f(x)=#a*(x-#alpha)^2+#beta#END$"
+    result = \
+'''$\\alpha=3,\\beta=5
+\\[\\begin{tabvar}{|C|CCCCC|}
+\\hline
+x                                    &-\\infty      &        &3&      &+\\infty\\\\
+\\hline
+\\niveau{1}{2}\\raisebox{0.5em}{$f(x)$}&\\niveau{2}{2}&\\decroit&5&\\croit&\\\\
+\\hline
+\\end{tabvar}\\]
+% x;f(x):(-oo;) >> (3;5) << (+oo;)
+% f(x)=2*(x-3)^2+5
+$'''
+    g = LatexGenerator()
+    g.parse(test)
+    assertEq(g.read(), result)
 
 # À TESTER :
 # "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> voir si 'message 3' s'affiche bien.
