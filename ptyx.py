@@ -26,8 +26,8 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-_version_ = "0.9"
-_release_date_ = (24, 9, 2013)
+_version_ = "2.0"
+_release_date_ = (31, 10, 2013)
 
 
 print 'Ptyx ' + _version_ + ' ' + '/'.join(str(d) for d in _release_date_)
@@ -479,16 +479,16 @@ class SyntaxTreeGenerator(object):
             # Deal with new found tag.
             # ------------------------
 
-            if text[tag_position - 1] == '\n' and self.tags[tag][1] is not None:
+            if text[tag_position - 1] == '\n' and (self.tags[tag][1] is not None or tag == 'END'):
                 # Remove new line before #IF, #ELSE, ... tags.
                 node.add_child(text[last_position:tag_position - 1])
             else:
                 node.add_child(text[last_position:tag_position])
 
-            if tag in node._closing_tags:
+            while tag in node._closing_tags:
                 # Close node, but don't consume tag.
                 node = node.parent
-            elif '@' + tag in node._closing_tags:
+            if '@' + tag in node._closing_tags:
                 # Close node and consume tag.
                 node = node.parent
                 continue
@@ -688,6 +688,7 @@ class LatexGenerator(object):
         """
         # Parsing at this stage is quite expansive yet unnecessary most of the time,
         # so some basic testing is done before.
+        text = str(text)
         if parse and '#' in text:
             if param['debug']:
                 print('Parsing %s...' % repr(text))
@@ -776,7 +777,8 @@ class LatexGenerator(object):
         self._parse_children(self.macros[name])
 
     def _parse_SHUFFLE_tag(self, node):
-        children = random.shuffle(node.children)
+        children = node.children[:]
+        random.shuffle(children)
         self._parse_children(children)
 
     def _parse_ITEM_tag(self, node):

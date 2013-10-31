@@ -6,7 +6,7 @@ import sys
 #~ print sys.path
 sys.path.append('..')
 
-from ptyx2 import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket
+from ptyx import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket
 from testlib import assertEq
 
 def test_find_closing_bracket():
@@ -89,5 +89,28 @@ $'''
     g.parse(test)
     assertEq(g.read(), result)
 
+def test_SEED_SHUFFLE():
+    test = '''#SEED{16}Who said "Having nothing, nothing can he lose" ?
+
+\\begin{enumerate}
+#SHUFFLE
+#ITEM \item W. Shakespeare
+#ITEM \item R. Wallace
+#ITEM \item C. Doyle
+#ITEM \item R. Bradsbury
+#END
+\\end{enumerate}
+
+"The game is up."'''
+    result = \
+'''Who said "Having nothing, nothing can he lose" ?
+
+\\begin{enumerate} \\item C. Doyle \\item W. Shakespeare \\item R. Bradsbury \\item R. Wallace
+\\end{enumerate}
+
+"The game is up."'''
+    g = LatexGenerator()
+    g.parse(test)
+    assertEq(g.read(), result)
 # À TESTER :
 # "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> voir si 'message 3' s'affiche bien.
