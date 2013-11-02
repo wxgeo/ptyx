@@ -198,6 +198,9 @@ global_context['randsignint'] = srandint
 global_context['srandint'] = srandint
 global_context['randchoice'] = randchoice
 global_context['srandchoice'] = srandchoice
+# If a document is compiled several times (to produce different versions of the same document),
+# NUM is the compilation number (starting from 0).
+global_context['NUM'] = 0
 
 
 
@@ -582,7 +585,7 @@ class LatexGenerator(object):
 
     @property
     def NUM(self):
-        return self.context.get('NUM', 0)
+        return self.context['NUM']
 
 
     def parse_node(self, node):
@@ -796,11 +799,11 @@ class LatexGenerator(object):
 
     def _parse_PICK_tag(self, node):
         self.flags['pick'] = True
-        self.parse_EVAL_tag(self, node)
+        self._parse_EVAL_tag(node)
 
     def _parse_RAND_tag(self, node):
         self.flags['rand'] = True
-        self.parse_EVAL_tag(self, node)
+        self._parse_EVAL_tag(node)
 
     def _parse_ROOT_tag(self, node):
         self._parse_children(node.children)
@@ -1012,8 +1015,8 @@ class LatexGenerator(object):
         if  hasattr(result, '__iter__'):
             if flags.get('rand', False):
                 result = random.choice(result)
-            elif flags.get('select', False):
-                result = result[context['NUM']%len(result)]
+            elif flags.get('pick', False):
+                result = result[self.NUM%len(result)]
         if flags.has_key('round'):
             try:
                 round_result = round(result, flags['round'])
@@ -1078,7 +1081,6 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
 
     dir_name = os.path.split(output_name)[0]
     extra = (' -output-directory ' + dir_name if dir_name else '')
-    latex_generator.clear()
     latex_generator.parse_node(syntax_tree)
     latex = latex_generator.read()
     if make_tex_file:
@@ -1245,8 +1247,9 @@ if __name__ == '__main__':
         syntax_tree = latex_generator.parser.parse(text)
 
         for num in xrange(start, start + total):
-            global_context['NUM'] = num
-            global_context['NAME'] = (names[num] if names else '')
+            latex_generator.clear()
+            latex_generator.context['NUM'] = num
+            latex_generator.context['NAME'] = (names[num] if names else '')
             suffixe = '-' + str(num) if total > 1 else ''
             # Output is redirected to a .log file
             sys.stdout = sys.stderr = CustomOutput((output_name + suffixe + '-python.log') if not options.remove else '')

@@ -114,3 +114,18 @@ def test_SEED_SHUFFLE():
     assertEq(g.read(), result)
 # À TESTER :
 # "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> voir si 'message 3' s'affiche bien.
+
+def test_PICK():
+    test = '''#PICK{a=1,2,3,4}'''
+    g = LatexGenerator()
+    assertEq(g.NUM, 0)
+    g.parse(test)
+    assertEq(g.read(), '1')
+    g.clear()
+    g.context['NUM'] = 2
+    assertEq(g.NUM, 2)
+    g.parse(test)
+    assertEq(g.read(), '3')
+
+if __name__ == '__main__':
+    test_PICK()
