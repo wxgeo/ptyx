@@ -27,25 +27,27 @@ def test_syntax_tree():
     s.parse(text)
     tree = \
 """+ Node ROOT
-  + Node IF
-    + Node 0
-      - text: 'a>0'
-    - text: 'some text here'
-  + Node ELIF
-    + Node 0
-      - text: 'b>0'
-    - text: 'some more text'
-  + Node ELSE
-    - text: ' variable value is '
-    + Node EVAL
+  + Node CONDITIONAL_BLOCK
+    + Node IF
       + Node 0
-        - text: 'variable'
-    - text: ' not '
-    + Node EVAL
+        - text: 'a>0'
+      - text: 'some text here'
+    + Node ELIF
       + Node 0
-        - text: 'variable+1'
-    - text: ' !'"""
+        - text: 'b>0'
+      - text: 'some more text'
+    + Node ELSE
+      - text: ' variable value is '
+      + Node EVAL
+        + Node 0
+          - text: 'variable'
+      - text: ' not '
+      + Node EVAL
+        + Node 0
+          - text: 'variable+1'
+      - text: ' !'"""
     assertEq(s.syntax_tree.display(color=False), tree)
+
 
     text = "#PYTHON#some comment\nvariable = 2\n#END#ASSERT{variable == 2}"
     s.parse(text)
@@ -126,6 +128,31 @@ def test_PICK():
     assertEq(g.NUM, 2)
     g.parse(test)
     assertEq(g.read(), '3')
+
+def test_CASE():
+    test = "#CASE{0}first case#CASE{1}second case#CASE{2}third one#END#CASE{1} bonus#END this is something else."
+    result = "second case bonus this is something else."
+    g = LatexGenerator()
+    g.context['NUM'] = 1
+    g.parse(test)
+    assertEq(g.read(), result)
+
+def test_IF_ELIF_ELSE():
+    test = r"#{a=1;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=0;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=2;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END."
+    result = r"10{}2."
+    g = LatexGenerator()
+    g.parse(test)
+    assertEq(g.read(), result)
+
+def test_MACRO():
+    test = r"#NEW_MACRO{a0}#IF{a==0}$a=0$#ELSE$a\neq 0$#END#END#{a=0;}Initially #MACRO{a0}#{a=2;}, but now #MACRO{a0}."
+    result = r"Initially $a=0$, but now $a\neq 0$."
+    g = LatexGenerator()
+    g.parse(test)
+    assertEq(g.read(), result)
+
+
+
 
 if __name__ == '__main__':
     test_PICK()

@@ -390,14 +390,21 @@ class SyntaxTreeGenerator(object):
     #  This is usually the wished behaviour for #END tag.
     tags = {'ASSERT':       (1, None),
             'CALC':         (1, None),
-            'CASE':         (1, ['CASE', 'ELSE', '@END']),
+            # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
+            'CASE':         (1, ['CASE', 'ELSE', 'END']),
             'COMMENT':      (0, ['@END']),
+            # CONDITIONAL_BLOCK isn't a real tag, but is used to enclose
+            # a #CASE{...}...#CASE{...}...#END block, or an #IF{...}...#ELIF{...}...#END block.
+            'CONDITIONAL_BLOCK':    (0, ['@END']),
             'DEBUG':        (0, None),
             'EVAL':         (1, None),
             'GEO':          (0, ['@END']),
-            'IF':           (1, ['ELIF', 'ELSE', '@END']),
-            'ELIF':         (1, ['ELIF', 'ELSE', '@END']),
-            'ELSE':         (0, ['@END']),
+            # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
+            'IF':           (1, ['ELIF', 'ELSE', 'END']),
+            # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
+            'ELIF':         (1, ['ELIF', 'ELSE', 'END']),
+            # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
+            'ELSE':         (0, ['END']),
             'END':          (0, None),
             'IFNUM':        (2, None),
             'MACRO':        (1, None),
@@ -482,12 +489,39 @@ class SyntaxTreeGenerator(object):
             # Deal with new found tag.
             # ------------------------
 
+            # Add text found before this tag to the syntax tree.
+            # --------------------------------------------------
             if text[tag_position - 1] == '\n' and (self.tags[tag][1] is not None or tag == 'END'):
                 # Remove new line before #IF, #ELSE, ... tags.
                 node.add_child(text[last_position:tag_position - 1])
             else:
                 node.add_child(text[last_position:tag_position])
 
+            # Enclose "CASE ... CASE ... ELSE ... END" or "IF ... ELIF ... ELSE ... END"
+            # inside a CONDITIONAL_BLOCK node.
+            # --------------------------------------------------------------------------
+            #
+            # The most subtle part while parsing pTyX code is to distinguish
+            # between "#CASE{0}...#CASE{1}...#ELSE...#END"
+            # and "#CASE{0}...#END#CASE{1}...#ELSE...#END".
+            # This distinction is needed because, in case NUM==0, the ELSE clause
+            # must be executed in the 2nde version, and not in the 1st one.
+            #
+            # This is one of the reasons why CASE nodes are enclosed inside a CONDITIONAL_BLOCK.
+            # So, first version must result in only one CONDITIONAL_BLOCK,
+            # while 2nd version must result in 2 CONDITIONAL_BLOCKs.
+            #
+            # The rule is actually quite simple: a #CASE tag must open a new CONDITIONAL_BLOCK
+            # only if previous opened node wasn't a #CASE node.
+            #
+            # Note that for #IF blocks, there is no such subtility,
+            # because an #IF tag always opens a new CONDITIONAL_BLOCK.
+            if (tag == 'CASE' and node.name != 'CASE') or tag == 'IF':
+                node = node.add_child(Node('CONDITIONAL_BLOCK'))
+                node._closing_tags = self.tags['CONDITIONAL_BLOCK'][1]
+
+            # Detect if this tag is actually closing a node.
+            # ----------------------------------------------
             while tag in node._closing_tags:
                 # Close node, but don't consume tag.
                 node = node.parent
@@ -496,7 +530,9 @@ class SyntaxTreeGenerator(object):
                 node = node.parent
                 continue
 
-            # Don't parse #PYTHON ... #END content.
+
+            # Special case : don't parse #PYTHON ... #END content.
+            # ----------------------------------------------------
             if tag == 'PYTHON':
                 end = text.index('#END', position)
                 # Create and enter new node.
@@ -504,11 +540,17 @@ class SyntaxTreeGenerator(object):
                 node.add_child(text[position:end])
                 node = node.parent
                 position = end + 4
-            # Tag #END is not a true tag: it doesn't correspond to any command.
+
+            # General case
+            # ------------
+            # Exclude #END, since it's not a true tag.
+            # (It's only purpose is to close a block, #END doesn't correspond to any command).
             elif tag != 'END':
                 # Create and enter new node.
+                # ~~~~~~~~~~~~~~~~~~~~~~~~~~
                 node = node.add_child(Node(tag))
                 # Detect command optional argument.
+                # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
                 # XXX: tolerate \n and spaces before bracket.
                 if text[position] == '[':
                     position += 1
@@ -516,6 +558,7 @@ class SyntaxTreeGenerator(object):
                     node.options = text[position:end]
                     position = end + 1
                 # Detect command arguments.
+                # ~~~~~~~~~~~~~~~~~~~~~~~~~
                 # Each argument become a node with its number as name.
                 number_of_args, closing_tags = self.tags[node.name]
                 for i in range(number_of_args):
@@ -534,10 +577,13 @@ class SyntaxTreeGenerator(object):
                     arg = node.add_child(Node(i))
                     self._parse(arg, text[position:end])
                     position = new_pos
+                # Close node if needed.
+                # ~~~~~~~~~~~~~~~~~~~~~~~
                 if closing_tags is None:
-                    # Quit node (tag is self-closing).
+                    # Close node (tag is self-closing).
                     node = node.parent
                 else:
+                    # Store node closing tags for fast access later.
                     node._closing_tags = closing_tags
 
         node.add_child(text[last_position:])
@@ -600,7 +646,8 @@ class LatexGenerator(object):
         try:
             method = getattr(self, '_parse_%s_tag' % tag)
         except AttributeError:
-            print("Warning: method '_parse_%s_tag' not found" % tag)
+            print("Error: method '_parse_%s_tag' not found" % tag)
+            raise
         return method(node)
 
     def _parse_children(self, children, function=None, **options):
@@ -611,48 +658,18 @@ class LatexGenerator(object):
             backup = self.context['LATEX']
             self.context['LATEX'] = []
 
-        if_state = case_state = False
         for child in children:
             if isinstance(child, basestring):
                 self.write(child)
-                if_state = case_state = False
             else:
                 # All remaining children should be nodes now.
                 assert isinstance(child, Node)
-                child_name = child.name
                 # Nodes are either numbered, or have a name.
                 # Numbered nodes correspond to command arguments. Those should
                 # have been processed before, and not be passed to _parse_children().
-                assert isinstance(child_name, basestring)
+                assert isinstance(child.name, basestring)
 
-                # If an IF or ELIF node was processed, all successive ELIF
-                # or ELSE nodes must be skipped.
-                # So, once an IF or ELIF node is processed, `if_state` is set to True,
-                # to indicate that next ELIF or ELSE nodes must be skipped.
-                # (The same for CASE.)
-                if child_name == 'IF':
-                    if_state = self.parse_node(child)
-                elif child_name == 'ELIF':
-                    # Don't process ELIF node if previous IF node was processed.
-                    if if_state:
-                        continue
-                    if_state = self.parse_node(child)
-                elif child_name == 'ELSE':
-                    # Don't process ELSE node if previous IF or CASE node was processed.
-                    if if_state or case_state:
-                        continue
-                elif child_name == 'CASE':
-                    if case_state:
-                        continue
-                    case_state = self.parse_node(child)
-                else:
-                    self.parse_node(child)
-
-                # Initialize case_state and if_state
-                if child_name != 'CASE':
-                    case_state = False
-                if child_name not in ('IF', 'ELIF'):
-                    if_state = False
+                self.parse_node(child)
 
         if function is not None:
             code = function(''.join(self.context['LATEX']), **options)
@@ -710,6 +727,15 @@ class LatexGenerator(object):
         return test
 
     _parse_ELIF_tag = _parse_IF_tag
+
+    def _parse_CONDITIONAL_BLOCK_tag(self, node):
+        for child in node.children:
+            assert isinstance(child, Node)
+            if self.parse_node(child):
+                # If an IF or ELIF node was processed, all successive ELIF
+                # or ELSE nodes must be skipped.
+                # (The same for CASE).
+                break
 
     def _parse_ELSE_tag(self, node):
         self._parse_children(node.children)
