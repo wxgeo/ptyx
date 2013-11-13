@@ -34,17 +34,17 @@ print 'Ptyx ' + _version_ + ' ' + '/'.join(str(d) for d in _release_date_)
 
 # <default_configuration>
 param = {
-                    'total': 1,
-                    'format': ['pdf', 'tex'],
-                    'tex_command': 'pdflatex -interaction=nonstopmode --shell-escape --enable-write18',
-                    'quiet_tex_command': 'pdflatex -interaction=batchmode --shell-escape --enable-write18',
-                    'sympy_is_default': True,
-                    'sympy_path': None,
-                    'wxgeometrie': None,
-                    'wxgeometrie_path': None,
-                    'debug': False,
-                    'floating_point': ',',
-                    }
+        'total': 1,
+        'format': ['pdf', 'tex'],
+        'tex_command': 'pdflatex -interaction=nonstopmode --shell-escape --enable-write18',
+        'quiet_tex_command': 'pdflatex -interaction=batchmode --shell-escape --enable-write18',
+        'sympy_is_default': True,
+        'sympy_path': None,
+        'wxgeometrie': None,
+        'wxgeometrie_path': None,
+        'debug': False,
+        'floating_point': ',',
+        }
 # </default_configuration>
 
 # <personnal_configuration>
@@ -181,16 +181,23 @@ def srandint(a=2, b=9, exclude=()):
             return val
 
 
-def randchoice(*items):
+def randchoice(*items, **kw):
+    """Select randomly an item.
+    """
     if len(items) == 1 and hasattr(items[0], '__iter__'):
-        return randchoice(*items[0])
+        items = items[0]
+    if kw.get('signed'):
+        items = list(items) + [-1*item for item in items]
+    if 'exclude' in kw:
+        items = [val for val in items if val not in kw['exclude']]
     val = random.choice(items)
     if isinstance(val, (int, long, float, complex)):
         val = S(val)
     return val
 
-def srandchoice(*items):
-    return (-1)**randint(0, 1)*randchoice(*items)
+def srandchoice(*items, **kw):
+    kw['signed'] = True
+    return randchoice(*items, **kw)
 
 
 global_context['randint'] = randint
@@ -283,8 +290,7 @@ def find_closing_bracket(text, start = 0, brackets = '{}'):
 #TABSIGN[options]...#END
 #TABVAL[options]...#END
 #TABVAR[options]...#END
-#TEST{bool}{...}
-#TEST_ELSE{bool}{...}{...}
+#TEST{bool}{...}{...}
 #+, #-,  #*, #=, #? (special operators)
 #varname or #[option,int]varname
 ## options : sympy, python, float
@@ -324,8 +330,12 @@ class Node(object):
         child = self.children[i]
         if child.name != i:
             raise ValueError, 'Incorect argument number.'
-        if len(child.children) != 1:
+        children_number = len(child.children)
+        if children_number > 1:
             raise ValueError, ("Don't use pTyX code inside %s argument number %s." % (self.name, i + 1))
+        elif children_number == 0:
+            raise ValueError, ("%s argument number %s should not be empty !" % (self.name, i + 1))
+
         return child.children[0]
 
 
@@ -423,15 +433,13 @@ class SyntaxTreeGenerator(object):
             'TABSIGN':      (0, ['@END']),
             'TABVAL':       (0, ['@END']),
             'TABVAR':       (0, ['@END']),
-            'TEST':         (2, None),
-            'TEST_ELSE':    (3, None),
+            'TEST':         (3, None),
             '-':            (0, None),
             '+':            (0, None),
             '*':            (0, None),
             '=':            (0, None),
             '?':            (0, None),
             }
-
     # Tags sorted by length (longer first).
     # This is used for matching tests.
     sorted_tags = sorted(tags, key=len,reverse=True)
@@ -856,10 +864,14 @@ class LatexGenerator(object):
         self._parse_children(node.children, function=tabsign, **kw)
 
     def _parse_TEST_tag(self, node):
-        if eval(node.arg(0), self.context):
-            self._parse_children(node.children[1].children)
-
-#IF_THEN
+        try:
+            if eval(node.arg(0), self.context):
+                self._parse_children(node.children[1].children)
+            else:
+                self._parse_children(node.children[2].children)
+        except:
+            print(node.display(color=False))
+            raise
 
     def _parse_ADD_tag(self, node):
         # a '+' will be displayed at the beginning of the next result if positive ;
@@ -964,6 +976,7 @@ class LatexGenerator(object):
                 sympy_code = False
                 print('Warning: sympy error. Switching to standard evaluation mode.')
             except Exception:
+                #~ print sorted(context.keys())
                 print("Uncatched error when evaluating %s" % repr(code))
                 raise
         if not sympy_code:
@@ -1107,7 +1120,16 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
 
     dir_name = os.path.split(output_name)[0]
     extra = (' -output-directory ' + dir_name if dir_name else '')
-    latex_generator.parse_node(syntax_tree)
+    try:
+        latex_generator.parse_node(syntax_tree)
+    except Exception:
+        print('\n*** Error occured while parsing. ***')
+        print('This is current parser state for debugging purpose:')
+        print(80*'-')
+        print('... ' + ''.join(latex_generator.context['LATEX'][-10:]))
+        print(80*'-')
+        print('')
+        raise
     latex = latex_generator.read()
     if make_tex_file:
         try:
@@ -1272,24 +1294,34 @@ if __name__ == '__main__':
             text = input_file.read()
         syntax_tree = latex_generator.parser.parse(text)
 
+        filenames = []
         for num in xrange(start, start + total):
             latex_generator.clear()
             latex_generator.context['NUM'] = num
-            latex_generator.context['NAME'] = (names[num] if names else '')
-            suffixe = '-' + str(num) if total > 1 else ''
+            latex_generator.context['NAME'] = name
+            if names:
+                name = names[num]
+                filename = '%s-%s' % (output_name, name)
+            else:
+                name = ''
+                filename = ('%s-%s' % (output_name, num) if total > 1 else output_name)
+            filename = filename.replace(' ', '_')
+            filenames.append(filename)
+
             # Output is redirected to a .log file
-            sys.stdout = sys.stderr = CustomOutput((output_name + suffixe + '-python.log') if not options.remove else '')
-            make_file(syntax_tree, output_name + suffixe, make_tex_file=make_tex, \
+            sys.stdout = sys.stderr = CustomOutput((filename + '-python.log') if not options.remove else '')
+            make_file(syntax_tree, filename, make_tex_file=make_tex, \
                         make_pdf_file=('pdf' in formats), options=options
                         )
+
         if options.compress or (options.cat and total > 1):
             # pdftk and ghostscript must be installed.
             if not ('pdf' in formats):
                 print("Warning: --cat or --compress option meaningless if pdf output isn't selected.")
             else:
+                filenames = [filename + '.pdf' for filename in filenames]
                 pdf_name = output_name + '.pdf'
                 if total > 1:
-                    filenames = ['%s-%s.pdf' % (output_name, num) for num in xrange(start, start + total)]
                     files = ' '.join(filenames)
                     os.system('pdftk ' + files + ' output ' + pdf_name)
                     if options.remove_all:

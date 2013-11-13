@@ -6,7 +6,7 @@ import sys
 #~ print sys.path
 sys.path.append('..')
 
-from ptyx import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket
+from ptyx import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket, randchoice, srandchoice
 from testlib import assertEq
 
 def test_find_closing_bracket():
@@ -151,7 +151,12 @@ def test_MACRO():
     g.parse(test)
     assertEq(g.read(), result)
 
-
+def test_randchoice():
+    for i in range(1000):
+        assertEq(randchoice(0, 1, exclude=[0]), 1)
+        assertEq(srandchoice(0, 1, exclude=[0, 1]), -1)
+        assert randchoice([0, 1, 2], exclude=[0]) in [1, 2]
+        assert srandchoice([0, 1, 2], exclude=[0, 1]) in [-1, -2, 2]
 
 
 if __name__ == '__main__':
