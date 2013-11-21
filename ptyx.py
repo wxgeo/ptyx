@@ -53,13 +53,22 @@ param['wxgeometrie_path'] = '~/Dropbox/Programmation/wxgeometrie'
 # </personnal_configuration>
 
 
-import optparse, re, random, os, tempfile, sys, codecs, csv, shutil
+import optparse, re, random, os, tempfile, sys, codecs, csv, shutil, subprocess
 from functools import partial
 
 if sys.platform == 'win32':
     sys.stdout = codecs.getwriter('cp850')(sys.stdout)
 else:
     sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+
+def execute(string, quiet=False):
+    out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
+    output = out.read()
+    sys.stdout.write(output)
+    out.close()
+    if not quiet:
+        print "Command '%s' executed." %string
+    return output
 
 for pathname in ('sympy_path', 'wxgeometrie_path'):
     path = param[pathname]
@@ -1137,7 +1146,10 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
             texfile.write(latex)
             if make_pdf_file:
                 texfile.flush()
-                os.system(param['tex_command'] + extra + ' ' + texfile.name)
+                log = execute(param['tex_command'] + extra + ' ' + texfile.name)
+                # Run command twice if references were found.
+                if 'Rerun to get cross-references right.' in log:
+                    log = execute(param['tex_command'] + extra + ' ' + texfile.name)
                 if remove:
                     os.remove(output_name + '.log')
                     os.remove(output_name + '.aux')
@@ -1157,7 +1169,10 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
                     command = param['quiet_tex_command']
                 else:
                     command = param['tex_command']
-                os.system(command + extra + ' ' + texfile.name)
+                log = execute(command + extra + ' ' + texfile.name)
+                # Run command twice if references were found.
+                if 'Rerun to get cross-references right.' in log:
+                    log = execute(command + extra + ' ' + texfile.name)
                 os.rename(pdf_name, output_name + '.pdf')
                 if remove:
                     os.remove(log_name)
@@ -1242,6 +1257,8 @@ if __name__ == '__main__':
     if options.names:
         with open(pth(options.names)) as f:
             names = [' '.join(l) for l in csv.reader(f)]
+            print('Names extracted from CSV file:')
+            print(names)
         total = global_context['TOTAL'] = (int(number) if number else len(names))
     else:
         names = []
