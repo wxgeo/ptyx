@@ -831,8 +831,11 @@ class LatexGenerator(object):
         self._parse_children(node.children)
 
     def _parse_SEED_tag(self, node):
+        value = int(node.arg(0))
+        # Keep track of seed value. This is used to generate a .seed file.
+        self.context['SEED'] = value
         if self.NUM == 0:
-            random.seed(int(node.arg(0)))
+            random.seed(value)
 
     #~ def parse_PICK_tag(self, node):
         #~ assert len(node.children) == 1
@@ -1151,8 +1154,10 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
                 if 'Rerun to get cross-references right.' in log:
                     log = execute(param['tex_command'] + extra + ' ' + texfile.name)
                 if remove:
-                    os.remove(output_name + '.log')
-                    os.remove(output_name + '.aux')
+                    for extension in ('aux', 'log', 'out'):
+                        name = '%s.%s' % (output_name, extension)
+                        if os.path.isfile(name):
+                            os.remove(name)
         finally:
             texfile.close()
     else:
@@ -1161,9 +1166,11 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
             texfile.write(latex)
             if make_pdf_file:
                 tmp_name  = os.path.split(texfile.name)[1][:-4] # without .tex extension
-                pdf_name = tmp_name + '.pdf'
-                log_name = tmp_name + '.log'
-                aux_name = tmp_name + '.aux'
+                tmp_names = {}
+                output_names = {}
+                for extension in ('pdf', 'log', 'aux', 'out'):
+                    tmp_names[extension] = '%s.%s' % (tmp_name, extension)
+                    output_names[extension] = '%s.%s' % (output_name, extension)
                 texfile.flush()
                 if quiet:
                     command = param['quiet_tex_command']
@@ -1173,15 +1180,13 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
                 # Run command twice if references were found.
                 if 'Rerun to get cross-references right.' in log:
                     log = execute(command + extra + ' ' + texfile.name)
-                os.rename(pdf_name, output_name + '.pdf')
-                if remove:
-                    os.remove(log_name)
-                else:
-                    os.rename(log_name, output_name + '.log')
-                if remove:
-                    os.remove(aux_name)
-                else:
-                    os.rename(aux_name, output_name + '.aux')
+                os.rename(tmp_names['pdf'], output_names['pdf'])
+                for extension in ('log', 'aux', 'out'):
+                    if os.path.isfile(tmp_names[extension]):
+                        if remove:
+                            os.remove(tmp_names[extension])
+                        else:
+                            os.rename(tmp_names[extension], output_names[extension])
         finally:
             texfile.close()
 
@@ -1238,7 +1243,6 @@ if __name__ == '__main__':
 
     # Limit seeds, to be able to retrieve seed manually if needed.
     seed_value = random.randint(0, 100000)
-    print('Default seed value: %s' % seed_value)
     random.seed(seed_value)
 
     options, args = parser.parse_args()
@@ -1326,11 +1330,23 @@ if __name__ == '__main__':
             filenames.append(filename)
 
             # Output is redirected to a .log file
-            sys.stdout = sys.stderr = CustomOutput((filename + '-python.log') if not options.remove else '')
+            sys.stdout = sys.stderr = CustomOutput((filename + '-python.log')
+                                                  if not options.remove else '')
             make_file(syntax_tree, filename, make_tex_file=make_tex, \
                         make_pdf_file=('pdf' in formats), options=options
                         )
 
+        # Keep track of the seed used.
+        if 'SEED' in latex_generator.context:
+            seed_value = latex_generator.context['SEED']
+        else:
+            print(('Warning: #SEED not found, using default seed value %s.\n'
+                               'A .seed file have been generated.') % seed_value)
+        seed_file_name = os.path.join(os.path.dirname(output_name), '.seed')
+        with open(seed_file_name, 'w') as seed_file:
+            seed_file.write(str(seed_value))
+
+        # Join different versions in a single pdf, and compress if asked to.
         if options.compress or (options.cat and total > 1):
             # pdftk and ghostscript must be installed.
             if not ('pdf' in formats):
@@ -1340,7 +1356,8 @@ if __name__ == '__main__':
                 pdf_name = output_name + '.pdf'
                 if total > 1:
                     files = ' '.join(filenames)
-                    os.system('pdftk ' + files + ' output ' + pdf_name)
+                    print('Pdftk output:')
+                    print(execute('pdftk %s output %s' % (files, pdf_name)))
                     if options.remove_all:
                         for name in filenames:
                             os.remove(name)
@@ -1372,3 +1389,7 @@ if __name__ == '__main__':
                         print('Compression ratio: {0:.2f}'.format(old_size/new_size))
                     else:
                         print('Warning: compression failed.')
+                    temp_dir = tempfile.mkdtemp()
+                    pdf_with_seed = os.path.join(temp_dir, 'with_seed.pdf')
+                    execute('pdftk %s attach_files %s output %s' % (pdf_name, seed_file_name, pdf_with_seed))
+                    shutil.copyfile(pdf_with_seed, pdf_name)
