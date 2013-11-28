@@ -759,7 +759,7 @@ class LatexGenerator(object):
 
     def _parse_IFNUM_tag(self, node):
         if eval(node.arg(0), self.context) == self.NUM:
-            self._parse_children(node.children[1:])
+            self._parse_children(node.children[1].children)
 
     def _parse_CASE_tag(self, node):
         test = eval(node.arg(0), self.context) == self.NUM
@@ -804,6 +804,8 @@ class LatexGenerator(object):
                 self.flags['round'] = int(arg)
             elif arg == 'float':
                 self.flags['float'] = True
+            elif arg == 'str':
+                self.flags['str'] = True
             else:
                 raise ValueError, ('Unknown flag: ' + repr(arg))
         # XXX: support options round, float, (sympy, python,) pick and rand
@@ -1088,7 +1090,9 @@ class LatexGenerator(object):
 
 
 def print_sympy_expr(expr, **flags):
-    if isinstance(expr, float) or (sympy and isinstance(expr, sympy.Float)) \
+    if flags.get('str'):
+        latex = str(expr)
+    elif isinstance(expr, float) or (sympy and isinstance(expr, sympy.Float)) \
             or flags.get('float'):
         # -0.06000000000000001 means probably -0.06 ; that's because
         # floating point arithmetic is not based on decimal numbers, and
@@ -1125,13 +1129,15 @@ if sympy is not None:
 latex_generator = LatexGenerator()
 
 
+
+
 def make_file(syntax_tree, output_name, make_tex_file=False,
                  make_pdf_file=True, options=None):
     remove = getattr(options, 'remove', False)
     quiet = getattr(options, 'quiet', False)
 
     dir_name = os.path.split(output_name)[0]
-    extra = (' -output-directory ' + dir_name if dir_name else '')
+    extra = (('-output-directory "%s"' % dir_name) if dir_name else '')
     try:
         latex_generator.parse_node(syntax_tree)
     except Exception:
@@ -1143,23 +1149,29 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
         print('')
         raise
     latex = latex_generator.read()
+
+    def compile_latex_file(filename):
+        if quiet:
+            command = param['quiet_tex_command']
+        else:
+            command = param['tex_command']
+        command += ' %s "%s"' % (extra, filename)
+        log = execute(command)
+        # Run command twice if references were found.
+        if 'Rerun to get cross-references right.' in log:
+            log = execute(command)
+
     if make_tex_file:
-        try:
-            texfile = open(output_name + '.tex', 'w')
+        with open(output_name + '.tex', 'w') as texfile:
             texfile.write(latex)
             if make_pdf_file:
                 texfile.flush()
-                log = execute(param['tex_command'] + extra + ' ' + texfile.name)
-                # Run command twice if references were found.
-                if 'Rerun to get cross-references right.' in log:
-                    log = execute(param['tex_command'] + extra + ' ' + texfile.name)
+                compile_latex_file(texfile.name)
                 if remove:
                     for extension in ('aux', 'log', 'out'):
                         name = '%s.%s' % (output_name, extension)
                         if os.path.isfile(name):
                             os.remove(name)
-        finally:
-            texfile.close()
     else:
         try:
             texfile = tempfile.NamedTemporaryFile(suffix='.tex')
@@ -1172,14 +1184,7 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
                     tmp_names[extension] = '%s.%s' % (tmp_name, extension)
                     output_names[extension] = '%s.%s' % (output_name, extension)
                 texfile.flush()
-                if quiet:
-                    command = param['quiet_tex_command']
-                else:
-                    command = param['tex_command']
-                log = execute(command + extra + ' ' + texfile.name)
-                # Run command twice if references were found.
-                if 'Rerun to get cross-references right.' in log:
-                    log = execute(command + extra + ' ' + texfile.name)
+                compile_latex_file(texfile.name)
                 os.rename(tmp_names['pdf'], output_names['pdf'])
                 for extension in ('log', 'aux', 'out'):
                     if os.path.isfile(tmp_names[extension]):
@@ -1326,7 +1331,7 @@ if __name__ == '__main__':
             else:
                 name = ''
                 filename = ('%s-%s' % (output_name, num) if total > 1 else output_name)
-            filename = filename.replace(' ', '_')
+            #~ filename = filename.replace(' ', '\ ')
             filenames.append(filename)
 
             # Output is redirected to a .log file
@@ -1355,9 +1360,9 @@ if __name__ == '__main__':
                 filenames = [filename + '.pdf' for filename in filenames]
                 pdf_name = output_name + '.pdf'
                 if total > 1:
-                    files = ' '.join(filenames)
+                    files = ' '.join('"%s"' % filename for filename in filenames)
                     print('Pdftk output:')
-                    print(execute('pdftk %s output %s' % (files, pdf_name)))
+                    print(execute('pdftk %s output "%s"' % (files, pdf_name)))
                     if options.remove_all:
                         for name in filenames:
                             os.remove(name)
@@ -1391,5 +1396,5 @@ if __name__ == '__main__':
                         print('Warning: compression failed.')
                     temp_dir = tempfile.mkdtemp()
                     pdf_with_seed = os.path.join(temp_dir, 'with_seed.pdf')
-                    execute('pdftk %s attach_files %s output %s' % (pdf_name, seed_file_name, pdf_with_seed))
+                    execute('pdftk "%s" attach_files "%s" output "%s"' % (pdf_name, seed_file_name, pdf_with_seed))
                     shutil.copyfile(pdf_with_seed, pdf_name)
