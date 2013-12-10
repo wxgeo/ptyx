@@ -468,6 +468,7 @@ class SyntaxTreeGenerator(object):
 
     def _parse(self, node, text):
         position = 0
+        update_last_position = True
         node._closing_tags = []
 
         while True:
@@ -475,27 +476,40 @@ class SyntaxTreeGenerator(object):
             # Find next tag.
             # --------------
             # A tag starts with '#'.
-            last_position = position
+
+            # last_position should not be updated if false positives
+            # were encoutered (ie. #1, #2 in \newcommand{}...).
+            if update_last_position:
+                last_position = position
+            else:
+                update_last_position = True
             position = tag_position = text.find('#', position)
             if position == -1:
                 # No tag anymore.
                 break
             position += 1
+            # Is this a known tag ?
             for tag in self.sorted_tags:
                 if text[position:].startswith(tag):
-                    # This look like we found a tag.
+                    # Mmmh, this begins like a known tag... Infact, it will really be
+                    # only if next character is not alphanumeric.
                     if position + len(tag) == len(text):
-                        # Last text character reached -> yes, tag found !
+                        # There is no next character (last text character reached).
+                        # -> yes, a known tag found !
                         position += len(tag)
                         break
                     next_character = text[position + len(tag)]
                     if not(next_character == '_' or next_character.isalnum()):
-                        # Next character is not alphanumeric -> yes, tag found !
+                        # Next character is not alphanumeric
+                        # -> yes, a known tag found !
                         position += len(tag)
                         break
+                    # -> sorry, try again.
             else:
                 if text[position].isdigit():
-                    # LaTeX uses #0, #1, #2...
+                    # This not a tag: LaTeX uses #1, #2, #3 as \newcommand{} parameters.
+                    # Pretend nothing happened.
+                    update_last_position = False
                     continue
                 else:
                     # This is not a known tag name.

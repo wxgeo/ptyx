@@ -158,6 +158,14 @@ def test_randchoice():
         assert randchoice([0, 1, 2], exclude=[0]) in [1, 2]
         assert srandchoice([0, 1, 2], exclude=[0, 1]) in [-1, -2, 2]
 
+def test_latex_newcommand():
+    # \newcommand parameters #1, #2... are not tags.
+    test = r'''\newcommand{\rep}[1]{\ding{114}\,\,#1\hfill}'''
+    result = test
+    g = LatexGenerator()
+    g.parse(test)
+    assertEq(g.read(), result)
+
 
 if __name__ == '__main__':
     test_PICK()
