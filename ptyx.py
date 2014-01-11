@@ -174,7 +174,10 @@ global_context['rand'] = global_context['random'] = random.random
 global_context['ceil'] = global_context['ceiling']
 
 
-def randint(a=2, b=9, exclude=()):
+def randint(a=None, b=None, exclude=()):
+    if b is None:
+        b = (9 if a is None else a)
+        a = 2
     while True:
         val = random.randint(a, b)
         if val not in exclude:
@@ -183,9 +186,35 @@ def randint(a=2, b=9, exclude=()):
         val = S(val)
     return val
 
-def srandint(a=2, b=9, exclude=()):
+def srandint(a=None, b=None, exclude=()):
     while True:
         val = (-1)**randint(0, 1)*randint(a, b)
+        if val not in exclude:
+            return val
+
+def randfrac(a=None, b=None, exclude=(), not_decimal=False):
+    'Return a random fraction which is never an integer.'
+    if b is None:
+        b = (9 if a is None else a)
+        a = 2
+    if a in (-1, 0, 1) or b in (-1, 0, 1) or a == b:
+        # This would lead to infinite loop.
+        raise ValueError, ('(%s, %s) are not valid parameters.' % (a, b))
+    while True:
+        d = randint(a, b)
+        if d in (0, 1):
+            continue
+        n = randint(a, b)
+        val = S(n)/S(d)
+        # XXX: Improve following test.
+        if not_decimal and (val*10**1000).is_integer:
+            continue
+        if not val.is_integer and val not in exclude:
+            return val
+
+def srandfrac(a=None, b=None, exclude=(), not_decimal=False):
+    while True:
+        val = (-1)**randint(0, 1)*randfrac(a, b, not_decimal=not_decimal)
         if val not in exclude:
             return val
 
@@ -212,6 +241,8 @@ def srandchoice(*items, **kw):
 global_context['randint'] = randint
 global_context['randsignint'] = srandint
 global_context['srandint'] = srandint
+global_context['randfrac'] = randfrac
+global_context['srandfrac'] = srandfrac
 global_context['randchoice'] = randchoice
 global_context['srandchoice'] = srandchoice
 # If a document is compiled several times (to produce different versions of the same document),
@@ -221,7 +252,24 @@ global_context['NUM'] = 0
 
 
 
-def find_closing_bracket(text, start = 0, brackets = '{}'):
+def find_closing_bracket(text, start = 0, brackets = '{}', detect_strings=True):
+    """Find the closing bracket, starting from position `start`.
+
+    Note that start have to be a position *after* the opening bracket.
+
+    >>> from ptyx import find_closing_bracket
+    >>> find_closing_bracket('{{hello} world !}', start=1)
+    16
+
+    By default, inner strings are handled, so that in "{'}'}", second } will be
+    reported as closing bracket, since '}' is seen as an inner string.
+    To disable the detection of inner strings, use `detect_strings=False`.
+
+    >>> find_closing_bracket("{'}'}", start=1)
+    4
+    >>> find_closing_bracket("{'}'}", start=1, detect_strings=False)
+    2
+    """
     text_beginning = text[start:start + 30]
     # for debugging
     index = 0
@@ -236,7 +284,8 @@ def find_closing_bracket(text, start = 0, brackets = '{}'):
     # ', ", { and } are matched.
     # Note that if brackets == '[]', bracket ] must appear first in
     # regular expression ('[]"\'[]' is valid, but '[["\']]' is not).
-    reg = re.compile('[%s"\'%s]' % (close_bracket, open_bracket))
+    reg_str = '[%s"\'%s]' if detect_strings else '[%s%s]'
+    reg = re.compile(reg_str % (close_bracket, open_bracket))
 
     if start:
         text = text[start:]
@@ -278,6 +327,11 @@ def find_closing_bracket(text, start = 0, brackets = '{}'):
         return start + index - 1 # last caracter is the searched bracket :-)
 
     raise ValueError, 'ERROR: unbalanced brackets (%s) while scanning %s...' %(balance, repr(text_beginning))
+
+
+
+
+
 
 
 #ASSERT{}
@@ -400,54 +454,65 @@ class Node(object):
 
 class SyntaxTreeGenerator(object):
     # For each tag, indicate:
-    #   1. The number of arguments.
-    #   2. If the tag opens a block, a list of all the tags closing the block.
+    #   1. The number of arguments containing code.
+    #      Those arguments will be interpreted as python code.
+    #   2. The number of raw arguments.
+    #      Those arguments contain raw text.
+    #   3. If the tag opens a block, a list of all the tags closing the block.
     #
-    #  Notice that by default, the tag closing the block will not be consumed.
-    #  This means that the same tag will be parsed again to open or close another block.
-    #  To consume the closing tag, prefix the tag name with the '@' symbol.
-    #  This is usually the wished behaviour for #END tag.
-    tags = {'ASSERT':       (1, None),
-            'CALC':         (1, None),
+    # Notice that by default, the tag closing the block will not be consumed.
+    # This means that the same tag will be parsed again to open or close another block.
+    # To consume the closing tag, prefix the tag name with the '@' symbol.
+    # This is usually the wished behaviour for #END tag.
+    #
+    # Distinction between code arguments and raw arguments must be done because
+    # in raw arguments, there should be no detection of inner strings:
+    # in {$f'(x)$}, the ' must not be interpreted as an opening string, so closing
+    # bracket is the one following the $.
+    # By contrast, in code arguments, inner strings should be detected:
+    # in {val=='}'}, the bracket closing the tag is the second }, not the first one !
+
+    tags = {'ASSERT':       (1, 0, None),
+            'CALC':         (1, 0, None),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
-            'CASE':         (1, ['CASE', 'ELSE', 'END']),
-            'COMMENT':      (0, ['@END']),
+            'CASE':         (1, 0, ['CASE', 'ELSE', 'END']),
+            'COMMENT':      (0, 0, ['@END']),
             # CONDITIONAL_BLOCK isn't a real tag, but is used to enclose
             # a #CASE{...}...#CASE{...}...#END block, or an #IF{...}...#ELIF{...}...#END block.
-            'CONDITIONAL_BLOCK':    (0, ['@END']),
-            'DEBUG':        (0, None),
-            'EVAL':         (1, None),
-            'GEO':          (0, ['@END']),
+            'CONDITIONAL_BLOCK':    (0, 0, ['@END']),
+            'DEBUG':        (0, 0, None),
+            'EVAL':         (1, 0, None),
+            'GEO':          (0, 0, ['@END']),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
-            'IF':           (1, ['ELIF', 'ELSE', 'END']),
+            'IF':           (1, 0, ['ELIF', 'ELSE', 'END']),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
-            'ELIF':         (1, ['ELIF', 'ELSE', 'END']),
+            'ELIF':         (1, 0, ['ELIF', 'ELSE', 'END']),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
-            'ELSE':         (0, ['END']),
-            'END':          (0, None),
-            'IFNUM':        (2, None),
-            'MACRO':        (1, None),
-            'NEW_MACRO':    (1, ['@END']),
-            'PICK':         (1, None),
-            'PYTHON':       (0, ['@END']),
-            'RAND':         (1, None),
+            'ELSE':         (0, 0, ['END']),
+            'END':          (0, 0, None),
+            'IFNUM':        (1, 1, None),
+            'MACRO':        (0, 1, None),
+            'NEW_MACRO':    (0, 1, ['@END']),
+            'PICK':         (1, 0, None),
+            'PYTHON':       (0, 0, ['@END']),
+            'RAND':         (1, 0, None),
             # ROOT isn't a real tag, and is never closed.
-            'ROOT':         (0, []),
-            'SEED':         (1, None),
-            'SHUFFLE':      (0, ['@END']),
+            'ROOT':         (0, 0, []),
+            'SEED':         (1, 0, None),
+            'SHUFFLE':      (0, 0, ['@END']),
             # Do *NOT* consume #END tag, which must be used to end #SHUFFLE block.
-            'ITEM':         (0, ['ITEM', 'END']),
-            'SIGN':         (0, None),
-            'SYMPY':        (0, ['@END']),
-            'TABSIGN':      (0, ['@END']),
-            'TABVAL':       (0, ['@END']),
-            'TABVAR':       (0, ['@END']),
-            'TEST':         (3, None),
-            '-':            (0, None),
-            '+':            (0, None),
-            '*':            (0, None),
-            '=':            (0, None),
-            '?':            (0, None),
+            'ITEM':         (0, 0, ['ITEM', 'END']),
+            'SIGN':         (0, 0, None),
+            'SYMPY':        (0, 0, ['@END']),
+            'TABSIGN':      (0, 0, ['@END']),
+            'TABVAL':       (0, 0, ['@END']),
+            'TABVAR':       (0, 0, ['@END']),
+            'TEST':         (1, 2, None),
+            '-':            (0, 0, None),
+            '+':            (0, 0, None),
+            '*':            (0, 0, None),
+            '=':            (0, 0, None),
+            '?':            (0, 0, None),
             }
     # Tags sorted by length (longer first).
     # This is used for matching tests.
@@ -522,7 +587,7 @@ class SyntaxTreeGenerator(object):
 
             # Add text found before this tag to the syntax tree.
             # --------------------------------------------------
-            if text[tag_position - 1] == '\n' and (self.tags[tag][1] is not None or tag == 'END'):
+            if text[tag_position - 1] == '\n' and (self.tags[tag][2] is not None or tag == 'END'):
                 # Remove new line before #IF, #ELSE, ... tags.
                 node.add_child(text[last_position:tag_position - 1])
             else:
@@ -549,7 +614,7 @@ class SyntaxTreeGenerator(object):
             # because an #IF tag always opens a new CONDITIONAL_BLOCK.
             if (tag == 'CASE' and node.name != 'CASE') or tag == 'IF':
                 node = node.add_child(Node('CONDITIONAL_BLOCK'))
-                node._closing_tags = self.tags['CONDITIONAL_BLOCK'][1]
+                node._closing_tags = self.tags['CONDITIONAL_BLOCK'][2]
 
             # Detect if this tag is actually closing a node.
             # ----------------------------------------------
@@ -591,11 +656,14 @@ class SyntaxTreeGenerator(object):
                 # Detect command arguments.
                 # ~~~~~~~~~~~~~~~~~~~~~~~~~
                 # Each argument become a node with its number as name.
-                number_of_args, closing_tags = self.tags[node.name]
-                for i in range(number_of_args):
+                code_args_number, raw_args_number, closing_tags = self.tags[node.name]
+                for i in range(code_args_number + raw_args_number):
                     if text[position] == '{':
                         position += 1
-                        end = find_closing_bracket(text, position, brackets='{}')
+                        # Detect inner strings for arguments containing code,
+                        # but not for arguments containing raw text.
+                        end = find_closing_bracket(text, position, brackets='{}',
+                                            detect_strings=(i<code_args_number))
                         new_pos = end + 1
                     else:
                         end = position

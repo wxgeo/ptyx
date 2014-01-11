@@ -12,7 +12,10 @@ from testlib import assertEq
 def test_find_closing_bracket():
     text = '{hello{world} !} etc.'
     assert find_closing_bracket(text, 1) == 15
-
+    text = "{'}'}"
+    assert find_closing_bracket(text, 1) == 4
+    text = "{'}'}"
+    assert find_closing_bracket(text, 1, detect_strings=False) == 2
 
 def test_syntax_tree():
     s = SyntaxTreeGenerator()
@@ -162,6 +165,13 @@ def test_latex_newcommand():
     # \newcommand parameters #1, #2... are not tags.
     test = r'''\newcommand{\rep}[1]{\ding{114}\,\,#1\hfill}'''
     result = test
+    g = LatexGenerator()
+    g.parse(test)
+    assertEq(g.read(), result)
+
+def test_TEST():
+    test = r'''#{hxA=2;}#{yA=3;}\fbox{#TEST{hxA==yA}{is in}{isn't in}}'''
+    result = r'''\fbox{isn't in}'''
     g = LatexGenerator()
     g.parse(test)
     assertEq(g.read(), result)
