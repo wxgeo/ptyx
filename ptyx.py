@@ -26,11 +26,11 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-_version_ = "2.0"
-_release_date_ = (31, 10, 2013)
+__version__ = "2.0"
+__release_date__ = (31, 10, 2013)
 
 
-print 'Ptyx ' + _version_ + ' ' + '/'.join(str(d) for d in _release_date_)
+print 'Ptyx ' + __version__ + ' ' + '/'.join(str(d) for d in __release_date__)
 
 # <default_configuration>
 param = {
@@ -55,6 +55,7 @@ param['wxgeometrie_path'] = '~/Dropbox/Programmation/wxgeometrie'
 
 import optparse, re, random, os, tempfile, sys, codecs, csv, shutil, subprocess
 from functools import partial
+from math import ceil, floor, isnan, isinf
 
 if sys.platform == 'win32':
     sys.stdout = codecs.getwriter('cp850')(sys.stdout)
@@ -152,26 +153,6 @@ class SpecialDict(dict):
         return SpecialDict(dict.copy(self))
 
 
-global_context = SpecialDict()
-
-math_list = ('cos', 'sin', 'tan', 'ln', 'exp', 'diff', 'limit',
-             'integrate', 'E', 'pi', 'I', 'oo', 'gcd', 'lcm', 'floor',
-             'ceiling',)
-
-if sympy is not None:
-    global_context['sympy'] = sympy
-    global_context['sympify'] = global_context['SY'] = sympy.sympify
-    for name in math_list:
-        global_context[name] = getattr(sympy, name)
-    global_context['x'] = sympy.Symbol('x')
-
-if numpy is not None:
-    global_context['numpy'] = numpy
-
-global_context['sign'] = lambda x: ('+' if x > 0 else '-')
-global_context['round'] = round
-global_context['rand'] = global_context['random'] = random.random
-global_context['ceil'] = global_context['ceiling']
 
 
 def randint(a=None, b=None, exclude=()):
@@ -237,6 +218,58 @@ def srandchoice(*items, **kw):
     kw['signed'] = True
     return randchoice(*items, **kw)
 
+def round(val, ndigits=0):
+    u"""Round using round-away-from-zero strategy for halfway cases.
+
+    Python 3+ implements round-half-even, and Python 2.7 has a random behaviour
+    from end user point of view (in fact, result depends on internal
+    representation in floating point arithmetic).
+    """
+    val = float(val)
+    if isnan(val) or isinf(val):
+        return val
+    s = repr(val).rstrip('0')
+    if 'e' in s:
+        # XXX: implement round-away-from-zero in this case too.
+        return __builtins__.round(val, ndigits)
+    sep = s.find('.')
+    pos = sep + ndigits
+    if ndigits <= 0:
+        pos -= 1
+    # Skip dot if needed to reach next digit.
+    next_pos = (pos + 1 if pos + 1 != sep else pos + 2)
+    if next_pos < 0 or next_pos == 0 and s[next_pos] == '-':
+        return 0.
+    if len(s) <= next_pos:
+        # No need to round (no digit after).
+        return val
+    power = 10**ndigits
+    if s[next_pos] in '01234':
+        return (floor(val*power)/power if val > 0 else ceil(val*power)/power)
+    else:
+        return (ceil(val*power)/power if val > 0 else floor(val*power)/power)
+
+
+global_context = SpecialDict()
+
+math_list = ('cos', 'sin', 'tan', 'ln', 'exp', 'diff', 'limit',
+             'integrate', 'E', 'pi', 'I', 'oo', 'gcd', 'lcm', 'floor',
+             'ceiling',)
+
+if sympy is not None:
+    global_context['sympy'] = sympy
+    global_context['sympify'] = global_context['SY'] = sympy.sympify
+    for name in math_list:
+        global_context[name] = getattr(sympy, name)
+    global_context['x'] = sympy.Symbol('x')
+
+if numpy is not None:
+    global_context['numpy'] = numpy
+
+global_context['sign'] = lambda x: ('+' if x > 0 else '-')
+global_context['round'] = round
+global_context['rand'] = global_context['random'] = random.random
+global_context['ceil'] = global_context['ceiling']
 
 global_context['randint'] = randint
 global_context['randsignint'] = srandint
@@ -1070,7 +1103,8 @@ class LatexGenerator(object):
                 # sympy.sympify() can't parse attributes and methods inside
                 # code for now (AttributeError is raised then).
                 sympy_code = False
-                print('Warning: sympy error. Switching to standard evaluation mode.')
+                print("Warning: sympy can't parse %s. "
+                      "Switching to standard evaluation mode." % repr(code))
             except Exception:
                 #~ print sorted(context.keys())
                 print("Uncatched error when evaluating %s" % repr(code))
@@ -1286,7 +1320,7 @@ if __name__ == '__main__':
     # Options parsing
     parser = optparse.OptionParser(prog = "Ptyx",
             usage = "usage: %prog [options] filename",
-            version = "%prog " + _version_)
+            version = "%prog " + __version__)
     parser.add_option("-n", "--number",
             help = "Number of pdf files to generate.\n \
                    Ex: ptyx -n 5 my_file.ptyx")

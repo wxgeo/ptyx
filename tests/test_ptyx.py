@@ -6,7 +6,7 @@ import sys
 #~ print sys.path
 sys.path.append('..')
 
-from ptyx import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket, randchoice, srandchoice
+from ptyx import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket, randchoice, srandchoice, round
 from testlib import assertEq
 
 def test_find_closing_bracket():
@@ -16,6 +16,29 @@ def test_find_closing_bracket():
     assert find_closing_bracket(text, 1) == 4
     text = "{'}'}"
     assert find_closing_bracket(text, 1, detect_strings=False) == 2
+
+def test_round():
+    assertEq(round(1.775, 2), 1.78)
+
+    assertEq(round(1.454, -2), 0)
+    assertEq(round(1.454, -1), 0)
+    assertEq(round(1.454), 1)
+    assertEq(round(1.454, 1), 1.5)
+    assertEq(round(1.454, 2), 1.45)
+    assertEq(round(1.454, 3), 1.454)
+    assertEq(round(1.454, 4), 1.454)
+
+    assertEq(round(-9.545, -2), 0)
+    assertEq(round(-9.545, -1), -10)
+    assertEq(round(-9.545), -10)
+    assertEq(round(-9.545, 1), -9.5)
+    assertEq(round(-9.545, 2), -9.55)
+    assertEq(round(-9.545, 3), -9.545)
+    assertEq(round(-9.545, 4), -9.545)
+
+    assertEq(round(float('inf'), 4), float('inf'))
+    assertEq(round(float('-inf'), 4), float('-inf'))
+    assertEq(str(round(float('nan'), 4)), 'nan')
 
 def test_syntax_tree():
     s = SyntaxTreeGenerator()
