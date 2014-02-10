@@ -56,6 +56,7 @@ param['wxgeometrie_path'] = '~/Dropbox/Programmation/wxgeometrie'
 import optparse, re, random, os, tempfile, sys, codecs, csv, shutil, subprocess
 from functools import partial
 from math import ceil, floor, isnan, isinf
+from fractions import gcd
 
 if sys.platform == 'win32':
     sys.stdout = codecs.getwriter('cp850')(sys.stdout)
@@ -173,29 +174,42 @@ def srandint(a=None, b=None, exclude=()):
         if val not in exclude:
             return val
 
-def randfrac(a=None, b=None, exclude=(), not_decimal=False):
-    'Return a random fraction which is never an integer.'
+def randfrac(a=None, b=None, exclude=(), not_decimal=False, d=None):
+    '''Return a random fraction which is never an integer.
+
+    Use `d` to specify denominator value; `d` must be an integer or a tuple
+    of integers.
+    '''
     if b is None:
         b = (9 if a is None else a)
         a = 2
-    if a in (-1, 0, 1) or b in (-1, 0, 1) or a == b:
+    if (d is None and a in (-1, 0, 1) and b in (-1, 0, 1)) or a == b:
         # This would lead to infinite loop.
         raise ValueError, ('(%s, %s) are not valid parameters.' % (a, b))
     while True:
-        d = randint(a, b)
-        if d in (0, 1):
-            continue
-        n = randint(a, b)
+        if d is None:
+            d = randint(a, b)
+            if d in (0, 1):
+                continue
+            n = randint(a, b)
+        else:
+            n = randint(a, b)
+            if hasattr(d, '__iter__'):
+                d = random.choice(list(items))
+            if gcd(d, n) not in (-1, 1):
+                # XXX this may lead to infinite loop if wrong arguments are passed
+                continue
         val = S(n)/S(d)
         # XXX: Improve following test.
         if not_decimal and (val*10**1000).is_integer:
+            # XXX this may lead to infinite loop if wrong arguments are passed
             continue
         if not val.is_integer and val not in exclude:
             return val
 
-def srandfrac(a=None, b=None, exclude=(), not_decimal=False):
+def srandfrac(a=None, b=None, exclude=(), not_decimal=False, d=None):
     while True:
-        val = (-1)**randint(0, 1)*randfrac(a, b, not_decimal=not_decimal)
+        val = (-1)**randint(0, 1)*randfrac(a, b, not_decimal=not_decimal, d=d)
         if val not in exclude:
             return val
 
@@ -523,6 +537,7 @@ class SyntaxTreeGenerator(object):
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
             'ELSE':         (0, 0, ['END']),
             'END':          (0, 0, None),
+            'FREEZE_RANDOM_STATE': (0, 0, []),
             'IFNUM':        (1, 1, None),
             'MACRO':        (0, 1, None),
             'NEW_MACRO':    (0, 1, ['@END']),
@@ -898,7 +913,7 @@ class LatexGenerator(object):
         name = (args[0] if args else 'RESULT')
         from wxgeometrie.mathlib.parsers import traduire_formule
         def eval_and_store(txt, name):
-            self.context[name] = self._eval_and_format_python_expr(traduire_formule(txt))
+            self.context[name] = self._eval_python_expr(traduire_formule(txt))
             return txt
         self._parse_children(node.children[0].children, function=eval_and_store, name=name)
 
@@ -971,6 +986,11 @@ class LatexGenerator(object):
     def _parse_ROOT_tag(self, node):
         self._parse_children(node.children)
 
+    def _parse_FREEZE_RANDOM_STATE_tag(self, node):
+        state = random.getstate()
+        self._parse_children(node.children)
+        random.setstate(state)
+
     def _parse_TABVAL_tag(self, node):
         from wxgeometrie.modules.tablatex import tabval
         args, kw = self._parse_options(node)
@@ -980,17 +1000,21 @@ class LatexGenerator(object):
 
     def _parse_TABVAR_tag(self, node):
         from wxgeometrie.modules.tablatex import tabvar
+        state = random.getstate()
         args, kw = self._parse_options(node)
         for key in kw:
             kw[key] = eval(kw[key])
         self._parse_children(node.children, function=tabvar, **kw)
+        random.setstate(state)
 
     def _parse_TABSIGN_tag(self, node):
         from wxgeometrie.modules.tablatex import tabsign
+        state = random.getstate()
         args, kw = self._parse_options(node)
         for key in kw:
             kw[key] = eval(kw[key])
         self._parse_children(node.children, function=tabsign, **kw)
+        random.setstate(state)
 
     def _parse_TEST_tag(self, node):
         try:

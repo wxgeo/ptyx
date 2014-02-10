@@ -6,7 +6,7 @@ import sys
 #~ print sys.path
 sys.path.append('..')
 
-from ptyx import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket, randchoice, srandchoice, round
+from ptyx import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket, randchoice, srandchoice, round, randfrac
 from testlib import assertEq
 
 def test_find_closing_bracket():
@@ -143,6 +143,47 @@ def test_SEED_SHUFFLE():
 # À TESTER :
 # "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> voir si 'message 3' s'affiche bien.
 
+
+def test_SEED_SHUFFLE_2():
+    tests = []
+    tests.append('''#SEED{153}
+#SHUFFLE
+#ITEM
+a
+#ITEM
+b
+#ITEM
+c
+#END''')
+    tests.append('''#SEED{153}
+#SHUFFLE
+
+#ITEM
+a
+#ITEM
+b
+#ITEM
+c
+#END''')
+    tests.append('''#SEED{153}
+#SHUFFLE
+ #ITEM
+a
+#ITEM
+b
+#ITEM
+c
+#END''')
+    g = LatexGenerator()
+    results = []
+    for test in tests:
+        g.parse(test)
+        results.append(g.read())
+    for result in results[1:]:
+        assertEq(result, result[0])
+
+
+
 def test_PICK():
     test = '''#PICK{a=1,2,3,4}'''
     g = LatexGenerator()
@@ -184,6 +225,12 @@ def test_randchoice():
         assert randchoice([0, 1, 2], exclude=[0]) in [1, 2]
         assert srandchoice([0, 1, 2], exclude=[0, 1]) in [-1, -2, 2]
 
+
+def test_randfrac():
+    for i in range(1000):
+        assertEq(randfrac(2, 7, d=6).q, 6)
+
+
 def test_latex_newcommand():
     # \newcommand parameters #1, #2... are not tags.
     test = r'''\newcommand{\rep}[1]{\ding{114}\,\,#1\hfill}'''
@@ -199,6 +246,19 @@ def test_TEST():
     g.parse(test)
     assertEq(g.read(), result)
 
+def test_MUL():
+    test = r'''
+#PYTHON
+a=-8
+b=4
+c=5
+d=8
+#END
+$\dfrac{#a#*(#{c*x+d})#-#{a*x+b}#*#c}{(#{c*x+d})^2}$'''
+    result = r'''\dfrac{-8\times(5 x+8)-(-8 x+4)\times 5}{(5 x+8)^2}'''
+    g = LatexGenerator()
+    g.parse(test)
+    assertEq(g.read(), result)
 
 if __name__ == '__main__':
     test_PICK()
