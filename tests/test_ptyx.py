@@ -255,7 +255,8 @@ c=5
 d=8
 #END
 $\dfrac{#a#*(#{c*x+d})#-#{a*x+b}#*#c}{(#{c*x+d})^2}$'''
-    result = r'''\dfrac{-8\times(5 x+8)-(-8 x+4)\times 5}{(5 x+8)^2}'''
+    result = r'''
+$\dfrac{-8\times(5 x+8)-(-8 x+4)\times 5}{(5 x+8)^2}$'''
     g = LatexGenerator()
     g.parse(test)
     assertEq(g.read(), result)
