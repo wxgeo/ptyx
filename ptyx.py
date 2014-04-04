@@ -282,6 +282,8 @@ if numpy is not None:
 
 global_context['sign'] = lambda x: ('+' if x > 0 else '-')
 global_context['round'] = round
+global_context['min'] = min
+global_context['max'] = max
 global_context['rand'] = global_context['random'] = random.random
 global_context['ceil'] = global_context['ceiling']
 
