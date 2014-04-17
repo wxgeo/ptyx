@@ -1175,7 +1175,7 @@ class LatexGenerator(object):
             if not neg(latex):
                 latex = '+' + latex
         elif flags.get('*'):
-            if neg(latex):
+            if neg(latex) or getattr(result, 'is_Add', False):
                 latex = r'\left(' + latex + r'\right)'
             latex = r'\times ' + latex
         elif flags.get('-'):
