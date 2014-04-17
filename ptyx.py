@@ -174,6 +174,9 @@ def srandint(a=None, b=None, exclude=()):
         if val not in exclude:
             return val
 
+def randbool():
+    return bool(randint(0, 1))
+
 def randfrac(a=None, b=None, exclude=(), not_decimal=False, d=None):
     '''Return a random fraction which is never an integer.
 
@@ -288,6 +291,7 @@ global_context['rand'] = global_context['random'] = random.random
 global_context['ceil'] = global_context['ceiling']
 
 global_context['randint'] = randint
+global_context['randbool'] = randbool
 global_context['randsignint'] = srandint
 global_context['srandint'] = srandint
 global_context['randfrac'] = randfrac
