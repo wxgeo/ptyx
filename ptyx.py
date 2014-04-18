@@ -759,6 +759,8 @@ class LatexGenerator(object):
 
     convert_tags = {'+': 'ADD', '-': 'SUB', '*': 'MUL', '=': 'EQUAL', '?': 'SIGN'}
 
+    re_varname = re.compile('[A-Za-z_][A-Za-z0-9_]*([[].+[]])?$')
+
     def __init__(self):
         self.parser = SyntaxTreeGenerator()
         self.clear()
@@ -1115,9 +1117,14 @@ class LatexGenerator(object):
             raise ImportError, 'sympy library not found.'
         varname = ''
         i = code.find('=')
-        if i != -1 and len(code) > i + 1 and code[i + 1] != '=':
+        if 0 < i < len(code) - 1 and code[i + 1] != '=':
             varname = code[:i].strip()
-            code = code[i + 1:]
+            if re.match(self.re_varname, varname):
+                # This is (probably) a variable name (or a list or dict item reference).
+                code = code[i + 1:]
+            else:
+                # This is not a variable name.
+                varname = ''
         # Last value will be accessible through '_' variable
         if not varname:
             varname = '_'
@@ -1244,22 +1251,23 @@ def print_sympy_expr(expr, **flags):
         # so some decimal numbers do not have exact internal representation.
         # Python str() handles this better than sympy.latex()
         latex = str(float(expr))
-        #TODO: sympy.Float instance may only be part of an other expression.
-        # It would be much better to subclass sympy LaTeX printer
 
         # Strip unused trailing 0.
         latex = latex.rstrip('0').rstrip('.')
-        # In french, german... a comma is used as floating point.
-        # However, if `float` flag is set, floating point is left unchanged
-        # (useful for Tikz for example).
-        if not flags.get('float'):
-            latex = latex.replace('.', param['floating_point'])
     elif wxgeometrie is not None:
-        return custom_latex(expr, mode='plain')
+        latex = custom_latex(expr, mode='plain')
     elif sympy and expr is sympy.oo:
         latex = r'+\infty'
     else:
         latex = sympy.latex(expr)
+    if isinstance(expr, float) or (sympy and isinstance(expr, sympy.Basic)):
+        # In french, german... a comma is used as floating point.
+        # However, if `float` flag is set, floating point is left unchanged
+        # (useful for Tikz for example).
+        if not flags.get('float'):
+            # It would be much better to subclass sympy LaTeX printer
+            latex = latex.replace('.', param['floating_point'])
+
     #TODO: subclass sympy LaTeX printer (cf. mathlib in wxgeometrie)
     latex = latex.replace(r'\operatorname{log}', r'\operatorname{ln}')
     return latex
