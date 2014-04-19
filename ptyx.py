@@ -198,7 +198,7 @@ def randfrac(a=None, b=None, exclude=(), not_decimal=False, d=None):
         else:
             n = randint(a, b)
             if hasattr(d, '__iter__'):
-                d = random.choice(list(items))
+                d = random.choice(list(d))
             if gcd(d, n) not in (-1, 1):
                 # XXX this may lead to infinite loop if wrong arguments are passed
                 continue
@@ -383,8 +383,59 @@ def find_closing_bracket(text, start = 0, brackets = '{}', detect_strings=True):
 
 
 
+def tree_to_expr(tree):
+    u"""Convert a tree of sympy atoms to a sympy expression."""
+    if isinstance(tree, list):
+        # node
+        func = tree[0]
+        args = tree[1:]
+        return func(*(tree_to_expr(arg) for arg in args))
+    else:
+        # leaf
+        return tree
 
 
+
+def expr_to_tree(expr):
+    u"""Convert a sympy expression to a tree.
+
+    If `expr` has no argument, it's a leaf, so it will be returned untouched.
+    """
+    args = expr.args
+    if args:
+        # node
+        return [expr.func] + [expr_to_tree(arg) for arg in args]
+    else:
+        # leaf
+        return expr
+
+
+def _convert_inner_rationals_to_floats(tree, integers, ndigits=None):
+    u"""Convert **in place** rationals to floats inside a sympy tree."""
+    if isinstance(tree, list):
+        for i, node in enumerate(tree):
+            if isinstance(node, sympy.Integer) and not integers:
+                continue
+            elif isinstance(node, sympy.Rational):
+                if ndigits is not None:
+                    f = sympy.Float(repr(round(node, ndigits)))
+                else:
+                    f = sympy.Float(node)
+                tree[i] = f
+            else:
+                _convert_inner_rationals_to_floats(node, integers=integers, ndigits=ndigits)
+
+def rationals_to_floats(expr, integers=False, ndigits=None):
+    u"""Recursively convert rationals to floats inside a sympy expression."""
+    tree = expr_to_tree(expr)
+    _convert_inner_rationals_to_floats(tree, integers=integers, ndigits=ndigits)
+    return tree_to_expr(tree)
+
+def _float_me_if_you_can(expr):
+    try:
+        return float(expr)
+    except:
+        return expr
 
 
 #ASSERT{}
@@ -940,8 +991,10 @@ class LatexGenerator(object):
         for arg in args:
             if arg.isdigit():
                 self.flags['round'] = int(arg)
-            elif arg == 'float':
-                self.flags['float'] = True
+            elif arg == '.':
+                self.flags['.'] = True
+            elif arg == 'floats':
+                self.flags['floats'] = True
             elif arg == 'str':
                 self.flags['str'] = True
             else:
@@ -1115,6 +1168,7 @@ class LatexGenerator(object):
 
         if sympy_code and sympy is None:
             raise ImportError, 'sympy library not found.'
+
         varname = ''
         i = code.find('=')
         if 0 < i < len(code) - 1 and code[i + 1] != '=':
@@ -1211,9 +1265,9 @@ class LatexGenerator(object):
 
 
     def _apply_flag(self, result):
-        '''Apply [num] and [rand] special parameters to result.
+        '''Apply special parameters like [num], [rand], [floats] or [round] to result.
 
-        Note that both parameters require that result is iterable, otherwise, nothing occures.
+        Note that [num] and [rand] parameters require that result is iterable, otherwise, nothing occures.
         If result is iterable, an element of result is returned, choosed according to current flag.'''
         flags = self.flags
         context = self.context
@@ -1222,9 +1276,13 @@ class LatexGenerator(object):
                 result = random.choice(result)
             elif flags.get('pick', False):
                 result = result[self.NUM%len(result)]
-        if flags.has_key('round'):
+
+        if 'round' in flags:
             try:
-                round_result = round(result, flags['round'])
+                if sympy:
+                    round_result = rationals_to_floats(result, ndigits=flags['round'])
+                else:
+                    round_result = round(result, flags['round'])
             except ValueError:
                 print "** ERROR while rounding value: **"
                 print result
@@ -1232,8 +1290,15 @@ class LatexGenerator(object):
                 print ''.join(self.context['LATEX'])[-100:]
                 print "-----"
                 raise
-            flags['result_is_exact'] = (result == round_result)
+            if sympy:
+                flags['result_is_exact'] = (
+                    {_float_me_if_you_can(elt) for elt in result.atoms()} ==
+                    {_float_me_if_you_can(elt) for elt in round_result.atoms()})
+            else:
+                flags['result_is_exact'] = (result == round_result)
             result = round_result
+        elif 'floats' in self.flags:
+            result = rationals_to_floats(result)
         else:
             context.result_is_exact = True
         return result
@@ -1245,7 +1310,7 @@ def print_sympy_expr(expr, **flags):
     if flags.get('str'):
         latex = str(expr)
     elif isinstance(expr, float) or (sympy and isinstance(expr, sympy.Float)) \
-            or flags.get('float'):
+            or flags.get('.'):
         # -0.06000000000000001 means probably -0.06 ; that's because
         # floating point arithmetic is not based on decimal numbers, and
         # so some decimal numbers do not have exact internal representation.
@@ -1264,7 +1329,7 @@ def print_sympy_expr(expr, **flags):
         # In french, german... a comma is used as floating point.
         # However, if `float` flag is set, floating point is left unchanged
         # (useful for Tikz for example).
-        if not flags.get('float'):
+        if not flags.get('.'):
             # It would be much better to subclass sympy LaTeX printer
             latex = latex.replace('.', param['floating_point'])
 
@@ -1391,6 +1456,11 @@ if __name__ == '__main__':
                    The pdftk command must be installed.")
     parser.add_option("-C", "--compress", action = "store_true",
             help = "Like --cat, but compress final pdf file using pdf2ps and ps2pdf.")
+    parser.add_option("--reorder-pages",
+            help = "Reorder pages for printing.\n\
+            Currently, only 'brochure' and 'brochure-reversed' mode are supported.\
+            The pdftk command must be installed.\
+            Ex: ptyx --reorder-pages=brochure-reversed -f pdf myfile.ptyx.")
     parser.add_option("--names",
             help = "Name of a CSV file containing a column of names \
                    (and optionnaly a second column with fornames). \n \
@@ -1551,3 +1621,28 @@ if __name__ == '__main__':
                     pdf_with_seed = os.path.join(temp_dir, 'with_seed.pdf')
                     execute('pdftk "%s" attach_files "%s" output "%s"' % (pdf_name, seed_file_name, pdf_with_seed))
                     shutil.copyfile(pdf_with_seed, pdf_name)
+        if options.reorder_pages:
+            # Use pdftk to detect how many pages has the pdf document.
+            n = int(execute('pdftk %s dump_data output | grep -i NumberOfPages:' % pdf_name).strip().split()[-1])
+            mode = options.reorder_pages
+            if mode == 'brochure':
+                if n%4:
+                    raise RuntimeError, ('Page number is %s, but must be a multiple of 4.' % n)
+                order = []
+                for i in range(int(n/4)):
+                    order.extend([2*i + 1, 2*i + 2, n - 2*i - 1, n - 2*i])
+            elif mode == 'brochure-reversed':
+                if n%4:
+                    raise RuntimeError, ('Page number is %s, but must be a multiple of 4.' % n)
+                order = n*[0]
+                for i in range(int(n/4)):
+                    order[2*i] = 4*i + 1
+                    order[2*i + 1] = 4*i + 2
+                    order[n - 2*i - 2] = 4*i + 3
+                    order[n - 2*i - 1] = 4*i + 4
+            else:
+                raise NameError, ('Unknown mode %s for option --reorder-pages !' % mode)
+            # monfichier.pdf -> monfichier-brochure.pdf
+            new_name = '%s-%s.pdf' % (pdf_name[:pdf_name.index('.')], mode)
+            execute('pdftk %s cat %s output %s' % (pdf_name, ' '.join(str(i) for i in order), new_name))
+
