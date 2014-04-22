@@ -261,5 +261,18 @@ $\dfrac{-8\times(5 x+8)-(-8 x+4)\times 5}{(5 x+8)^2}$'''
     g.parse(test)
     assertEq(g.read(), result)
 
+def test_ADD():
+    test = r'''
+#PYTHON
+a = 2
+b = 3
+#END
+$#a#+\dfrac{#b}{x}$'''
+    result = r'''$2+\dfrac{3}{x}$'''
+    g = LatexGenerator()
+    g.parse(test)
+    assertEq(g.read(), result)
+
+
 if __name__ == '__main__':
     test_PICK()

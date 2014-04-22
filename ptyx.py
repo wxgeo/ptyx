@@ -82,7 +82,7 @@ for pathname in ('sympy_path', 'wxgeometrie_path'):
 try:
     import sympy
     from sympy.core.sympify import SympifyError
-    from sympy import S
+    from sympy import S, preorder_traversal, Symbol
 except ImportError:
     print("** ERROR: sympy not found ! **")
     sympy = None
@@ -269,16 +269,18 @@ def round(val, ndigits=0):
 
 global_context = SpecialDict()
 
-math_list = ('cos', 'sin', 'tan', 'ln', 'exp', 'diff', 'limit',
-             'integrate', 'E', 'pi', 'I', 'oo', 'gcd', 'lcm', 'floor',
-             'ceiling',)
+#~ math_list = ('cos', 'sin', 'tan', 'ln', 'exp', 'diff', 'limit',
+             #~ 'integrate', 'E', 'pi', 'I', 'oo', 'gcd', 'lcm', 'floor',
+             #~ 'ceiling',)
 
 if sympy is not None:
     global_context['sympy'] = sympy
     global_context['sympify'] = global_context['SY'] = sympy.sympify
-    for name in math_list:
-        global_context[name] = getattr(sympy, name)
-    global_context['x'] = sympy.Symbol('x')
+    #~ for name in math_list:
+        #~ global_context[name] = getattr(sympy, name)
+    exec('from sympy import *', global_context)
+    exec('var("x y")', global_context)
+    #~ global_context['x'] = sympy.Symbol('x')
 
 if numpy is not None:
     global_context['numpy'] = numpy
@@ -383,59 +385,69 @@ def find_closing_bracket(text, start = 0, brackets = '{}', detect_strings=True):
 
 
 
-def tree_to_expr(tree):
-    u"""Convert a tree of sympy atoms to a sympy expression."""
-    if isinstance(tree, list):
-        # node
-        func = tree[0]
-        args = tree[1:]
-        return func(*(tree_to_expr(arg) for arg in args))
-    else:
-        # leaf
-        return tree
+#~ def tree_to_expr(tree):
+    #~ u"""Convert a tree of sympy atoms to a sympy expression."""
+    #~ if isinstance(tree, list):
+        #~ # node
+        #~ func = tree[0]
+        #~ args = tree[1:]
+        #~ return func(*(tree_to_expr(arg) for arg in args))
+    #~ else:
+        #~ # leaf
+        #~ return tree
 
 
 
-def expr_to_tree(expr):
-    u"""Convert a sympy expression to a tree.
-
-    If `expr` has no argument, it's a leaf, so it will be returned untouched.
-    """
-    args = expr.args
-    if args:
-        # node
-        return [expr.func] + [expr_to_tree(arg) for arg in args]
-    else:
-        # leaf
-        return expr
-
-
-def _convert_inner_rationals_to_floats(tree, integers, ndigits=None):
-    u"""Convert **in place** rationals to floats inside a sympy tree."""
-    if isinstance(tree, list):
-        for i, node in enumerate(tree):
-            if isinstance(node, sympy.Integer) and not integers:
-                continue
-            elif isinstance(node, sympy.Rational):
-                if ndigits is not None:
-                    f = sympy.Float(repr(round(node, ndigits)))
-                else:
-                    f = sympy.Float(node)
-                tree[i] = f
-            else:
-                _convert_inner_rationals_to_floats(node, integers=integers, ndigits=ndigits)
-
-def rationals_to_floats(expr, integers=False, ndigits=None):
-    u"""Recursively convert rationals to floats inside a sympy expression."""
-    tree = expr_to_tree(expr)
-    _convert_inner_rationals_to_floats(tree, integers=integers, ndigits=ndigits)
-    return tree_to_expr(tree)
+#~ def expr_to_tree(expr):
+    #~ u"""Convert a sympy expression to a tree.
+#~
+    #~ If `expr` has no argument, it's a leaf, so it will be returned untouched.
+    #~ """
+    #~ args = expr.args
+    #~ if args:
+        #~ # node
+        #~ return [expr.func] + [expr_to_tree(arg) for arg in args]
+    #~ else:
+        #~ # leaf
+        #~ return expr
+#~
+#~
+#~ def _convert_inner_rationals_to_floats(tree, integers, ndigits=None):
+    #~ u"""Convert **in place** rationals to floats inside a sympy tree."""
+    #~ if isinstance(tree, list):
+        #~ for i, node in enumerate(tree):
+            #~ if isinstance(node, sympy.Integer) and not integers:
+                #~ continue
+            #~ elif isinstance(node, sympy.Rational):
+                #~ if ndigits is not None:
+                    #~ f = sympy.Float(repr(round(node, ndigits)))
+                #~ else:
+                    #~ f = sympy.Float(node)
+                #~ tree[i] = f
+            #~ else:
+                #~ _convert_inner_rationals_to_floats(node, integers=integers, ndigits=ndigits)
+#~
+#~ def rationals_to_floats(expr, integers=False, ndigits=None):
+    #~ u"""Recursively convert rationals to floats inside a sympy expression."""
+    #~ tree = expr_to_tree(expr)
+    #~ _convert_inner_rationals_to_floats(tree, integers=integers, ndigits=ndigits)
+    #~ return tree_to_expr(tree)
 
 def _float_me_if_you_can(expr):
     try:
         return float(expr)
     except:
         return expr
+
+def numbers_to_floats(expr, integers=False, ndigits=None):
+    u"""Convert all numbers (except integers) to floats inside a sympy expression."""
+    for sub in preorder_traversal(expr):
+        if not sub.has(Symbol) and (integers or not sub.is_Integer):
+            new = sub.evalf()
+            if ndigits is not None:
+                new = round(new, ndigits)
+            expr = expr.subs(sub, new)
+    return expr
 
 
 #ASSERT{}
@@ -595,6 +607,7 @@ class SyntaxTreeGenerator(object):
             'ELSE':         (0, 0, ['END']),
             'END':          (0, 0, None),
             'FREEZE_RANDOM_STATE': (0, 0, []),
+            'GCALC':        (0, 0, ['@END']),
             'IFNUM':        (1, 1, None),
             'MACRO':        (0, 1, None),
             'NEW_MACRO':    (0, 1, ['@END']),
@@ -1076,6 +1089,21 @@ class LatexGenerator(object):
         self._parse_children(node.children, function=tabsign, **kw)
         random.setstate(state)
 
+    def _parse_GCALC_tag(self, node):
+        if not wxgeometrie:
+            raise ImportError, 'Library wxgeometrie not found !'
+        from wxgeometrie.mathlib.interprete import Interprete
+        state = random.getstate()
+        args, kw = self._parse_options(node)
+        for key in kw:
+            kw[key] = eval(kw[key])
+        def _eval2latex(code):
+            print('code::' + repr(code))
+            return Interprete(**kw).evaluer(code.strip())[1]
+        self._parse_children(node.children, function=_eval2latex, **kw)
+        random.setstate(state)
+
+
     def _parse_TEST_tag(self, node):
         try:
             if eval(node.arg(0), self.context):
@@ -1280,7 +1308,7 @@ class LatexGenerator(object):
         if 'round' in flags:
             try:
                 if sympy:
-                    round_result = rationals_to_floats(result, ndigits=flags['round'])
+                    round_result = numbers_to_floats(result, ndigits=flags['round'])
                 else:
                     round_result = round(result, flags['round'])
             except ValueError:
@@ -1298,7 +1326,7 @@ class LatexGenerator(object):
                 flags['result_is_exact'] = (result == round_result)
             result = round_result
         elif 'floats' in self.flags:
-            result = rationals_to_floats(result)
+            result = numbers_to_floats(result)
         else:
             context.result_is_exact = True
         return result
@@ -1547,13 +1575,13 @@ if __name__ == '__main__':
         for num in xrange(start, start + total):
             latex_generator.clear()
             latex_generator.context['NUM'] = num
-            latex_generator.context['NAME'] = name
             if names:
                 name = names[num]
                 filename = '%s-%s' % (output_name, name)
             else:
                 name = ''
                 filename = ('%s-%s' % (output_name, num) if total > 1 else output_name)
+            latex_generator.context['NAME'] = name
             #~ filename = filename.replace(' ', '\ ')
             filenames.append(filename)
 
