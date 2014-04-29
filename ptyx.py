@@ -441,7 +441,15 @@ def _float_me_if_you_can(expr):
 
 def numbers_to_floats(expr, integers=False, ndigits=None):
     u"""Convert all numbers (except integers) to floats inside a sympy expression."""
+    if not sympy or not isinstance(expr, sympy.Basic):
+        if isinstance(expr, (long, int)) and not integer:
+            return expr
+        elif ndigits is not None:
+            return round(expr, ndigits)
+        else:
+            return float(expr)
     for sub in preorder_traversal(expr):
+        sub = sympy.sympify(sub)
         if not sub.has(Symbol) and (integers or not sub.is_Integer):
             new = sub.evalf()
             if ndigits is not None:
@@ -1318,7 +1326,7 @@ class LatexGenerator(object):
                 print ''.join(self.context['LATEX'])[-100:]
                 print "-----"
                 raise
-            if sympy:
+            if sympy and isinstance(result, sympy.Basic):
                 flags['result_is_exact'] = (
                     {_float_me_if_you_can(elt) for elt in result.atoms()} ==
                     {_float_me_if_you_can(elt) for elt in round_result.atoms()})
