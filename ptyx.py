@@ -177,6 +177,20 @@ def srandint(a=None, b=None, exclude=()):
 def randbool():
     return bool(randint(0, 1))
 
+def randpoint(a=None, b=None, exclude=()):
+    while True:
+        x = randint(a, b)
+        y = randint(a, b)
+        if (x, y) not in exclude:
+            return (x, y)
+
+def srandpoint(a=None, b=None, exclude=()):
+    while True:
+        x = srandint(a, b)
+        y = srandint(a, b)
+        if (x, y) not in exclude:
+            return (x, y)
+
 def randfrac(a=None, b=None, exclude=(), not_decimal=False, d=None):
     '''Return a random fraction which is never an integer.
 
@@ -292,6 +306,8 @@ global_context['max'] = max
 global_context['rand'] = global_context['random'] = random.random
 global_context['ceil'] = global_context['ceiling']
 
+global_context['randpoint'] = randpoint
+global_context['srandpoint'] = srandpoint
 global_context['randint'] = randint
 global_context['randbool'] = randbool
 global_context['randsignint'] = srandint
@@ -992,8 +1008,9 @@ class LatexGenerator(object):
         assert len(args) <= 1 and len(kw) == 0
         name = (args[0] if args else 'RESULT')
         from wxgeometrie.mathlib.parsers import traduire_formule
+        fonctions = [key for key, val in self.context.items() if isinstance(val, (type(sympy.sqrt), type(sympy.cos)))]
         def eval_and_store(txt, name):
-            self.context[name] = self._eval_python_expr(traduire_formule(txt))
+            self.context[name] = self._eval_python_expr(traduire_formule(txt, fonctions=fonctions))
             return txt
         self._parse_children(node.children[0].children, function=eval_and_store, name=name)
 
