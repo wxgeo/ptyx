@@ -105,14 +105,13 @@ def test_TABVAR():
 '''$\\alpha=3,\\beta=5
 \\[\\begin{tabvar}{|C|CCCCC|}
 \\hline
-x                                    &-\\infty      &        &3&      &+\\infty\\\\
+\\,\\,x\\,\\,                            &-\\infty      &        &3&      &+\\infty\\\\
 \\hline
 \\niveau{1}{2}\\raisebox{0.5em}{$f(x)$}&\\niveau{2}{2}&\\decroit&5&\\croit&\\\\
 \\hline
 \\end{tabvar}\\]
 % x;f(x):(-oo;) >> (3;5) << (+oo;)
-% f(x)=2*(x-3)^2+5
-$'''
+% f(x)=2*(x-3)^2+5\n$'''
     g = LatexGenerator()
     g.parse(test)
     assertEq(g.read(), result)
@@ -256,7 +255,7 @@ d=8
 #END
 $\dfrac{#a#*(#{c*x+d})#-#{a*x+b}#*#c}{(#{c*x+d})^2}$'''
     result = r'''
-$\dfrac{-8\times(5 x+8)-(-8 x+4)\times 5}{(5 x+8)^2}$'''
+$\dfrac{-8\times (5 x + 8)-\left(- 8 x + 4\right)\times 5}{(5 x + 8)^2}$'''
     g = LatexGenerator()
     g.parse(test)
     assertEq(g.read(), result)
@@ -290,7 +289,8 @@ a = 2
 b = 3
 #END
 $#a#+\dfrac{#b}{x}$'''
-    result = r'''$2+\dfrac{3}{x}$'''
+    result = r'''
+$2+\dfrac{3}{x}$'''
     g = LatexGenerator()
     g.parse(test)
     assertEq(g.read(), result)

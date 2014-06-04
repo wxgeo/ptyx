@@ -698,8 +698,15 @@ class SyntaxTreeGenerator(object):
             # Is this a known tag ?
             for tag in self.sorted_tags:
                 if text[position:].startswith(tag):
-                    # Mmmh, this begins like a known tag... Infact, it will really be
-                    # only if next character is not alphanumeric.
+                    # Mmmh, this begins like a known tag...
+                    # Infact, it will really match a known tag if one of the following occures:
+                    # - next character is not alphanumeric ('#IF{' for example).
+                    # - tag is not alphanumeric ('#*' tag for example).
+                    if not tag[-1].replace('_', 'a').isalnum():
+                        # Tag is not alphanumeric, so no confusion with a variable name can occure.
+                        # -> yes, a known tag found !
+                        position += len(tag)
+                        break
                     if position + len(tag) == len(text):
                         # There is no next character (last text character reached).
                         # -> yes, a known tag found !
@@ -952,6 +959,11 @@ class LatexGenerator(object):
         # Parsing at this stage is quite expansive yet unnecessary most of the time,
         # so some basic testing is done before.
         text = str(text)
+        if text.strip():
+            for flag in '+-*':
+                if self.flags.get(flag):
+                    text = (r'\times ' if flag == '*' else flag) + text
+                    self.flags[flag] = False
         if parse and '#' in text:
             if param['debug']:
                 print('Parsing %s...' % repr(text))
@@ -1040,8 +1052,12 @@ class LatexGenerator(object):
         # XXX: support options round, float, (sympy, python,) pick and rand
         code = node.arg(0)
         assert isinstance(code, basestring), type(code)
-        self.write(self._eval_and_format_python_expr(code))
+        txt = self._eval_and_format_python_expr(code)
+        # Tags must be cleared *before* calling .write(txt), since .write(txt)
+        # add '+', '-' and '\times ' before txt if corresponding flags are set,
+        # and ._eval_and_format_python_expr() has already do this.
         self.flags.clear()
+        self.write(txt)
 
     def _parse_NEW_MACRO_tag(self, node):
         name = node.arg(0)
