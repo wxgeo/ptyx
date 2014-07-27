@@ -173,13 +173,24 @@ b
 #ITEM
 c
 #END''')
+    #~ s = SyntaxTreeGenerator()
+    #~ s.parse(tests[0])
+    #~ print(s.syntax_tree.display())
+    #~ s = SyntaxTreeGenerator()
+    #~ s.parse(tests[1])
+    #~ print(s.syntax_tree.display())
+    s = SyntaxTreeGenerator()
+    s.parse(tests[1])
+    #~ print(s.syntax_tree.display(raw=True))
     g = LatexGenerator()
     results = []
     for test in tests:
+        g.clear()
         g.parse(test)
         results.append(g.read())
-    for result in results[1:]:
-        assertEq(result, result[0])
+    assertEq(results[0], '\nb\na\nc')
+    assertEq(results[1], '\n\nb\na\nc')
+    assertEq(results[2], '\nb\na\nc')
 
 
 

@@ -542,17 +542,20 @@ class Node(object):
         return child.children[0]
 
 
-    def display(self, color=True, indent=0):
+    def display(self, color=True, indent=0, raw=False):
         texts = ['%s+ Node %s' % (indent*' ', self._format(self.name, color))]
         for child in self.children:
             if isinstance(child, Node):
-                texts.append(child.display(color, indent + 2))
+                texts.append(child.display(color, indent + 2, raw=raw))
             else:
-                lines = child.split('\n')
-                text = lines[0]
-                if len(lines) > 1:
-                    text += ' [...]'
-                text = repr(text)
+                if raw:
+                    text = repr(child)
+                else:
+                    lines = child.split('\n')
+                    text = lines[0]
+                    if len(lines) > 1:
+                        text += ' [...]'
+                    text = repr(text)
                 if color:
                     text = self.green(text)
                 texts.append('%s  - text: %s' % (indent*' ', text))
@@ -736,9 +739,21 @@ class SyntaxTreeGenerator(object):
 
             # Add text found before this tag to the syntax tree.
             # --------------------------------------------------
-            if text[tag_position - 1] == '\n' and (self.tags[tag][2] is not None or tag == 'END'):
-                # Remove new line before #IF, #ELSE, ... tags.
-                node.add_child(text[last_position:tag_position - 1])
+            if self.tags[tag][2] is not None or tag == 'END':
+                # Remove new line and spaces before #IF, #ELSE, ... tags.
+                # This is more convenient, since two successive \n
+                # induce a new paragraph in LaTeX.
+                # So, something like this
+                #   [some text here]
+                #   #IF{delta>0}
+                #   [some text there]
+                #   #END
+                # would automatically result in two paragraphs else.
+                i = max(text.rfind('\n', None, tag_position), 0)
+                if text[i:tag_position].isspace():
+                    node.add_child(text[last_position:i])
+                else:
+                    node.add_child(text[last_position:tag_position])
             else:
                 node.add_child(text[last_position:tag_position])
 
@@ -749,8 +764,8 @@ class SyntaxTreeGenerator(object):
             # The most subtle part while parsing pTyX code is to distinguish
             # between "#CASE{0}...#CASE{1}...#ELSE...#END"
             # and "#CASE{0}...#END#CASE{1}...#ELSE...#END".
-            # This distinction is needed because, in case NUM==0, the ELSE clause
-            # must be executed in the 2nde version, and not in the 1st one.
+            # This distinction is important because, if NUM==0, the ELSE clause
+            # must be executed in the 2nde version, but not in the 1st one.
             #
             # This is one of the reasons why CASE nodes are enclosed inside a CONDITIONAL_BLOCK.
             # So, first version must result in only one CONDITIONAL_BLOCK,
@@ -1070,9 +1085,16 @@ class LatexGenerator(object):
         self._parse_children(self.macros[name])
 
     def _parse_SHUFFLE_tag(self, node):
-        children = node.children[:]
-        random.shuffle(children)
-        self._parse_children(children)
+        if node.children:
+            if isinstance(node.children[0], Node):
+                children = node.children[:]
+                random.shuffle(children)
+            else:
+                children = node.children[1:]
+                random.shuffle(children)
+                children.insert(0, node.children[0])
+            self._parse_children(children)
+
 
     def _parse_ITEM_tag(self, node):
         self._parse_children(node.children)
