@@ -125,6 +125,7 @@ class CustomOutput(object):
 
     def write(self, string_):
         try:
+            string_ = string_.encode('utf8')
             sys.__stdout__.write(string_)
             if self.logfile_name:
                 try:
@@ -500,7 +501,12 @@ def numbers_to_floats(expr, integers=False, ndigits=None):
 ## int : round
 
 
-
+def wxgeometrie_needed(f):
+    def g(*args, **kw):
+        if not wxgeometrie:
+            raise ImportError, 'Library wxgeometrie not found !'
+        f(*args, **kw)
+    return g
 
 
 
@@ -1030,6 +1036,7 @@ class LatexGenerator(object):
     def _parse_COMMENT_tag(self, node):
         pass
 
+    @wxgeometrie_needed
     def _parse_CALC_tag(self, node):
         args, kw = self._parse_options(node)
         assert len(args) <= 1 and len(kw) == 0
@@ -1060,6 +1067,7 @@ class LatexGenerator(object):
                 self.flags['.'] = True
             elif arg == 'floats':
                 self.flags['floats'] = True
+
             elif arg == 'str':
                 self.flags['str'] = True
             else:
@@ -1127,6 +1135,7 @@ class LatexGenerator(object):
         self._parse_children(node.children)
         random.setstate(state)
 
+    @wxgeometrie_needed
     def _parse_TABVAL_tag(self, node):
         from wxgeometrie.modules.tablatex import tabval
         args, kw = self._parse_options(node)
@@ -1134,6 +1143,7 @@ class LatexGenerator(object):
             kw[key] = eval(kw[key])
         self._parse_children(node.children, function=tabval, **kw)
 
+    @wxgeometrie_needed
     def _parse_TABVAR_tag(self, node):
         from wxgeometrie.modules.tablatex import tabvar
         state = random.getstate()
@@ -1143,6 +1153,7 @@ class LatexGenerator(object):
         self._parse_children(node.children, function=tabvar, **kw)
         random.setstate(state)
 
+    @wxgeometrie_needed
     def _parse_TABSIGN_tag(self, node):
         from wxgeometrie.modules.tablatex import tabsign
         state = random.getstate()
@@ -1152,9 +1163,8 @@ class LatexGenerator(object):
         self._parse_children(node.children, function=tabsign, **kw)
         random.setstate(state)
 
+    @wxgeometrie_needed
     def _parse_GCALC_tag(self, node):
-        if not wxgeometrie:
-            raise ImportError, 'Library wxgeometrie not found !'
         from wxgeometrie.mathlib.interprete import Interprete
         state = random.getstate()
         args, kw = self._parse_options(node)
@@ -1214,8 +1224,20 @@ class LatexGenerator(object):
     def _parse_SYMPY_tag(self, node):
         raise NotImplementedError
 
+    @wxgeometrie_needed
     def _parse_GEO_tag(self, node):
-        raise NotImplementedError
+        from wxgeometrie.geolib import Feuille
+        state = random.getstate()
+        args, kw = self._parse_options(node)
+        for key in kw:
+            kw[key] = eval(kw[key])
+        def _eval2latex(code):
+            print('code::' + repr(code))
+            feuille = Feuille(**kw)
+            feuille.executer(code.strip())
+            return feuille.exporter('tikz')
+        self._parse_children(node.children, function=_eval2latex, **kw)
+        random.setstate(state)
 
     def _parse_DEBUG_tag(self, node):
         while True:
