@@ -1,0 +1,215 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Introduction to PtYx &mdash; PtYx 2.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '2.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="PtYx 2.0 documentation" href="index.html" />
+    <link rel="next" title="PtYx user guide" href="user-guide.html" />
+    <link rel="prev" title="Welcome to PtYx’s documentation!" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="user-guide.html" title="PtYx user guide"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to PtYx’s documentation!"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">PtYx 2.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="introduction-to-ptyx">
+<h1>Introduction to PtYx<a class="headerlink" href="#introduction-to-ptyx" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="what-s-ptyx">
+<h2>What&#8217;s PtYx ?<a class="headerlink" href="#what-s-ptyx" title="Permalink to this headline">¶</a></h2>
+<p>PtYx is a LaTeX precompilator, written in Python.</p>
+<p>Typically, a .ptyx file is a LaTeX template with python code snippets inside.</p>
+<p>One single PtYx file may generate many latex documents, with different values.</p>
+<p>If pdftex is installed, you can generate directly .pdf files instead.</p>
+</div>
+<div class="section" id="usage-case">
+<h2>Usage case<a class="headerlink" href="#usage-case" title="Permalink to this headline">¶</a></h2>
+<p>I use PtYx mainly to generate easily exercices with random values.</p>
+<p>Since I&#8217;m a (quite paranoaic) math teacher, I use it in exams :
+in one run, I generate several different problem statements and the corresponding
+corrections.</p>
+<p>Since it uses sympy library, PtYx has symbolic calculus abilities too.</p>
+</div>
+<div class="section" id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
+<p>Obviously, ptyx needs a working Python installation.
+Currently, ptyx has been tested on Python 2.6 and 2.7 only.</p>
+<p>Ptyx also needs a working LaTeX installation. Command <em>pdflatex</em> must be available in your terminal.</p>
+<p>Some Ptyx functionalities require the following python libraries:</p>
+<blockquote>
+<div><ul class="simple">
+<li><em>sympy</em> : <a class="reference external" href="http://sympy.org/en/index.html">http://sympy.org/en/index.html</a></li>
+<li><em>geophar</em> : <a class="reference external" href="https://github.com/wxgeo/geophar/archive/master.zip">https://github.com/wxgeo/geophar/archive/master.zip</a></li>
+</ul>
+</div></blockquote>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Since <em>geophar</em> comes with its own sympy version embedded, <em>you won&#8217;t need to install sympy yourself</em>.</p>
+</div>
+<p>You may unzip geophar wherever you like, but you need to edit ptyx.py main script to indicate geophar path.
+Search for the following lines, and edit them according to your own path:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># &lt;personnal_configuration&gt;</span>
+<span class="n">param</span><span class="p">[</span><span class="s">&#39;sympy_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;~/Dropbox/Programmation/geophar/wxgeometrie&#39;</span>
+<span class="n">param</span><span class="p">[</span><span class="s">&#39;wxgeometrie_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;~/Dropbox/Programmation/geophar&#39;</span>
+<span class="c"># &lt;/personnal_configuration&gt;</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last"><em>wxgeometrie</em> is <em>geophar</em> previous name.</p>
+</div>
+</div>
+<div class="section" id="let-s-start-with-an-example">
+<h2>Let&#8217;s start with an example<a class="headerlink" href="#let-s-start-with-an-example" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="ptyx-file-specification">
+<h3>PtYx file specification<a class="headerlink" href="#ptyx-file-specification" title="Permalink to this headline">¶</a></h3>
+<p>A ptyx file is essentially a LaTeX file, with a .ptyx extension,
+(optionally) some custom commands, and embedded python code.</p>
+<p>To include python code in a ptyx file, use the <tt class="docutils literal"><span class="pre">#PYTHON</span></tt> and <tt class="docutils literal"><span class="pre">#END</span></tt> balise.</p>
+<p>A special <tt class="docutils literal"><span class="pre">write()</span></tt> command is avalaible, to generate on the flow latex code from python.</p>
+<p>This is a basic example of a ptyx file:</p>
+<div class="highlight-latex"><div class="highlight"><pre><span class="k">\documentclass</span><span class="na">[a4paper,10pt]</span><span class="nb">{</span>article<span class="nb">}</span>
+<span class="k">\begin</span><span class="nb">{</span>document<span class="nb">}</span>
+This a simple <span class="k">\emph</span><span class="nb">{</span>addition<span class="nb">}</span>:<span class="k">\quad</span>
+#PYTHON
+from random import randint
+a = randint(5, 9)
+b = randint(2, 4)
+write(&#39;<span class="c">%s + %s = %s\\&#39; % (a, b, a + b))</span>
+#END
+Now, some basic <span class="k">\emph</span><span class="nb">{</span>subtraction<span class="nb">}</span>:<span class="k">\quad</span>
+#PYTHON
+write(&#39;<span class="c">%s - %s = %s\\&#39; % (a, b, a - b))</span>
+#END
+<span class="k">\end</span><span class="nb">{</span>document<span class="nb">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="running-ptyx">
+<h3>Running ptyx<a class="headerlink" href="#running-ptyx" title="Permalink to this headline">¶</a></h3>
+<p>To compile previous ptyx file, save it as <strong>my_file.ptyx</strong> for example, then open a terminal,
+go to ptyx directory, and write:</p>
+<div class="highlight-python"><div class="highlight"><pre>$ python ptyx.py my_file.ptyx
+</pre></div>
+</div>
+<p>For more options:</p>
+<div class="highlight-python"><div class="highlight"><pre>$ python ptyx.py --help
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Introduction to PtYx</a><ul>
+<li><a class="reference internal" href="#what-s-ptyx">What&#8217;s PtYx ?</a></li>
+<li><a class="reference internal" href="#usage-case">Usage case</a></li>
+<li><a class="reference internal" href="#installation">Installation</a></li>
+<li><a class="reference internal" href="#let-s-start-with-an-example">Let&#8217;s start with an example</a><ul>
+<li><a class="reference internal" href="#ptyx-file-specification">PtYx file specification</a></li>
+<li><a class="reference internal" href="#running-ptyx">Running ptyx</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">Welcome to PtYx&#8217;s documentation!</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="user-guide.html"
+                        title="next chapter">PtYx user guide</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/introduction.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="user-guide.html" title="PtYx user guide"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to PtYx’s documentation!"
+             >previous</a> |</li>
+        <li><a href="index.html">PtYx 2.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2014, Nicolas Pourcelot.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>

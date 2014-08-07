@@ -1,16 +1,16 @@
 ***************
-pTyX user guide
+PtYx user guide
 ***************
 
 *Copyright © 2009-2013 Nicolas Pourcelot*
 
 =====================
-pTyX syntax reference
+PtYx syntax reference
 =====================
 
 Any valid LaTeX file is also a valide pTyX file.
 
-Additionnaly, pTyX include several new directives, using tags.
+Additionnaly, PtYx include several new directives, using tags.
 
 
 Generalities
@@ -18,18 +18,20 @@ Generalities
 
 All tags start with a `#` character, followed by uppercase letters or underscore.
 
-Tags defining blocks (#IF, #NEW_MACRO...) have to be closed using #END tag.
+Tags defining blocks (``#IF``, ``#NEW_MACRO``...) have to be closed using ``#END`` tag.
 
-Arguments must be passed to tags using curly brackets: #IF{a == 2}.
+Arguments must be passed to tags using curly brackets: ``#IF{a == 2}``.
 
 
 IF, ELIF, ELSE tags
 ===================
 
-To conditionaly include a block of LaTeX code in a document, use #IF, #ELIF and #ELSE tags.
+To conditionaly include a block of LaTeX code in a document, use ``#IF``, ``#ELIF`` and ``#ELSE`` tags.
 
 
-Example~:
+Example:
+
+.. code-block:: c
 
     #IF{AB == AC == BC}
     ABC is an equilateral triangle
@@ -43,16 +45,20 @@ Example~:
 CASE, ELSE tags
 ===============
 
-pTyX may compile the same document many times to produce different versions of the same document (useful for exam tests, for example).
+PtYx may compile the same document many times to produce different versions of the same document
+(useful for exam tests, for example).
 
-Doing so, it uses an internal counter (`NUM` python variable), starting from 0 for the first compiled document, and incrementing for each compilation.
+Doing so, it uses an internal counter (``NUM`` python variable),
+starting from 0 for the first compiled document, and incrementing for each compilation.
 
-Tag #CASE allows
+Tag ``#CASE`` allows
 
 
 
 
-Note that
+Note that:
+
+.. code-block:: c
 
     #CASE{0}
     This sentence will only appear in the first compiled document.
@@ -62,7 +68,9 @@ Note that
     And the last one, in all others compiled document (if any).
     #END
 
-is exactly equivalent to
+is exactly equivalent to:
+
+.. code-block:: c
 
     #IF{NUM == 0}
     This sentence will only appear in the first compiled document.

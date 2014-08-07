@@ -1,23 +1,23 @@
-Ptyx
+PtYx
 ====
 
 Overview
 --------
-Ptyx is a LaTeX precompilator, written in Python.
-Ptyx enables to generate LaTeX documents, using custom commands or plain python code.
-One single Ptyx file may generate many latex documents, with different values.
-I developped and used Ptyx to make several different versions of a same test in exams, 
+PtYx is a LaTeX precompilator, written in Python.
+PtYx enables to generate LaTeX documents, using custom commands or plain python code.
+One single PtYx file may generate many latex documents, with different values.
+I developped and used PtYx to make several different versions of a same test in exams,
 for my student, to discourage cheating.
-Since it uses sympy library, ptyx has symbolic calculus abilities too.
+Since it uses sympy library, PtYx has symbolic calculus abilities too.
 
 Installation
 ------------
-Obviously, ptyx needs a working Python installation.
-Currently, ptyx has been tested on Python 2.6 and 2.7 only.
+Obviously, PtYx needs a working Python installation.
+Currently, PtYx has been tested on Python 2.6 and 2.7 only.
 
-Ptyx also needs a working LaTeX installation. Command *pdflatex* must be available in your terminal.
+PtYx also needs a working LaTeX installation. Command *pdflatex* must be available in your terminal.
 
-Ptyx needs some python libraries :
+PtYx needs some python libraries :
 * sympy : http://sympy.org/en/index.html
 * geophar : https://github.com/wxgeo/geophar/archive/master.zip
 
