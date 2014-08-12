@@ -1234,7 +1234,8 @@ class LatexGenerator(object):
         def _eval2latex(code):
             print('code::' + repr(code))
             feuille = Feuille(**kw)
-            feuille.executer(code.strip())
+            for commande in code.split('\n'):
+                feuille.executer(commande)
             return feuille.exporter('tikz')
         self._parse_children(node.children, function=_eval2latex, **kw)
         random.setstate(state)
