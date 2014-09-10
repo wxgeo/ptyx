@@ -125,7 +125,8 @@ class CustomOutput(object):
 
     def write(self, string_):
         try:
-            string_ = string_.encode('utf8')
+            if isinstance(string_, unicode):
+                string_ = string_.encode('utf8')
             sys.__stdout__.write(string_)
             if self.logfile_name:
                 try:
@@ -1318,6 +1319,7 @@ class LatexGenerator(object):
         result = context['_']  = self._apply_flag(result)
         i = varname.find('[')
         # for example, varname == 'mylist[i]' or 'mylist[2]'
+        context['ANS'] = result
         if i == -1:
             context[varname] = result
         else:
