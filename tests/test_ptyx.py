@@ -238,7 +238,7 @@ def test_randchoice():
 
 def test_randfrac():
     for i in range(1000):
-        assertEq(randfrac(2, 7, d=6).q, 6)
+        assertEq(randfrac(2, 7, den=6).q, 6)
 
 
 def test_latex_newcommand():

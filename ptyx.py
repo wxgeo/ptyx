@@ -193,7 +193,24 @@ def srandpoint(a=None, b=None, exclude=()):
         if (x, y) not in exclude:
             return (x, y)
 
-def randfrac(a=None, b=None, exclude=(), not_decimal=False, d=None):
+def is_mult_2_5(val):
+    "Test if integer val matches 2^n*5^m."
+    if sympy:
+        ints = (sympy.Integer, int, long)
+    else:
+        ints = (int, long)
+    if hasattr(val, '__iter__'):
+        return all(is_mult_2_5(v) for v in val)
+    if val == 0 or not isinstance(val, ints):
+        return False
+    while val%5 == 0:
+        val = val//5
+    while val%2 == 0:
+        val = val//2
+    return val in (1, -1)
+
+
+def randfrac(a=None, b=None, exclude=(), not_decimal=False, den=None):
     '''Return a random fraction which is never an integer.
 
     Use `d` to specify denominator value; `d` must be an integer or a tuple
@@ -202,33 +219,38 @@ def randfrac(a=None, b=None, exclude=(), not_decimal=False, d=None):
     if b is None:
         b = (9 if a is None else a)
         a = 2
-    if (d is None and a in (-1, 0, 1) and b in (-1, 0, 1)) or a == b:
+    if hasattr(den, '__iter__'):
+        # To allow rando.choice() and multiple iterations.
+        den = list(den)
+    if (den is None and a in (-1, 0, 1) and b in (-1, 0, 1)) or a == b:
         # This would lead to infinite loop.
         raise ValueError, ('(%s, %s) are not valid parameters.' % (a, b))
+    if not_decimal and is_mult_2_5(den):
+        raise ValueError, "chosen denominator is not compatible with `not_decimal` option."
     while True:
-        if d is None:
+        if den is None:
             d = randint(a, b)
             if d in (0, 1):
                 continue
             n = randint(a, b)
         else:
             n = randint(a, b)
-            if hasattr(d, '__iter__'):
-                d = random.choice(list(d))
+            if hasattr(den, '__iter__'):
+                d = random.choice(den)
+            else:
+                d = den
             if gcd(d, n) not in (-1, 1):
                 # XXX this may lead to infinite loop if wrong arguments are passed
                 continue
         val = S(n)/S(d)
-        # XXX: Improve following test.
-        if not_decimal and (val*10**1000).is_integer:
-            # XXX this may lead to infinite loop if wrong arguments are passed
+        if not_decimal and is_mult_2_5(val.q):
             continue
         if not val.is_integer and val not in exclude:
             return val
 
-def srandfrac(a=None, b=None, exclude=(), not_decimal=False, d=None):
+def srandfrac(a=None, b=None, exclude=(), not_decimal=False, den=None):
     while True:
-        val = (-1)**randint(0, 1)*randfrac(a, b, not_decimal=not_decimal, d=d)
+        val = (-1)**randint(0, 1)*randfrac(a, b, not_decimal=not_decimal, den=den)
         if val not in exclude:
             return val
 
@@ -1230,6 +1252,7 @@ class LatexGenerator(object):
         from wxgeometrie.geolib import Feuille
         state = random.getstate()
         args, kw = self._parse_options(node)
+        scale = kw.pop('scale', None)
         for key in kw:
             kw[key] = eval(kw[key])
         def _eval2latex(code):
@@ -1237,7 +1260,7 @@ class LatexGenerator(object):
             feuille = Feuille(**kw)
             for commande in code.split('\n'):
                 feuille.executer(commande)
-            return feuille.exporter('tikz')
+            return feuille.exporter('tikz', echelle=scale)
         self._parse_children(node.children, function=_eval2latex, **kw)
         random.setstate(state)
 
@@ -1353,7 +1376,9 @@ class LatexGenerator(object):
             return latex.lstrip()[0] == '-'
 
         if flags.get('+'):
-            if not neg(latex):
+            if result == 0:
+                latex = ''
+            elif not neg(latex):
                 latex = '+' + latex
         elif flags.get('*'):
             if neg(latex) or getattr(result, 'is_Add', False):
