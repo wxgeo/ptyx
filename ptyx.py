@@ -482,7 +482,7 @@ def _float_me_if_you_can(expr):
 def numbers_to_floats(expr, integers=False, ndigits=None):
     u"""Convert all numbers (except integers) to floats inside a sympy expression."""
     if not sympy or not isinstance(expr, sympy.Basic):
-        if isinstance(expr, (long, int)) and not integer:
+        if isinstance(expr, (long, int)) and not integers:
             return expr
         elif ndigits is not None:
             return round(expr, ndigits)
