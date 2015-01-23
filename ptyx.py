@@ -346,7 +346,6 @@ global_context['NUM'] = 0
 
 
 
-
 def find_closing_bracket(text, start = 0, brackets = '{}', detect_strings=True):
     """Find the closing bracket, starting from position `start`.
 
@@ -644,7 +643,10 @@ class SyntaxTreeGenerator(object):
     # By contrast, in code arguments, inner strings should be detected:
     # in {val=='}'}, the bracket closing the tag is the second }, not the first one !
 
-    tags = {'ASSERT':       (1, 0, None),
+    tags = {'ANS':          (0, 0, ['@END']),
+            'ANSWER':       (0, 0, ['@END']),
+            'ASK':          (0, 0, ['ANS', 'ANSWER', '@END']),
+            'ASSERT':       (1, 0, None),
             'CALC':         (1, 0, None),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
             'CASE':         (1, 0, ['CASE', 'ELSE', 'END']),
@@ -692,6 +694,7 @@ class SyntaxTreeGenerator(object):
     # This is used for matching tests.
     sorted_tags = sorted(tags, key=len,reverse=True)
 
+    _found_tags = frozenset()
 
     def parse(self, text):
         u"""Parse pTyX code and generate a syntax tree.
@@ -701,8 +704,10 @@ class SyntaxTreeGenerator(object):
 
         .. note:: To access generated syntax tree, use `.syntax_tree` attribute.
         """
+        self._found_tags = set()
         self.syntax_tree = Node('ROOT')
         self._parse(self.syntax_tree, text)
+        self.syntax_tree.tags = self._found_tags
         return self.syntax_tree
 
     def _parse(self, node, text):
@@ -765,6 +770,9 @@ class SyntaxTreeGenerator(object):
             # ------------------------
             # Deal with new found tag.
             # ------------------------
+            # Syntax tree maintains a record of all tags found during parsing.
+            # (This tags set can be later accessed through its .tags attribute.)
+            self._found_tags.add(tag)
 
             # Add text found before this tag to the syntax tree.
             # --------------------------------------------------
@@ -1018,6 +1026,17 @@ class LatexGenerator(object):
     def read(self):
         return ''.join(self.context['LATEX'])
 
+
+    def _parse_ASK_tag(self, node):
+        self._parse_children(node.children, function=self.context.get('format_ask'))
+
+    def _parse_ANS_tag(self, node):
+        if self.context.get('WITH_ANSWERS'):
+            self._parse_children(node.children,
+                    function=self.context.get('format_answer',
+                            self.context.get('format_ans')))
+
+    _parse_ANSWER_tag = _parse_ANS_tag
 
     def _parse_IF_tag(self, node):
         test = eval(node.arg(0), self.context)
@@ -1342,7 +1361,7 @@ class LatexGenerator(object):
         result = context['_']  = self._apply_flag(result)
         i = varname.find('[')
         # for example, varname == 'mylist[i]' or 'mylist[2]'
-        context['ANS'] = result
+        context['LAST'] = result
         if i == -1:
             context[varname] = result
         else:
@@ -1490,6 +1509,69 @@ latex_generator = LatexGenerator()
 
 
 
+def make_files(input_name, syntax_tree, options, correction=False):
+    # Choose output names
+    os.chdir(os.path.split(input_name)[0])
+    if input_name.endswith('.ptyx'):
+        output_name = input_name[:-5]
+    elif input_name.endswith('.tex'):
+        output_name = input_name[:-4]
+        if make_tex:
+            output_name += '_'
+        # the trailing _ avoids name conflicts with the .tex file generated
+    else:
+        output_name = input_name + '_'
+
+    head, tail = os.path.split(output_name)
+
+    if correction:
+        output_name += '-corr'
+        # Following prevent auto_make_dir option to result in a subdirectory
+        # for correction (this is bad for pictures).
+        head += '-corr'
+        tail += '-corr'
+
+    if options.auto_make_dir:
+        # Test if the .ptyx file is already in a directory with same name.
+        options.make_directory = (os.path.split(head)[1] != tail)
+    if options.make_directory:
+        # Create a directory with the same name than the .ptyx file,
+        # which will contain all generated files.
+        if not os.path.isdir(tail):
+            os.mkdir(tail)
+        output_name = output_name + os.sep + tail
+
+        print output_name
+
+
+
+    filenames = []
+    for num in xrange(start, start + options.number):
+        latex_generator.clear()
+        latex_generator.context['WITH_ANSWERS'] = correction
+        latex_generator.context['NUM'] = num
+        if names:
+            name = names[num]
+            filename = '%s-%s' % (output_name, name)
+        else:
+            name = ''
+            filename = ('%s-%s' % (output_name, num) if options.number > 1
+                        else output_name)
+        latex_generator.context['NAME'] = name
+        #~ filename = filename.replace(' ', '\ ')
+        filenames.append(filename)
+
+        # Output is redirected to a .log file
+        sys.stdout = sys.stderr = CustomOutput((filename + '-python.log')
+                                              if not options.remove else '')
+        make_file(syntax_tree, filename, make_tex_file=make_tex, \
+                    make_pdf_file=('pdf' in formats), options=options
+                    )
+
+    return filenames, output_name
+
+
+
 def make_file(syntax_tree, output_name, make_tex_file=False,
                  make_pdf_file=True, options=None):
     remove = getattr(options, 'remove', False)
@@ -1556,6 +1638,79 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
 
 
 
+def join_files(output_name, filenames, formats, options):
+    "Join different versions in a single pdf, then compress it if asked to."
+    if options.compress or (options.cat and options.number > 1):
+        # pdftk and ghostscript must be installed.
+        if not ('pdf' in formats):
+            print("Warning: --cat or --compress option meaningless if pdf output isn't selected.")
+        else:
+            filenames = [filename + '.pdf' for filename in filenames]
+            pdf_name = output_name + '.pdf'
+            if options.number > 1:
+                files = ' '.join('"%s"' % filename for filename in filenames)
+                print('Pdftk output:')
+                print(execute('pdftk %s output "%s"' % (files, pdf_name)))
+                if options.remove_all:
+                    for name in filenames:
+                        os.remove(name)
+            if options.compress:
+                temp_dir = tempfile.mkdtemp()
+                compressed_pdf_name = os.path.join(temp_dir, 'compresse.pdf')
+                command = \
+                    """command pdftops \
+                    -paper match \
+                    -nocrop \
+                    -noshrink \
+                    -nocenter \
+                    -level3 \
+                    -q \
+                    "%s" - \
+                    | command ps2pdf14 \
+                    -dEmbedAllFonts=true \
+                    -dUseFlateCompression=true \
+                    -dProcessColorModel=/DeviceCMYK \
+                    -dConvertCMYKImagesToRGB=false \
+                    -dOptimize=true \
+                    -dPDFSETTINGS=/prepress \
+                    - "%s" """ % (pdf_name, compressed_pdf_name)
+                os.system(command)
+                old_size = os.path.getsize(pdf_name)
+                new_size = os.path.getsize(compressed_pdf_name)
+                if new_size < old_size:
+                    shutil.copyfile(compressed_pdf_name, pdf_name)
+                    print('Compression ratio: {0:.2f}'.format(old_size/new_size))
+                else:
+                    print('Warning: compression failed.')
+                temp_dir = tempfile.mkdtemp()
+                pdf_with_seed = os.path.join(temp_dir, 'with_seed.pdf')
+                execute('pdftk "%s" attach_files "%s" output "%s"' % (pdf_name, seed_file_name, pdf_with_seed))
+                shutil.copyfile(pdf_with_seed, pdf_name)
+    if options.reorder_pages:
+        # Use pdftk to detect how many pages has the pdf document.
+        n = int(execute('pdftk %s dump_data output | grep -i NumberOfPages:' % pdf_name).strip().split()[-1])
+        mode = options.reorder_pages
+        if mode == 'brochure':
+            if n%4:
+                raise RuntimeError, ('Page number is %s, but must be a multiple of 4.' % n)
+            order = []
+            for i in range(int(n/4)):
+                order.extend([2*i + 1, 2*i + 2, n - 2*i - 1, n - 2*i])
+        elif mode == 'brochure-reversed':
+            if n%4:
+                raise RuntimeError, ('Page number is %s, but must be a multiple of 4.' % n)
+            order = n*[0]
+            for i in range(int(n/4)):
+                order[2*i] = 4*i + 1
+                order[2*i + 1] = 4*i + 2
+                order[n - 2*i - 2] = 4*i + 3
+                order[n - 2*i - 1] = 4*i + 4
+        else:
+            raise NameError, ('Unknown mode %s for option --reorder-pages !' % mode)
+        # monfichier.pdf -> monfichier-brochure.pdf
+        new_name = '%s-%s.pdf' % (pdf_name[:pdf_name.index('.')], mode)
+        execute('pdftk %s cat %s output %s' % (pdf_name, ' '.join(str(i) for i in order), new_name))
+
 
 
 if __name__ == '__main__':
@@ -1610,6 +1765,9 @@ if __name__ == '__main__':
                    Additionnaly, if `-n` option is not specified, \
                    default value will be the number of names in the CSV file.")
 
+    # First, parse all arguments (filenames, options...)
+    # --------------------------------------------------
+
     # Limit seeds, to be able to retrieve seed manually if needed.
     seed_value = random.randint(0, 100000)
     random.seed(seed_value)
@@ -1618,23 +1776,25 @@ if __name__ == '__main__':
 
     options.remove = options.remove or options.remove_all
 
-    number = options.number
-    total = global_context['TOTAL'] = (int(number) if number else param['total'])
-
     formats = options.format.split('+') if options.format else param['format']
     if options.debug:
         param['debug'] = True
 
     start = int(options.start)
 
+    total = options.number
+
     if options.names:
         with open(pth(options.names)) as f:
             names = [' '.join(l) for l in csv.reader(f)]
             print('Names extracted from CSV file:')
             print(names)
-        total = global_context['TOTAL'] = (int(number) if number else len(names))
+        total = (int(total) if total else len(names))
     else:
+        total = (int(total) if total else param['total'])
         names = []
+
+    global_context['TOTAL'] = options.number = total
 
     #~ output = options.output if options.output else 'newfile'
 
@@ -1654,56 +1814,19 @@ if __name__ == '__main__':
 
     make_tex = ('tex' in formats)
 
+    # Time to act ! Let's compile all ptyx files...
+    # ---------------------------------------------
+
     for input_name in arguments:
         input_name = pth(input_name)
-        os.chdir(os.path.split(input_name)[0])
-        if input_name.endswith('.ptyx'):
-            output_name = input_name[:-5]
-        elif input_name.endswith('.tex'):
-            output_name = input_name[:-4]
-            if make_tex:
-                output_name += '_'
-            # the trailing _ avoids name conflicts with the .tex file generated
-        else:
-            output_name = input_name + '_'
 
-        head, tail = os.path.split(output_name)
-        if options.auto_make_dir:
-            # Test if the .ptyx file is already in a directory with same name.
-            options.make_directory = (os.path.split(head)[1] != tail)
-        if options.make_directory:
-            # Create a directory with the same name than the .ptyx file,
-            # which will contain all generated files.
-            if not os.path.isdir(tail):
-                os.mkdir(tail)
-            output_name = output_name + os.sep + tail
-
-            print output_name
-
+        # Generate syntax tree
         with open(input_name, 'rU') as input_file:
             text = input_file.read()
         syntax_tree = latex_generator.parser.parse(text)
 
-        filenames = []
-        for num in xrange(start, start + total):
-            latex_generator.clear()
-            latex_generator.context['NUM'] = num
-            if names:
-                name = names[num]
-                filename = '%s-%s' % (output_name, name)
-            else:
-                name = ''
-                filename = ('%s-%s' % (output_name, num) if total > 1 else output_name)
-            latex_generator.context['NAME'] = name
-            #~ filename = filename.replace(' ', '\ ')
-            filenames.append(filename)
-
-            # Output is redirected to a .log file
-            sys.stdout = sys.stderr = CustomOutput((filename + '-python.log')
-                                                  if not options.remove else '')
-            make_file(syntax_tree, filename, make_tex_file=make_tex, \
-                        make_pdf_file=('pdf' in formats), options=options
-                        )
+        # Compile and generate output files (tex or pdf)
+        filenames, output_name = make_files(input_name, syntax_tree, options)
 
         # Keep track of the seed used.
         if 'SEED' in latex_generator.context:
@@ -1716,74 +1839,12 @@ if __name__ == '__main__':
             seed_file.write(str(seed_value))
 
         # Join different versions in a single pdf, and compress if asked to.
-        if options.compress or (options.cat and total > 1):
-            # pdftk and ghostscript must be installed.
-            if not ('pdf' in formats):
-                print("Warning: --cat or --compress option meaningless if pdf output isn't selected.")
-            else:
-                filenames = [filename + '.pdf' for filename in filenames]
-                pdf_name = output_name + '.pdf'
-                if total > 1:
-                    files = ' '.join('"%s"' % filename for filename in filenames)
-                    print('Pdftk output:')
-                    print(execute('pdftk %s output "%s"' % (files, pdf_name)))
-                    if options.remove_all:
-                        for name in filenames:
-                            os.remove(name)
-                if options.compress:
-                    temp_dir = tempfile.mkdtemp()
-                    compressed_pdf_name = os.path.join(temp_dir, 'compresse.pdf')
-                    command = \
-                        """command pdftops \
-                        -paper match \
-                        -nocrop \
-                        -noshrink \
-                        -nocenter \
-                        -level3 \
-                        -q \
-                        "%s" - \
-                        | command ps2pdf14 \
-                        -dEmbedAllFonts=true \
-                        -dUseFlateCompression=true \
-                        -dProcessColorModel=/DeviceCMYK \
-                        -dConvertCMYKImagesToRGB=false \
-                        -dOptimize=true \
-                        -dPDFSETTINGS=/prepress \
-                        - "%s" """ % (pdf_name, compressed_pdf_name)
-                    os.system(command)
-                    old_size = os.path.getsize(pdf_name)
-                    new_size = os.path.getsize(compressed_pdf_name)
-                    if new_size < old_size:
-                        shutil.copyfile(compressed_pdf_name, pdf_name)
-                        print('Compression ratio: {0:.2f}'.format(old_size/new_size))
-                    else:
-                        print('Warning: compression failed.')
-                    temp_dir = tempfile.mkdtemp()
-                    pdf_with_seed = os.path.join(temp_dir, 'with_seed.pdf')
-                    execute('pdftk "%s" attach_files "%s" output "%s"' % (pdf_name, seed_file_name, pdf_with_seed))
-                    shutil.copyfile(pdf_with_seed, pdf_name)
-        if options.reorder_pages:
-            # Use pdftk to detect how many pages has the pdf document.
-            n = int(execute('pdftk %s dump_data output | grep -i NumberOfPages:' % pdf_name).strip().split()[-1])
-            mode = options.reorder_pages
-            if mode == 'brochure':
-                if n%4:
-                    raise RuntimeError, ('Page number is %s, but must be a multiple of 4.' % n)
-                order = []
-                for i in range(int(n/4)):
-                    order.extend([2*i + 1, 2*i + 2, n - 2*i - 1, n - 2*i])
-            elif mode == 'brochure-reversed':
-                if n%4:
-                    raise RuntimeError, ('Page number is %s, but must be a multiple of 4.' % n)
-                order = n*[0]
-                for i in range(int(n/4)):
-                    order[2*i] = 4*i + 1
-                    order[2*i + 1] = 4*i + 2
-                    order[n - 2*i - 2] = 4*i + 3
-                    order[n - 2*i - 1] = 4*i + 4
-            else:
-                raise NameError, ('Unknown mode %s for option --reorder-pages !' % mode)
-            # monfichier.pdf -> monfichier-brochure.pdf
-            new_name = '%s-%s.pdf' % (pdf_name[:pdf_name.index('.')], mode)
-            execute('pdftk %s cat %s output %s' % (pdf_name, ' '.join(str(i) for i in order), new_name))
+        join_files(output_name, filenames, formats, options)
 
+        # Do the same for the version with the answers.
+
+        if 'ANS' in syntax_tree.tags or 'ANSWER' in syntax_tree.tags:
+            filenames, output_name = make_files(input_name, syntax_tree, options, correction=True)
+
+            # Join different versions in a single pdf, and compress if asked to.
+            join_files(output_name, filenames, formats, options)
