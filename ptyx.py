@@ -44,6 +44,7 @@ param = {
         'wxgeometrie_path': None,
         'debug': False,
         'floating_point': ',',
+        'win_print_command': 'SumatraPDF.exe -print-dialog -silent -print-to-default ',
         }
 # </default_configuration>
 
@@ -643,9 +644,10 @@ class SyntaxTreeGenerator(object):
     # By contrast, in code arguments, inner strings should be detected:
     # in {val=='}'}, the bracket closing the tag is the second }, not the first one !
 
-    tags = {'ANS':          (0, 0, ['@END']),
-            'ANSWER':       (0, 0, ['@END']),
-            'ASK':          (0, 0, ['ANS', 'ANSWER', '@END']),
+    tags = {'ANS':          (0, 0, ['ANS', 'ANSWER', 'ASK_ONLY', 'ASK', '@END']),
+            'ANSWER':       (0, 0, ['ANS', 'ANSWER', 'ASK_ONLY', 'ASK', '@END']),
+            'ASK':          (0, 0, ['ANS', 'ANSWER', 'ASK_ONLY', 'ASK', '@END']),
+            'ASK_ONLY':     (0, 0, ['ANS', 'ANSWER', 'ASK_ONLY', 'ASK', '@END']),
             'ASSERT':       (1, 0, None),
             'CALC':         (1, 0, None),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
@@ -664,6 +666,7 @@ class SyntaxTreeGenerator(object):
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
             'ELSE':         (0, 0, ['END']),
             'END':          (0, 0, None),
+            'LOAD':         (1, 0, None),
             'FREEZE_RANDOM_STATE': (0, 0, []),
             'GCALC':        (0, 0, ['@END']),
             'IFNUM':        (1, 1, None),
@@ -1030,6 +1033,11 @@ class LatexGenerator(object):
     def _parse_ASK_tag(self, node):
         self._parse_children(node.children, function=self.context.get('format_ask'))
 
+    def _parse_ASK_ONLY_tag(self, node):
+        if not self.context.get('WITH_ANSWERS'):
+            self._parse_children(node.children,
+                    function=self.context.get('format_ask'))
+
     def _parse_ANS_tag(self, node):
         if self.context.get('WITH_ANSWERS'):
             self._parse_children(node.children,
@@ -1067,6 +1075,9 @@ class LatexGenerator(object):
         if test:
             self._parse_children(node.children[1:])
         return test
+
+    def _parse_LOAD_tag(self, node):
+        exec('from %s import *' % node.arg(0), self.context)
 
     def _parse_PYTHON_tag(self, node):
         assert len(node.children) == 1
@@ -1153,6 +1164,7 @@ class LatexGenerator(object):
         value = int(node.arg(0))
         # Keep track of seed value. This is used to generate a .seed file.
         self.context['SEED'] = value
+        #if self.NUM == 0:
         random.seed(value + self.NUM)
 
     #~ def parse_PICK_tag(self, node):
@@ -1712,6 +1724,99 @@ def join_files(output_name, filenames, formats, options):
         execute('pdftk %s cat %s output %s' % (pdf_name, ' '.join(str(i) for i in order), new_name))
 
 
+class EnumNode(object):
+    def __init__(self, node_type=''):
+        self.items = []
+        self.node_type = node_type
+        self.options = []
+
+    def __repr__(self):
+        return '<Node %s : %s item(s)>' % (self.node_type, len(self.items))
+
+
+def enumerate_shuffle_tree(text, start=0):
+    tags = (r'\begin{enumerate}', r'\end{enumerate}', r'\begin{itemize}', r'\end{itemize}', r'\item')
+    tree = []
+    stack = [tree]
+    pos = 0
+    tag = ''
+
+    def find(s, tags, pos=0):
+        results = ((s.find(tag, pos), tag) for tag in tags)
+        try:
+            return min((pos, tag) for (pos, tag) in results if pos != -1)
+        except ValueError:
+            return (None, None)
+
+    while tag is not None:
+        tag_pos, tag = find(text, tags, pos)
+
+        if not stack:
+            raise RuntimeError(r'There is more \end{enumerate} (or itemize) than \begin{enumerate} !')
+
+        stack[-1].append(text[pos:tag_pos])
+
+        if tag is not None:
+            pos = tag_pos + len(tag)
+
+            if tag.startswith(r'\begin'):
+                # node_type: enumerate or itemize
+                node = EnumNode(tag[7:-1])
+                m = re.match(r'\s*\[([^]]+)\]', text[pos:])
+                if m is not None:
+                    pos += len(m.group())
+                    node.options = [s.strip() for s in m.groups()[0].split(',')]
+                stack[-1].append(node)
+                stack.append(node.items)
+            elif tag == r'\item':
+                node = EnumNode('item')
+                # If it's not the first item of the enumeration,
+                # close last item block.
+                if getattr(stack[-2][-1], 'node_type', None) == 'item':
+                    del stack[-1]
+                stack[-1].append(node)
+                stack.append(node.items)
+            else:
+                # Close enumeration block.
+                del stack[-2:]
+
+    if stack[-1] is not tree:
+        raise RuntimeError(r'Warning: Some \begin{enumerate} or \begin{itemize} was never closed !')
+
+    return tree
+
+
+
+
+def tree2strlist(tree, shuffle=False):
+    str_list = []
+    for item in tree:
+        if isinstance(item, str):
+            str_list.append(item)
+        else:
+            if item.node_type == 'item':
+                if shuffle:
+                    str_list.append('#ITEM')
+                str_list.append(r'\item')
+                str_list.extend(tree2strlist(item.items))
+            else:
+                _shuffle_ = False
+                if '_shuffle_' in item.options:
+                    item.options.remove('_shuffle_')
+                    _shuffle_ = True
+                str_list.append(r'\begin{%s}' % item.node_type)
+                if item.options:
+                    str_list.append('[%s]' % ','.join(item.options))
+                if _shuffle_:
+                    str_list.append('#SHUFFLE')
+                str_list.extend(tree2strlist(item.items, shuffle=_shuffle_))
+                if _shuffle_:
+                    str_list.append('#END')
+                str_list.append(r'\end{%s}' % item.node_type)
+    return str_list
+
+
+
 
 if __name__ == '__main__':
 
@@ -1734,10 +1839,10 @@ if __name__ == '__main__':
             help = "Remove any generated .log and .aux file after compilation.\n \
                     If --cat option or --compress option is used, remove also \
                     all pdf files, except for the concatenated one.")
-    parser.add_option("-m", "--make_directory", action = "store_true",
+    parser.add_option("-m", "--make-directory", action = "store_true",
             help = "Create a new directory to store all generated files.")
-    parser.add_option("-a", "--auto_make_dir", action = "store_true",
-            help = "Switch to --make_directory mode, except if .ptyx file \
+    parser.add_option("-a", "--auto-make-dir", action = "store_true",
+            help = "Switch to --make-directory mode, except if .ptyx file \
                    is already in a directory with the same name \
                    (e.g. myfile123/myfile123.ptyx).")
     parser.add_option("-b", "--debug", action = "store_true",
@@ -1764,6 +1869,8 @@ if __name__ == '__main__':
                    replacement value.\n \
                    Additionnaly, if `-n` option is not specified, \
                    default value will be the number of names in the CSV file.")
+    parser.add_option("--generate-batch-for-windows-printing", action = "store_true",
+            help = "Generate a batch file for printing all pdf files using SumatraPDF.")
 
     # First, parse all arguments (filenames, options...)
     # --------------------------------------------------
@@ -1823,6 +1930,9 @@ if __name__ == '__main__':
         # Generate syntax tree
         with open(input_name, 'rU') as input_file:
             text = input_file.read()
+        # Preparse text (option _shuffle_ in enumerate/itemize)
+        if '_shuffle_' in text:
+            text = ''.join(tree2strlist(enumerate_shuffle_tree(text)))
         syntax_tree = latex_generator.parser.parse(text)
 
         # Compile and generate output files (tex or pdf)
@@ -1838,6 +1948,12 @@ if __name__ == '__main__':
         with open(seed_file_name, 'w') as seed_file:
             seed_file.write(str(seed_value))
 
+        if options.generate_batch_for_windows_printing:
+            bat_file_name = os.path.join(os.path.dirname(output_name), 'print.bat')
+            with open(bat_file_name, 'w') as bat_file:
+                bat_file.write(param['win_print_command'] + ' '.join('%s.pdf'
+                                      % os.path.basename(f) for f in filenames))
+
         # Join different versions in a single pdf, and compress if asked to.
         join_files(output_name, filenames, formats, options)
 
@@ -1848,3 +1964,9 @@ if __name__ == '__main__':
 
             # Join different versions in a single pdf, and compress if asked to.
             join_files(output_name, filenames, formats, options)
+
+            if options.generate_batch_for_windows_printing:
+                bat_file_name = os.path.join(os.path.dirname(output_name), 'print_corr.bat')
+                with open(bat_file_name, 'w') as bat_file:
+                    bat_file.write(param['win_print_command'] + ' '.join('%s.pdf'
+                                        % os.path.basename(f) for f in filenames))
