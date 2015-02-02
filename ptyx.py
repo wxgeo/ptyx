@@ -644,10 +644,10 @@ class SyntaxTreeGenerator(object):
     # By contrast, in code arguments, inner strings should be detected:
     # in {val=='}'}, the bracket closing the tag is the second }, not the first one !
 
-    tags = {'ANS':          (0, 0, ['ANS', 'ANSWER', 'ASK_ONLY', 'ASK', '@END']),
-            'ANSWER':       (0, 0, ['ANS', 'ANSWER', 'ASK_ONLY', 'ASK', '@END']),
-            'ASK':          (0, 0, ['ANS', 'ANSWER', 'ASK_ONLY', 'ASK', '@END']),
-            'ASK_ONLY':     (0, 0, ['ANS', 'ANSWER', 'ASK_ONLY', 'ASK', '@END']),
+    tags = {'ANS':          (0, 0, ['ANS', 'ASK_ONLY', 'ASK', '@END']),
+            'ANSWER':       (0, 1, None),
+            'ASK':          (0, 0, ['ANS', 'ASK_ONLY', 'ASK', '@END']),
+            'ASK_ONLY':     (0, 0, ['ANS', 'ASK_ONLY', 'ASK', '@END']),
             'ASSERT':       (1, 0, None),
             'CALC':         (1, 0, None),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
@@ -674,6 +674,7 @@ class SyntaxTreeGenerator(object):
             'NEW_MACRO':    (0, 1, ['@END']),
             'PICK':         (1, 0, None),
             'PYTHON':       (0, 0, ['@END']),
+            'QUESTION':     (0, 1, None),
             'RAND':         (1, 0, None),
             # ROOT isn't a real tag, and is never closed.
             'ROOT':         (0, 0, []),
@@ -1044,7 +1045,13 @@ class LatexGenerator(object):
                     function=self.context.get('format_answer',
                             self.context.get('format_ans')))
 
-    _parse_ANSWER_tag = _parse_ANS_tag
+    def _parse_ANSWER_tag(self, node):
+        if self.context.get('WITH_ANSWERS'):
+            self._parse_children(node.children[0].children)
+
+    def _parse_QUESTION_tag(self, node):
+        if not self.context.get('WITH_ANSWERS'):
+            self._parse_children(node.children[0].children)
 
     def _parse_IF_tag(self, node):
         test = eval(node.arg(0), self.context)
