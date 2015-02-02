@@ -693,6 +693,7 @@ class SyntaxTreeGenerator(object):
             '*':            (0, 0, None),
             '=':            (0, 0, None),
             '?':            (0, 0, None),
+            '#':            (0, 0, None),
             }
     # Tags sorted by length (longer first).
     # This is used for matching tests.
@@ -761,7 +762,7 @@ class SyntaxTreeGenerator(object):
                         break
                     # -> sorry, try again.
             else:
-                if text[position].isdigit():
+                if text[position].isdigit() or text[position] == ' ':
                     # This not a tag: LaTeX uses #1, #2, #3 as \newcommand{} parameters.
                     # Pretend nothing happened.
                     update_last_position = False
@@ -908,7 +909,7 @@ class SyntaxTreeGenerator(object):
 class LatexGenerator(object):
     u"""Convert text containing ptyx tags to plain LaTeX."""
 
-    convert_tags = {'+': 'ADD', '-': 'SUB', '*': 'MUL', '=': 'EQUAL', '?': 'SIGN'}
+    convert_tags = {'+': 'ADD', '-': 'SUB', '*': 'MUL', '=': 'EQUAL', '?': 'SIGN', '#': 'SHARP'}
 
     re_varname = re.compile('[A-Za-z_][A-Za-z0-9_]*([[].+[]])?$')
 
@@ -1037,7 +1038,7 @@ class LatexGenerator(object):
     def _parse_ASK_ONLY_tag(self, node):
         if not self.context.get('WITH_ANSWERS'):
             self._parse_children(node.children,
-                    function=self.context.get('format_ask'))
+                    function=self.context.get('format_ask_only'))
 
     def _parse_ANS_tag(self, node):
         if self.context.get('WITH_ANSWERS'):
@@ -1247,6 +1248,10 @@ class LatexGenerator(object):
         except:
             print(node.display(color=False))
             raise
+
+    def _parse_SHARP_tag(self, node):
+        # 2 sharps ## -> 1 sharp #
+        self.write('#')
 
     def _parse_ADD_tag(self, node):
         # a '+' will be displayed at the beginning of the next result if positive ;
