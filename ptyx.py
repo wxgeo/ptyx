@@ -1039,6 +1039,8 @@ class LatexGenerator(object):
         if not self.context.get('WITH_ANSWERS'):
             self._parse_children(node.children,
                     function=self.context.get('format_ask_only'))
+        else:
+            print('Skipping ASK_ONLY section...')
 
     def _parse_ANS_tag(self, node):
         if self.context.get('WITH_ANSWERS'):
@@ -1764,6 +1766,7 @@ def enumerate_shuffle_tree(text, start=0):
         tag_pos, tag = find(text, tags, pos)
 
         if not stack:
+            #TODO: print line number.
             raise RuntimeError(r'There is more \end{enumerate} (or itemize) than \begin{enumerate} !')
 
         stack[-1].append(text[pos:tag_pos])
@@ -1793,6 +1796,7 @@ def enumerate_shuffle_tree(text, start=0):
                 del stack[-2:]
 
     if stack[-1] is not tree:
+        #TODO: print line number.
         raise RuntimeError(r'Warning: Some \begin{enumerate} or \begin{itemize} was never closed !')
 
     return tree
@@ -1800,28 +1804,44 @@ def enumerate_shuffle_tree(text, start=0):
 
 
 
-def tree2strlist(tree, shuffle=False):
+def tree2strlist(tree, shuffle=False, answer=False):
     str_list = []
     for item in tree:
         if isinstance(item, str):
+            if answer:
+                # '====' or any longer repetition of '=' begins an answer.
+                i = item.find('====')
+                if i != -1:
+                    j = i + 1
+                    n = len(item)
+                    while j < n and item[j] == '=':
+                        j += 1
+                    item = item[:i] + '#ANS\n' + item[j:]
             str_list.append(item)
         else:
             if item.node_type == 'item':
                 if shuffle:
                     str_list.append('#ITEM')
                 str_list.append(r'\item')
-                str_list.extend(tree2strlist(item.items))
+                if answer:
+                    str_list.append('#ASK')
+                str_list.extend(tree2strlist(item.items, answer=answer))
+                if answer:
+                    str_list.append('#END')
             else:
                 _shuffle_ = False
                 if '_shuffle_' in item.options:
                     item.options.remove('_shuffle_')
                     _shuffle_ = True
+                if '_answer_' in item.options:
+                    item.options.remove('_answer_')
+                    _answer_ = True
                 str_list.append(r'\begin{%s}' % item.node_type)
                 if item.options:
                     str_list.append('[%s]' % ','.join(item.options))
                 if _shuffle_:
                     str_list.append('#SHUFFLE')
-                str_list.extend(tree2strlist(item.items, shuffle=_shuffle_))
+                str_list.extend(tree2strlist(item.items, shuffle=_shuffle_, answer=_answer_))
                 if _shuffle_:
                     str_list.append('#END')
                 str_list.append(r'\end{%s}' % item.node_type)
@@ -1943,7 +1963,7 @@ if __name__ == '__main__':
         with open(input_name, 'rU') as input_file:
             text = input_file.read()
         # Preparse text (option _shuffle_ in enumerate/itemize)
-        if '_shuffle_' in text:
+        if '_shuffle_' in text or '_answer_' in text:
             text = ''.join(tree2strlist(enumerate_shuffle_tree(text)))
         syntax_tree = latex_generator.parser.parse(text)
 
