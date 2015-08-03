@@ -159,23 +159,31 @@ class SpecialDict(dict):
 
 
 
-def randint(a=None, b=None, exclude=()):
+def randint(a=None, b=None, exclude=(), maximum=100000):
     if b is None:
         b = (9 if a is None else a)
         a = 2
-    while True:
+    count = 0
+    while count < maximum:
         val = random.randint(a, b)
         if val not in exclude:
             break
+        count += 1
+    else:
+        raise RuntimeError("Can't satisfy constraints !")
     if param['sympy_is_default']:
         val = S(val)
     return val
 
-def srandint(a=None, b=None, exclude=()):
-    while True:
+def srandint(a=None, b=None, exclude=(), maximum=100000):
+    count = 0
+    while count < maximum:
         val = (-1)**randint(0, 1)*randint(a, b)
         if val not in exclude:
             return val
+        count += 1
+    else:
+        raise RuntimeError("Can't satisfy constraints !")
 
 def randbool():
     return bool(randint(0, 1))
@@ -330,6 +338,9 @@ global_context['min'] = min
 global_context['max'] = max
 global_context['rand'] = global_context['random'] = random.random
 global_context['ceil'] = global_context['ceiling']
+global_context['float'] = float
+global_context['int'] = int
+global_context['str'] = str
 
 global_context['randpoint'] = randpoint
 global_context['srandpoint'] = srandpoint
@@ -1526,8 +1537,8 @@ def print_sympy_expr(expr, **flags):
 
 global_context['latex'] = print_sympy_expr
 
-if sympy is not None:
-    sympy.Basic.__str__ = print_sympy_expr
+#if sympy is not None:
+#    sympy.Basic.__str__ = print_sympy_expr
 
 
 latex_generator = LatexGenerator()
@@ -1816,7 +1827,7 @@ def tree2strlist(tree, shuffle=False, answer=False):
                     n = len(item)
                     while j < n and item[j] == '=':
                         j += 1
-                    item = item[:i] + '#ANS\n' + item[j:]
+                    item = item[:i] + '#ANS{}' + item[j:]
             str_list.append(item)
         else:
             if item.node_type == 'item':
@@ -1829,7 +1840,7 @@ def tree2strlist(tree, shuffle=False, answer=False):
                 if answer:
                     str_list.append('#END')
             else:
-                _shuffle_ = False
+                _shuffle_ = _answer_ = False
                 if '_shuffle_' in item.options:
                     item.options.remove('_shuffle_')
                     _shuffle_ = True
