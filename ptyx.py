@@ -178,12 +178,18 @@ def randint(a=None, b=None, exclude=(), maximum=100000):
 def srandint(a=None, b=None, exclude=(), maximum=100000):
     count = 0
     while count < maximum:
-        val = (-1)**randint(0, 1)*randint(a, b)
+        val = (-1)**random.randint(0, 1)*randint(a, b)
         if val not in exclude:
             return val
         count += 1
     else:
         raise RuntimeError("Can't satisfy constraints !")
+
+def randsign():
+    val = (-1)**random.randint(0, 1)
+    if param['sympy_is_default']:
+        val = S(val)
+    return val
 
 def randbool():
     return bool(randint(0, 1))
@@ -348,6 +354,7 @@ global_context['randint'] = randint
 global_context['randbool'] = randbool
 global_context['randsignint'] = srandint
 global_context['srandint'] = srandint
+global_context['randsign'] = randsign
 global_context['randfrac'] = randfrac
 global_context['srandfrac'] = srandfrac
 global_context['randchoice'] = randchoice
@@ -572,12 +579,17 @@ class Node(object):
         u"Return argument number i content."
         child = self.children[i]
         if child.name != i:
-            raise ValueError, 'Incorect argument number.'
+            raise ValueError('Incorrect argument number.')
         children_number = len(child.children)
         if children_number > 1:
-            raise ValueError, ("Don't use pTyX code inside %s argument number %s." % (self.name, i + 1))
+            raise ValueError("Don't use pTyX code inside %s argument number %s." % (self.name, i + 1))
         elif children_number == 0:
-            raise ValueError, ("%s argument number %s should not be empty !" % (self.name, i + 1))
+            if self.name is 'EVAL':
+                # EVAL isn't a real tag name: if a variable `#myvar` is found
+                # somewhere, it is parsed as an `#EVAL` tag with `myvar` as argument.
+                # So, a lonely `#` is parsed as an `#EVAL` with no argument at all.
+                raise ValueError("Error! There is a lonely '#' somewhere !")
+            raise ValueError("%s argument number %s should not be empty !" % (self.name, i + 1))
 
         return child.children[0]
 
@@ -637,7 +649,7 @@ class Node(object):
 
 class SyntaxTreeGenerator(object):
     # For each tag, indicate:
-    #   1. The number of arguments containing code.
+    #   1. The number of interpreted arguments (arguments that contain code).
     #      Those arguments will be interpreted as python code.
     #   2. The number of raw arguments.
     #      Those arguments contain raw text.
@@ -669,6 +681,7 @@ class SyntaxTreeGenerator(object):
             'CONDITIONAL_BLOCK':    (0, 0, ['@END']),
             'DEBUG':        (0, 0, None),
             'EVAL':         (1, 0, None),
+            'ENUM':         (0, 0, ['@END']),
             'GEO':          (0, 0, ['@END']),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
             'IF':           (1, 0, ['ELIF', 'ELSE', 'END']),
@@ -1165,6 +1178,12 @@ class LatexGenerator(object):
         if name not in self.macros:
             raise NameError, ('Error: MACRO "%s" undefined.' % name)
         self._parse_children(self.macros[name])
+
+
+    def _parse_ENUM_tag(self, node):
+        children = node.children
+        # TODO: everything !
+
 
     def _parse_SHUFFLE_tag(self, node):
         if node.children:
@@ -1813,6 +1832,49 @@ def enumerate_shuffle_tree(text, start=0):
     return tree
 
 
+def display_enumerate_tree(tree, color=True, indent=0, raw=False):
+    "Return enumerate tree in a human readable form for debugging purpose."
+
+    def blue(s):
+        return '\033[0;36m' + s + '\033[0m'
+
+    #~ def blue2(self, s):
+        #~ return '\033[1;36m' + s + '\033[0m'
+#~
+    #~ def red(self, s):
+        #~ return '\033[0;31m' + s + '\033[0m'
+#~
+    def green(s):
+        return '\033[0;32m' + s + '\033[0m'
+#~
+    #~ def green2(self, s):
+        #~ return '\033[1;32m' + s + '\033[0m'
+#~
+    def yellow(s):
+        return '\033[0;33m' + s + '\033[0m'
+
+    texts = []
+    for child in tree:
+        if isinstance(child, EnumNode):
+            node_name = "Node " + child.node_type
+            if color:
+                node_name = yellow(node_name)
+            texts.append('%s  + %s [%s]' % (indent*' ', node_name, ",".join(child.options)))
+            texts.append(display_enumerate_tree(child.items, color, indent + 2, raw=raw))
+        else:
+            if raw:
+                text = repr(child)
+            else:
+                lines = child.split('\n')
+                text = lines[0]
+                if len(lines) > 1:
+                    text += ' [...]'
+                text = repr(text)
+            if color:
+                text = green(text)
+            texts.append('%s  - text: %s' % (indent*' ', text))
+    return '\n'.join(texts)
+
 
 
 def tree2strlist(tree, shuffle=False, answer=False):
@@ -1976,6 +2038,9 @@ if __name__ == '__main__':
         # Preparse text (option _shuffle_ in enumerate/itemize)
         if '_shuffle_' in text or '_answer_' in text:
             text = ''.join(tree2strlist(enumerate_shuffle_tree(text)))
+            tmp_file_name = os.path.join(os.path.dirname(input_name), '.ptyx.tmp')
+            with open(tmp_file_name, 'w') as tmp_ptyx_file:
+                tmp_ptyx_file.write(text)
         syntax_tree = latex_generator.parser.parse(text)
 
         # Compile and generate output files (tex or pdf)

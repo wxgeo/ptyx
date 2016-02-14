@@ -6,7 +6,7 @@ import sys
 #~ print sys.path
 sys.path.append('..')
 
-from ptyx import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket, randchoice, srandchoice, round, randfrac
+from ptyx import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket, randchoice, srandchoice, round, randfrac, enumerate_shuffle_tree, display_enumerate_tree
 from testlib import assertEq
 
 def test_find_closing_bracket():
@@ -103,6 +103,7 @@ def test_TABVAR():
     test = "$#{a=2;}\\alpha=#{alpha=3},\\beta=#{beta=5}\n\n#TABVAR[limites=False,derivee=False]f(x)=#a*(x-#alpha)^2+#beta#END$"
     result = \
 '''$\\alpha=3,\\beta=5
+\\setlength{\\TVextraheight}{\\baselineskip}
 \\[\\begin{tabvar}{|C|CCCCC|}
 \\hline
 \\,\\,x\\,\\,                            &-\\infty      &        &3&      &+\\infty\\\\
@@ -305,6 +306,30 @@ $2+\dfrac{3}{x}$'''
     g = LatexGenerator()
     g.parse(test)
     assertEq(g.read(), result)
+
+
+def test_enumerate_tree():
+    test = r'''
+Some text outside enumerate environnement...
+\begin{enumerate}
+\item This is first question...
+\begin{enumerate}
+\item ...and this is first subquestion.
+\item An other one.
+\item Last one.
+\end{enumerate}
+\item Ok, second question now.
+\item Third one.
+\begin{enumerate}
+\item  subquestion 1
+\item subquestion 2
+\item subquestion 3
+\end{enumerate}
+\end{enumerate}
+
+That's all, folks.
+'''
+    print("\n\n" + display_enumerate_tree(enumerate_shuffle_tree(test), raw=True))
 
 
 if __name__ == '__main__':
