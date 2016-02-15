@@ -725,8 +725,9 @@ class SyntaxTreeGenerator(object):
 
     _found_tags = frozenset()
 
-    def parse(self, text):
-        u"""Parse pTyX code and generate a syntax tree.
+
+    def preparse(self, text):
+        u"""Pre-parse pTyX code and generate a syntax tree.
 
         :param text: some pTyX code.
         :type text: string
@@ -735,11 +736,11 @@ class SyntaxTreeGenerator(object):
         """
         self._found_tags = set()
         self.syntax_tree = Node('ROOT')
-        self._parse(self.syntax_tree, text)
+        self._preparse(self.syntax_tree, text)
         self.syntax_tree.tags = self._found_tags
         return self.syntax_tree
 
-    def _parse(self, node, text):
+    def _preparse(self, node, text):
         position = 0
         update_last_position = True
         node._closing_tags = []
@@ -794,6 +795,10 @@ class SyntaxTreeGenerator(object):
                 else:
                     # This is not a known tag name.
                     # Default tag name is EVAL.
+                    # Notably:
+                    # - any variable (like #a)
+                    # - any expression (like #{a+7})
+                    # will result in an #EVAL tag.
                     tag = 'EVAL'
 
             # ------------------------
@@ -805,8 +810,10 @@ class SyntaxTreeGenerator(object):
 
             # Add text found before this tag to the syntax tree.
             # --------------------------------------------------
-            if self.tags[tag][2] is not None or tag == 'END':
-                # Remove new line and spaces before #IF, #ELSE, ... tags.
+
+            remove_trailing_newline = (self.tags[tag][2] is not None or tag == 'END')
+            if remove_trailing_newline:
+                # Remove new line and spaces *before* #IF, #ELSE, ... tags.
                 # This is more convenient, since two successive \n
                 # induce a new paragraph in LaTeX.
                 # So, something like this
@@ -857,7 +864,7 @@ class SyntaxTreeGenerator(object):
                 continue
 
 
-            # Special case : don't parse #PYTHON ... #END content.
+            # Special case : don't pre-parse #PYTHON ... #END content.
             # ----------------------------------------------------
             if tag == 'PYTHON':
                 end = text.index('#END', position)
@@ -866,6 +873,7 @@ class SyntaxTreeGenerator(object):
                 node.add_child(text[position:end])
                 node = node.parent
                 position = end + 4
+
 
             # General case
             # ------------
@@ -904,8 +912,28 @@ class SyntaxTreeGenerator(object):
                     # Nodes corresponding to arguments have no name,
                     # but are numbered instead.
                     arg = node.add_child(Node(i))
-                    self._parse(arg, text[position:end])
+                    self._preparse(arg, text[position:end])
                     position = new_pos
+
+                if remove_trailing_newline:
+                    # Remove new line and spaces *after* #IF, #ELSE, ... tags.
+                    # This is more convenient, since two successive \n
+                    # induce a new paragraph in LaTeX.
+                    # So, something like this
+                    #   [some text here]
+                    #   #IF{delta>0}
+                    #   #IF{a>0}
+                    #   [some text there]
+                    #   #END
+                    #   #END
+                    # would automatically result in two paragraphs else.
+                    try:
+                        i = text.index('\n', position) + 1
+                        if text[position:i].isspace():
+                            position = i
+                    except ValueError:
+                        pass
+
                 # Close node if needed.
                 # ~~~~~~~~~~~~~~~~~~~~~~~
                 if closing_tags is None:
@@ -938,7 +966,7 @@ class LatexGenerator(object):
     re_varname = re.compile('[A-Za-z_][A-Za-z0-9_]*([[].+[]])?$')
 
     def __init__(self):
-        self.parser = SyntaxTreeGenerator()
+        self.preparser = SyntaxTreeGenerator()
         self.clear()
 
     def clear(self):
@@ -957,8 +985,8 @@ class LatexGenerator(object):
         :param text: a pTyX file content, to be converted to plain LaTeX.
         :type text: str
         """
-        self.parser.parse(text)
-        self.parse_node(self.parser.syntax_tree)
+        self.preparser.preparse(text)
+        self.parse_node(self.preparser.syntax_tree)
 
     @property
     def NUM(self):
@@ -2041,7 +2069,7 @@ if __name__ == '__main__':
             tmp_file_name = os.path.join(os.path.dirname(input_name), '.ptyx.tmp')
             with open(tmp_file_name, 'w') as tmp_ptyx_file:
                 tmp_ptyx_file.write(text)
-        syntax_tree = latex_generator.parser.parse(text)
+        syntax_tree = latex_generator.preparser.preparse(text)
 
         # Compile and generate output files (tex or pdf)
         filenames, output_name = make_files(input_name, syntax_tree, options)

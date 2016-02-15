@@ -43,14 +43,14 @@ def test_round():
 def test_syntax_tree():
     s = SyntaxTreeGenerator()
     text = 'hello world !'
-    s.parse(text)
+    s.preparse(text)
     tree = \
 """+ Node ROOT
   - text: 'hello world !'"""
     assertEq(s.syntax_tree.display(color=False), tree)
 
     text = "#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END"
-    s.parse(text)
+    s.preparse(text)
     tree = \
 """+ Node ROOT
   + Node CONDITIONAL_BLOCK
@@ -76,7 +76,7 @@ def test_syntax_tree():
 
 
     text = "#PYTHON#some comment\nvariable = 2\n#END#ASSERT{variable == 2}"
-    s.parse(text)
+    s.preparse(text)
     tree = \
 """+ Node ROOT
   + Node PYTHON
@@ -181,7 +181,7 @@ c
     #~ s.parse(tests[1])
     #~ print(s.syntax_tree.display())
     s = SyntaxTreeGenerator()
-    s.parse(tests[1])
+    s.preparse(tests[1])
     #~ print(s.syntax_tree.display(raw=True))
     g = LatexGenerator()
     results = []
@@ -189,9 +189,9 @@ c
         g.clear()
         g.parse(test)
         results.append(g.read())
-    assertEq(results[0], '\nb\na\nc')
-    assertEq(results[1], '\n\nb\na\nc')
-    assertEq(results[2], '\nb\na\nc')
+    assertEq(results[0], 'bac')
+    assertEq(results[1], 'bac')
+    assertEq(results[2], 'bac')
 
 
 
@@ -329,7 +329,38 @@ Some text outside enumerate environnement...
 
 That's all, folks.
 '''
-    print("\n\n" + display_enumerate_tree(enumerate_shuffle_tree(test), raw=True))
+
+
+    tree = display_enumerate_tree(enumerate_shuffle_tree(test), color=False, raw=True)
+    assertEq(tree,
+r'''  - text: '\nSome text outside enumerate environnement...\n'
+  + Node enumerate []
+    - text: '\n'
+    + Node item []
+      - text: ' This is first question...\n'
+      + Node enumerate []
+        - text: '\n'
+        + Node item []
+          - text: ' ...and this is first subquestion.\n'
+        + Node item []
+          - text: ' An other one.\n'
+        + Node item []
+          - text: ' Last one.\n'
+      - text: '\n'
+    + Node item []
+      - text: ' Ok, second question now.\n'
+    + Node item []
+      - text: ' Third one.\n'
+      + Node enumerate []
+        - text: '\n'
+        + Node item []
+          - text: '  subquestion 1\n'
+        + Node item []
+          - text: ' subquestion 2\n'
+        + Node item []
+          - text: ' subquestion 3\n'
+      - text: '\n'
+  - text: "\n\nThat's all, folks.\n"''')
 
 
 if __name__ == '__main__':
