@@ -449,53 +449,7 @@ def find_closing_bracket(text, start = 0, brackets = '{}', detect_strings=True):
 
 
 
-#~ def tree_to_expr(tree):
-    #~ u"""Convert a tree of sympy atoms to a sympy expression."""
-    #~ if isinstance(tree, list):
-        #~ # node
-        #~ func = tree[0]
-        #~ args = tree[1:]
-        #~ return func(*(tree_to_expr(arg) for arg in args))
-    #~ else:
-        #~ # leaf
-        #~ return tree
 
-
-
-#~ def expr_to_tree(expr):
-    #~ u"""Convert a sympy expression to a tree.
-#~
-    #~ If `expr` has no argument, it's a leaf, so it will be returned untouched.
-    #~ """
-    #~ args = expr.args
-    #~ if args:
-        #~ # node
-        #~ return [expr.func] + [expr_to_tree(arg) for arg in args]
-    #~ else:
-        #~ # leaf
-        #~ return expr
-#~
-#~
-#~ def _convert_inner_rationals_to_floats(tree, integers, ndigits=None):
-    #~ u"""Convert **in place** rationals to floats inside a sympy tree."""
-    #~ if isinstance(tree, list):
-        #~ for i, node in enumerate(tree):
-            #~ if isinstance(node, sympy.Integer) and not integers:
-                #~ continue
-            #~ elif isinstance(node, sympy.Rational):
-                #~ if ndigits is not None:
-                    #~ f = sympy.Float(repr(round(node, ndigits)))
-                #~ else:
-                    #~ f = sympy.Float(node)
-                #~ tree[i] = f
-            #~ else:
-                #~ _convert_inner_rationals_to_floats(node, integers=integers, ndigits=ndigits)
-#~
-#~ def rationals_to_floats(expr, integers=False, ndigits=None):
-    #~ u"""Recursively convert rationals to floats inside a sympy expression."""
-    #~ tree = expr_to_tree(expr)
-    #~ _convert_inner_rationals_to_floats(tree, integers=integers, ndigits=ndigits)
-    #~ return tree_to_expr(tree)
 
 def _float_me_if_you_can(expr):
     try:
