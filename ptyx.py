@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: iso-8859-1 -*-
 from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
-#~ from __future__ import with_statement
+
 
 # --------------------------------------
 #                  PTYX
@@ -9,7 +9,7 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 # --------------------------------------
 #    PTYX
 #    Python LaTeX preprocessor
-#    Copyright (C) 2009-2013  Nicolas Pourcelot
+#    Copyright (C) 2009-2016  Nicolas Pourcelot
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -26,8 +26,8 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-__version__ = "2.0"
-__release_date__ = (31, 10, 2013)
+__version__ = "3.0"
+__release_date__ = (16, 2, 2016)
 
 
 print 'Ptyx ' + __version__ + ' ' + '/'.join(str(d) for d in __release_date__)
@@ -58,6 +58,7 @@ import optparse, re, random, os, tempfile, sys, codecs, csv, shutil, subprocess
 from functools import partial
 from math import ceil, floor, isnan, isinf
 from fractions import gcd
+from os.path import realpath, join, dirname
 
 if sys.platform == 'win32':
     sys.stdout = codecs.getwriter('cp850')(sys.stdout)
@@ -80,6 +81,7 @@ for pathname in ('sympy_path', 'wxgeometrie_path'):
         sys.path.insert(0, path)
         param[pathname] = path
 
+print("Loading sympy...")
 try:
     import sympy
     from sympy.core.sympify import SympifyError
@@ -89,16 +91,20 @@ except ImportError:
     sympy = None
     param['sympy_is_default'] = False
 
+print("Loading geophar...")
+
 try:
     import wxgeometrie
     try:
         #~ from wxgeometrie.modules import tablatex
         from wxgeometrie.mathlib.printers import custom_latex
     except ImportError:
-        print("WARNING: current wxgeometrie version is not compatible.")
+        print("WARNING: current geophar version is not compatible.")
 except ImportError:
-    print("WARNING: wxgeometrie not found.")
+    print("WARNING: geophar not found.")
     wxgeometrie = None
+
+print("Loading numpy...")
 
 try:
     import numpy
@@ -667,10 +673,14 @@ class SyntaxTreeGenerator(object):
     # By contrast, in code arguments, inner strings should be detected:
     # in {val=='}'}, the bracket closing the tag is the second }, not the first one !
 
-    tags = {'ANS':          (0, 0, ['ANS', 'ASK_ONLY', 'ASK', '@END']),
+    tags = {'ANS':          (0, 0, ['ANS', 'ASK_ONLY', 'ASK', 'END_ANY_ASK_OR_ANS', '@END']),
             'ANSWER':       (0, 1, None),
-            'ASK':          (0, 0, ['ANS', 'ASK_ONLY', 'ASK', '@END']),
-            'ASK_ONLY':     (0, 0, ['ANS', 'ASK_ONLY', 'ASK', '@END']),
+            'ASK':          (0, 0, ['ANS', 'ASK_ONLY', 'ASK', 'END_ANY_ASK_OR_ANS', '@END']),
+            'ASK_ONLY':     (0, 0, ['ANS', 'ASK_ONLY', 'ASK', 'END_ANY_ASK_OR_ANS', '@END']),
+            # Following tag is useful for some extensions.
+            # It closes ASK or ANS block if any is left opened.
+            # If no such block is opened, it does nothing.
+            'END_ANY_ASK_OR_ANS':  (0, 0, None),
             'ASSERT':       (1, 0, None),
             'CALC':         (1, 0, None),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
@@ -681,6 +691,8 @@ class SyntaxTreeGenerator(object):
             'CONDITIONAL_BLOCK':    (0, 0, ['@END']),
             'DEBUG':        (0, 0, None),
             'EVAL':         (1, 0, None),
+            # ENUM indicates the start of an enumeration.
+            # It does nothing by itself, but is used by some extensions.
             'ENUM':         (0, 0, ['@END']),
             'GEO':          (0, 0, ['@END']),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
@@ -690,6 +702,7 @@ class SyntaxTreeGenerator(object):
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
             'ELSE':         (0, 0, ['END']),
             'END':          (0, 0, None),
+            'IMPORT':       (1, 0, None),
             'LOAD':         (1, 0, None),
             'FREEZE_RANDOM_STATE': (0, 0, []),
             'GCALC':        (0, 0, ['@END']),
@@ -734,6 +747,28 @@ class SyntaxTreeGenerator(object):
 
         .. note:: To access generated syntax tree, use `.syntax_tree` attribute.
         """
+        # First, we search if some extensions must be load.
+        extensions = []
+        pos = 0
+        while True:
+            i = text.find("#LOAD{", pos)
+            if i == -1:
+                break
+            pos = text.find('}', i)
+            if pos == -1:
+                raise RuntimeError("#LOAD tag has no closing bracket !")
+            extensions.append(text[i + 6:pos])
+        d = {}
+        for extension in extensions:
+            this_file = realpath(sys._getframe().f_code.co_filename)
+            filename = join(dirname(this_file), 'extensions', extension)
+            execfile(filename + ".py", d)
+            # execute `main()` function of extension.
+            text = d['main'](text)
+
+
+
+        # Now, we will parse Ptyx code to generate a syntax tree.
         self._found_tags = set()
         self.syntax_tree = Node('ROOT')
         self._preparse(self.syntax_tree, text)
@@ -1108,6 +1143,9 @@ class LatexGenerator(object):
         if not self.context.get('WITH_ANSWERS'):
             self._parse_children(node.children[0].children)
 
+    def _parse_END_ANY_ASK_OR_ANS_tag(self, node):
+        pass
+
     def _parse_IF_tag(self, node):
         test = eval(node.arg(0), self.context)
         if test:
@@ -1138,8 +1176,12 @@ class LatexGenerator(object):
             self._parse_children(node.children[1:])
         return test
 
-    def _parse_LOAD_tag(self, node):
+    def _parse_IMPORT_tag(self, node):
         exec('from %s import *' % node.arg(0), self.context)
+
+    def _parse_LOAD_tag(self, node):
+        # LOAD tag is used to load extensions before syntax tree is built.
+        pass
 
     def _parse_PYTHON_tag(self, node):
         assert len(node.children) == 1
@@ -1207,11 +1249,9 @@ class LatexGenerator(object):
             raise NameError, ('Error: MACRO "%s" undefined.' % name)
         self._parse_children(self.macros[name])
 
-
     def _parse_ENUM_tag(self, node):
-        children = node.children
-        # TODO: everything !
-
+        # This tag does nothing by itself, but is used by some extensions.
+        self._parse_children(node.children)
 
     def _parse_SHUFFLE_tag(self, node):
         if node.children:

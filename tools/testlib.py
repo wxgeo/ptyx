@@ -38,7 +38,17 @@ def assertNotAlmostEqual(x, y):
     assert TEST
 
 def assertEqual(x, y):
+    def yellow(s):
+        return '\033[0;33m' + s + '\033[0m'
     if x != y:
+        rx = repr(x)
+        ry = repr(y)
+        if isinstance(x, basestring) and isinstance(y, basestring):
+            for i in range(min(len(rx), len(ry))):
+                if rx[i] != ry[i]:
+                    break
+            ry = ry[:i] + yellow(ry[i:])
+
         print('''
 --------------
  *** FAIL ***
@@ -47,7 +57,7 @@ def assertEqual(x, y):
 -> Expected:
 %s
 --------------
-''' %(repr(x), repr(y)))
+''' %(rx, ry))
     assert (x == y)
 
 assertEq = assertEqual
