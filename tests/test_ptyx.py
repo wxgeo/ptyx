@@ -6,7 +6,11 @@ import sys
 #~ print sys.path
 sys.path.append('..')
 
-from ptyx import SyntaxTreeGenerator, LatexGenerator, find_closing_bracket, randchoice, srandchoice, round, randfrac, enumerate_shuffle_tree, display_enumerate_tree
+from ptyx import SyntaxTreeGenerator, LatexGenerator
+from utilities import find_closing_bracket, round
+from randfunc import randchoice, srandchoice, randfrac
+from ptyx import enumerate_shuffle_tree, display_enumerate_tree
+
 from testlib import assertEq
 
 def test_find_closing_bracket():
