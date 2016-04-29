@@ -1,7 +1,11 @@
 from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 
-import random
-import randfunc
+try:
+    from sympy import sympify, SympifyError
+except ImportError:
+    SympifyError = None
+    sympy = None
+    print("I couldn't find sympy...  doing my best without it.")
 
 class SpecialDict(dict):
     auto_sympify = False
@@ -10,7 +14,7 @@ class SpecialDict(dict):
     def __setitem__(self, key, value):
         if self.auto_sympify:
             try:
-                value = sympy.sympify(value)
+                value = sympify(value)
             except SympifyError:
                 print('Warning: sympy error. Switching to standard evaluation mode.')
         dict.__setitem__(self, key, value)

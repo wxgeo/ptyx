@@ -31,12 +31,11 @@ for pathname in ('sympy_path', 'wxgeometrie_path'):
 print("Loading sympy...")
 try:
     import sympy
-    from sympy.core.sympify import SympifyError
-    from sympy import S, preorder_traversal, Symbol
 except ImportError:
     print("** ERROR: sympy not found ! **")
     sympy = None
     param['sympy_is_default'] = False
+    import latexgenerator
     latexgenerator.sympy = sympy
 
 print("Loading geophar...")

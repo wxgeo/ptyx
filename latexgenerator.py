@@ -4,9 +4,8 @@ from functools import partial
 from os.path import dirname, realpath, join
 import random
 import sys
-import os
 
-from context import global_context
+from context import global_context, SympifyError
 from config import param, sympy, wxgeometrie
 from utilities import print_sympy_expr, find_closing_bracket, numbers_to_floats, _float_me_if_you_can
 

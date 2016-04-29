@@ -2,6 +2,8 @@ from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
 
 import os, sys
 import subprocess
+import tempfile
+import shutil
 
 from latexgenerator import latex_generator
 from config import param
@@ -144,6 +146,7 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
                         if os.path.isfile(name):
                             os.remove(name)
     else:
+        texfile = None
         try:
             texfile = tempfile.NamedTemporaryFile(suffix='.tex')
             texfile.write(latex)
@@ -164,11 +167,12 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
                         else:
                             os.rename(tmp_names[extension], output_names[extension])
         finally:
-            texfile.close()
+            if texfile is not None:
+                texfile.close()
 
 
 
-def join_files(output_name, filenames, formats, options):
+def join_files(output_name, filenames, seed_file_name, formats, options):
     "Join different versions in a single pdf, then compress it if asked to."
     if options.compress or (options.cat and options.number > 1):
         # pdftk and ghostscript must be installed.

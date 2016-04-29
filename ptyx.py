@@ -31,16 +31,15 @@ __release_date__ = (16, 2, 2016)
 
 
 
-import optparse, re, random, os, tempfile, sys, codecs, csv, shutil
-from math import ceil, floor, isnan, isinf
-from os.path import realpath, join, dirname
-import sys
+import optparse, re, random, os, sys, codecs, csv
+#from math import ceil, floor, isnan, isinf
 
-from config import param, sympy, numpy, custom_latex
+
+from config import param, sympy, numpy#, custom_latex
 import randfunc
 import utilities
 from compilation import join_files, make_files
-from latexgenerator import LatexGenerator, SyntaxTreeGenerator, latex_generator
+from latexgenerator import latex_generator
 from context import global_context
 
 if sys.platform == 'win32':
@@ -418,7 +417,7 @@ if __name__ == '__main__':
                                       % os.path.basename(f) for f in filenames))
 
         # Join different versions in a single pdf, and compress if asked to.
-        join_files(output_name, filenames, formats, options)
+        join_files(output_name, filenames, seed_file_name, formats, options)
 
         # Do the same for the version with the answers.
 
@@ -426,7 +425,7 @@ if __name__ == '__main__':
             filenames, output_name = make_files(input_name, syntax_tree, options, start, names, make_tex, formats, correction=True)
 
             # Join different versions in a single pdf, and compress if asked to.
-            join_files(output_name, filenames, formats, options)
+            join_files(output_name, filenames, seed_file_name, formats, options)
 
             if options.generate_batch_for_windows_printing:
                 bat_file_name = os.path.join(os.path.dirname(output_name), 'print_corr.bat')
