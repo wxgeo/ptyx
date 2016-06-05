@@ -6,7 +6,7 @@ import sys
 #~ print sys.path
 sys.path.append('..')
 
-from ptyx import SyntaxTreeGenerator, LatexGenerator
+from latexgenerator import SyntaxTreeGenerator, LatexGenerator
 from utilities import find_closing_bracket, round
 from randfunc import randchoice, srandchoice, randfrac
 from ptyx import enumerate_shuffle_tree, display_enumerate_tree
