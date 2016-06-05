@@ -7,6 +7,7 @@ import sys
 
 from context import global_context, SympifyError
 from config import param, sympy, wxgeometrie
+import randfunc
 from utilities import print_sympy_expr, find_closing_bracket, numbers_to_floats, _float_me_if_you_can
 
 #ASSERT{}
@@ -761,6 +762,7 @@ class LatexGenerator(object):
         self.context['SEED'] = value
         #if self.NUM == 0:
         random.seed(value + self.NUM)
+        randfunc.RANDOM_STATE = random.getstate()
 
     #~ def parse_PICK_tag(self, node):
         #~ assert len(node.children) == 1

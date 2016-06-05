@@ -1,4 +1,5 @@
 import random
+import functools
 from fractions import gcd
 
 from config import param, sympy
@@ -6,6 +7,36 @@ from config import param, sympy
 if sympy is not None:
     from sympy import S
 
+# Important note: all the following functions are sandboxed.
+# By this, I mean that any external call to random won't affect random state for
+# the following functions.
+
+RANDOM_STATE = random.getstate()
+SANDBOXED_MODE = False
+
+
+def sandboxed(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kw):
+        global RANDOM_STATE, SANDBOXED_MODE
+        if not SANDBOXED_MODE:
+            old_state = random.getstate()
+            random.setstate(RANDOM_STATE)
+            SANDBOXED_MODE = True
+            try:
+                val = func(*args, **kw)
+            finally:
+                RANDOM_STATE = random.getstate()
+                random.setstate(old_state)
+                SANDBOXED_MODE = False
+        else:
+            val = func(*args, **kw)
+        return val
+    return wrapper
+
+
+
+@sandboxed
 def randint(a=None, b=None, exclude=(), maximum=100000):
     if b is None:
         b = (9 if a is None else a)
@@ -22,6 +53,7 @@ def randint(a=None, b=None, exclude=(), maximum=100000):
         val = S(val)
     return val
 
+@sandboxed
 def srandint(a=None, b=None, exclude=(), maximum=100000):
     count = 0
     while count < maximum:
@@ -32,15 +64,18 @@ def srandint(a=None, b=None, exclude=(), maximum=100000):
     else:
         raise RuntimeError("Can't satisfy constraints !")
 
+@sandboxed
 def randsign():
     val = (-1)**random.randint(0, 1)
     if param['sympy_is_default']:
         val = S(val)
     return val
 
+@sandboxed
 def randbool():
     return bool(randint(0, 1))
 
+@sandboxed
 def randpoint(a=None, b=None, exclude=()):
     while True:
         x = randint(a, b)
@@ -48,6 +83,7 @@ def randpoint(a=None, b=None, exclude=()):
         if (x, y) not in exclude:
             return (x, y)
 
+@sandboxed
 def srandpoint(a=None, b=None, exclude=()):
     while True:
         x = srandint(a, b)
@@ -71,7 +107,7 @@ def is_mult_2_5(val):
         val = val//2
     return val in (1, -1)
 
-
+@sandboxed
 def randfrac(a=None, b=None, exclude=(), not_decimal=False, den=None):
     '''Return a random fraction which is never an integer.
 
@@ -110,13 +146,14 @@ def randfrac(a=None, b=None, exclude=(), not_decimal=False, den=None):
         if not val.is_integer and val not in exclude:
             return val
 
+@sandboxed
 def srandfrac(a=None, b=None, exclude=(), not_decimal=False, den=None):
     while True:
         val = (-1)**randint(0, 1)*randfrac(a, b, not_decimal=not_decimal, den=den)
         if val not in exclude:
             return val
 
-
+@sandboxed
 def randchoice(*items, **kw):
     """Select randomly an item.
     """
@@ -131,6 +168,7 @@ def randchoice(*items, **kw):
         val = S(val)
     return val
 
+@sandboxed
 def srandchoice(*items, **kw):
     kw['signed'] = True
     return randchoice(*items, **kw)
