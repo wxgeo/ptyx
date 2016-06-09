@@ -11,30 +11,34 @@ if sympy is not None:
 # By this, I mean that any external call to random won't affect random state for
 # the following functions.
 
-RANDOM_STATE = random.getstate()
-SANDBOXED_MODE = False
+_RANDOM_STATE = random.getstate()
+_SANDBOXED_MODE = False
 
 
 def sandboxed(func):
     @functools.wraps(func)
     def wrapper(*args, **kw):
-        global RANDOM_STATE, SANDBOXED_MODE
-        if not SANDBOXED_MODE:
+        global _RANDOM_STATE, _SANDBOXED_MODE
+        if not _SANDBOXED_MODE:
             old_state = random.getstate()
-            random.setstate(RANDOM_STATE)
-            SANDBOXED_MODE = True
+            random.setstate(_RANDOM_STATE)
+            _SANDBOXED_MODE = True
             try:
                 val = func(*args, **kw)
             finally:
-                RANDOM_STATE = random.getstate()
+                _RANDOM_STATE = random.getstate()
                 random.setstate(old_state)
-                SANDBOXED_MODE = False
+                _SANDBOXED_MODE = False
         else:
             val = func(*args, **kw)
         return val
     return wrapper
 
 
+def set_seed(value):
+    global _RANDOM_STATE
+    random.seed(value)
+    _RANDOM_STATE = random.getstate()
 
 @sandboxed
 def randint(a=None, b=None, exclude=(), maximum=100000):

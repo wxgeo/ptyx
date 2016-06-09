@@ -761,8 +761,7 @@ class LatexGenerator(object):
         # Keep track of seed value. This is used to generate a .seed file.
         self.context['SEED'] = value
         #if self.NUM == 0:
-        random.seed(value + self.NUM)
-        randfunc.RANDOM_STATE = random.getstate()
+        randfunc.set_seed(value + self.NUM)
 
     #~ def parse_PICK_tag(self, node):
         #~ assert len(node.children) == 1
