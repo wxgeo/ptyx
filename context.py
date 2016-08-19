@@ -1,8 +1,9 @@
 
+from config import sympy
 
-try:
+if sympy is not None:
     from sympy import sympify, SympifyError
-except ImportError:
+else:
     SympifyError = None
     sympy = None
     print("I couldn't find sympy...  doing my best without it.")

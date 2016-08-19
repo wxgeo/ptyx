@@ -36,8 +36,6 @@ except ImportError:
     print("** ERROR: sympy not found ! **")
     sympy = None
     param['sympy_is_default'] = False
-    import latexgenerator
-    latexgenerator.sympy = sympy
 
 print("Loading geophar...")
 
@@ -49,7 +47,7 @@ try:
     except ImportError:
         print("WARNING: current geophar version is not compatible.")
         raise
-except ImportError:
+except (ImportError, SyntaxError):
     print("WARNING: geophar not found.")
     wxgeometrie = None
     custom_latex = None
@@ -62,3 +60,6 @@ except ImportError:
     print("WARNING: numpy not found.")
     numpy = None
 
+
+import latexgenerator
+latexgenerator.sympy = sympy

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 
 
@@ -30,7 +30,7 @@ __release_date__ = (16, 2, 2016)
 
 
 
-import optparse, re, random, os, sys, codecs, csv
+import optparse, re, random, os, sys, codecs, csv, math
 #from math import ceil, floor, isnan, isinf
 
 
@@ -41,10 +41,10 @@ from compilation import join_files, make_files
 from latexgenerator import latex_generator
 from context import global_context
 
-if sys.platform == 'win32':
-    sys.stdout = codecs.getwriter('cp850')(sys.stdout)
-else:
-    sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+#~ if sys.platform == 'win32':
+    #~ sys.stdout = codecs.getwriter('cp850')(sys.stdout)
+#~ else:
+    #~ sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
 
 
@@ -83,7 +83,7 @@ global_context['round'] = round
 global_context['min'] = min
 global_context['max'] = max
 global_context['rand'] = global_context['random'] = random.random
-global_context['ceil'] = global_context['ceiling']
+global_context['ceil'] = (global_context['ceiling'] if sympy is not None else math.ceil)
 global_context['float'] = float
 global_context['int'] = int
 global_context['str'] = str
