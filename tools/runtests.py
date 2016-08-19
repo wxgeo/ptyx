@@ -13,7 +13,7 @@ identically)
 * portable
 
 """
-from __future__ import division, absolute_import, print_function, unicode_literals
+
 import os
 import sys
 import inspect
@@ -79,7 +79,7 @@ def isgeneratorfunction(object):
     """
     CO_GENERATOR = 0x20
     if (inspect.isfunction(object) or inspect.ismethod(object)) and \
-        object.func_code.co_flags & CO_GENERATOR:
+        object.__code__.co_flags & CO_GENERATOR:
         return True
     return False
 
@@ -335,7 +335,7 @@ class SymPyTests(object):
         self._count += 1
         gl = {'__file__':filename}
         try:
-            execfile(filename, gl)
+            exec(compile(open(filename).read(), filename, 'exec'), gl)
         except (ImportError, SyntaxError):
             self._reporter.import_error(filename, sys.exc_info())
             return
@@ -452,7 +452,7 @@ class SymPyDocTests(object):
     def test_file(self, filename):
 
         import unittest
-        from StringIO import StringIO
+        from io import StringIO
 
         rel_name = filename[len(self._root_dir)+1:]
         module = rel_name.replace(os.sep, '.')[:-3]
@@ -597,7 +597,7 @@ class SymPyDocTestFinder(DocTestFinder):
                                      (type(valname),))
                 if not (inspect.isfunction(val) or inspect.isclass(val) or
                         inspect.ismethod(val) or inspect.ismodule(val) or
-                        isinstance(val, basestring)):
+                        isinstance(val, str)):
                     raise ValueError("SymPyDocTestFinder.find: __test__ values "
                                      "must be strings, functions, methods, "
                                      "classes, or modules: %r" %
@@ -613,7 +613,7 @@ class SymPyDocTestFinder(DocTestFinder):
                 if isinstance(val, staticmethod):
                     val = getattr(obj, valname)
                 if isinstance(val, classmethod):
-                    val = getattr(obj, valname).im_func
+                    val = getattr(obj, valname).__func__
 
                 # Recurse to methods, properties, and nested classes.
                 if (inspect.isfunction(val) or
@@ -637,7 +637,7 @@ class SymPyDocTestFinder(DocTestFinder):
         """
         # Extract the object's docstring.  If it doesn't have one,
         # then return None (no test for this object).
-        if isinstance(obj, basestring):
+        if isinstance(obj, str):
             docstring = obj
         else:
             try:
@@ -645,7 +645,7 @@ class SymPyDocTestFinder(DocTestFinder):
                     docstring = ''
                 else:
                     docstring = obj.__doc__
-                    if not isinstance(docstring, basestring):
+                    if not isinstance(docstring, str):
                         docstring = str(docstring)
             except (TypeError, AttributeError):
                 docstring = ''

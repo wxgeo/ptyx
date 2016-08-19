@@ -1,4 +1,4 @@
-from __future__ import division, absolute_import, print_function, unicode_literals
+
 import random
 import functools
 from fractions import gcd
@@ -99,9 +99,9 @@ def srandpoint(a=None, b=None, exclude=()):
 def is_mult_2_5(val):
     "Test if integer val matches 2^n*5^m."
     if sympy:
-        ints = (sympy.Integer, int, long)
+        ints = (sympy.Integer, int)
     else:
-        ints = (int, long)
+        ints = (int,)
     if hasattr(val, '__iter__'):
         return all(is_mult_2_5(v) for v in val)
     if val == 0 or not isinstance(val, ints):
@@ -127,9 +127,9 @@ def randfrac(a=None, b=None, exclude=(), not_decimal=False, den=None):
         den = list(den)
     if (den is None and a in (-1, 0, 1) and b in (-1, 0, 1)) or a == b:
         # This would lead to infinite loop.
-        raise ValueError, ('(%s, %s) are not valid parameters.' % (a, b))
+        raise ValueError('(%s, %s) are not valid parameters.' % (a, b))
     if not_decimal and is_mult_2_5(den):
-        raise ValueError, "chosen denominator is not compatible with `not_decimal` option."
+        raise ValueError("chosen denominator is not compatible with `not_decimal` option.")
     while True:
         if den is None:
             d = randint(a, b)
@@ -169,7 +169,7 @@ def randchoice(*items, **kw):
     if 'exclude' in kw:
         items = [val for val in items if val not in kw['exclude']]
     val = random.choice(items)
-    if isinstance(val, (int, long, float, complex)):
+    if isinstance(val, (int, float, complex)):
         val = S(val)
     return val
 

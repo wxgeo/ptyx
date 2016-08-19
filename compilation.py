@@ -1,4 +1,4 @@
-from __future__ import division, absolute_import, print_function, unicode_literals
+
 
 import os, sys
 import subprocess
@@ -16,7 +16,7 @@ class CustomOutput(object):
 
     def write(self, string_):
         try:
-            if isinstance(string_, unicode):
+            if isinstance(string_, str):
                 string_ = string_.encode('utf8')
             sys.__stdout__.write(string_)
             if self.logfile_name:
@@ -78,7 +78,7 @@ def make_files(input_name, syntax_tree, options, start, names, make_tex, formats
 
 
     filenames = []
-    for num in xrange(start, start + options.number):
+    for num in range(start, start + options.number):
         latex_generator.clear()
         latex_generator.context['WITH_ANSWERS'] = correction
         latex_generator.context['NUM'] = num
@@ -226,13 +226,13 @@ def join_files(output_name, filenames, seed_file_name, formats, options):
         mode = options.reorder_pages
         if mode == 'brochure':
             if n%4:
-                raise RuntimeError, ('Page number is %s, but must be a multiple of 4.' % n)
+                raise RuntimeError('Page number is %s, but must be a multiple of 4.' % n)
             order = []
             for i in range(int(n/4)):
                 order.extend([2*i + 1, 2*i + 2, n - 2*i - 1, n - 2*i])
         elif mode == 'brochure-reversed':
             if n%4:
-                raise RuntimeError, ('Page number is %s, but must be a multiple of 4.' % n)
+                raise RuntimeError('Page number is %s, but must be a multiple of 4.' % n)
             order = n*[0]
             for i in range(int(n/4)):
                 order[2*i] = 4*i + 1
@@ -240,7 +240,7 @@ def join_files(output_name, filenames, seed_file_name, formats, options):
                 order[n - 2*i - 2] = 4*i + 3
                 order[n - 2*i - 1] = 4*i + 4
         else:
-            raise NameError, ('Unknown mode %s for option --reorder-pages !' % mode)
+            raise NameError('Unknown mode %s for option --reorder-pages !' % mode)
         # monfichier.pdf -> monfichier-brochure.pdf
         new_name = '%s-%s.pdf' % (pdf_name[:pdf_name.index('.')], mode)
         execute('pdftk %s cat %s output %s' % (pdf_name, ' '.join(str(i) for i in order), new_name))

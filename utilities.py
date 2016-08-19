@@ -1,4 +1,4 @@
-from __future__ import division, absolute_import, print_function, unicode_literals
+
 
 import re
 from math import ceil, floor, isnan, isinf
@@ -8,7 +8,7 @@ if sympy is not None:
     from sympy import preorder_traversal, Symbol
 
 def round(val, ndigits=0):
-    u"""Round using round-away-from-zero strategy for halfway cases.
+    """Round using round-away-from-zero strategy for halfway cases.
 
     Python 3+ implements round-half-even, and Python 2.7 has a random behaviour
     from end user point of view (in fact, result depends on internal
@@ -114,7 +114,7 @@ def find_closing_bracket(text, start = 0, brackets = '{}', detect_strings=True):
     else:
         return start + index - 1 # last caracter is the searched bracket :-)
 
-    raise ValueError, 'ERROR: unbalanced brackets (%s) while scanning %s...' %(balance, repr(text_beginning))
+    raise ValueError('ERROR: unbalanced brackets (%s) while scanning %s...' %(balance, repr(text_beginning)))
 
 
 
@@ -127,9 +127,9 @@ def _float_me_if_you_can(expr):
         return expr
 
 def numbers_to_floats(expr, integers=False, ndigits=None):
-    u"""Convert all numbers (except integers) to floats inside a sympy expression."""
+    """Convert all numbers (except integers) to floats inside a sympy expression."""
     if not sympy or not isinstance(expr, sympy.Basic):
-        if isinstance(expr, (long, int)) and not integers:
+        if isinstance(expr, int) and not integers:
             return expr
         elif ndigits is not None:
             return round(expr, ndigits)

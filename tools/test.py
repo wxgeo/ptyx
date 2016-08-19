@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from __future__ import division, absolute_import, print_function, unicode_literals
+
 #    WxGeometrie
 #    Dynamic geometry, graph plotter, and more for french mathematic teachers.
 #    Copyright (C) 2005-2013  Nicolas Pourcelot
@@ -132,7 +132,7 @@ def all(*args):
 
 
 def help():
-    print(u"""\n    === Usage ===\n
+    print("""\n    === Usage ===\n
     - Launch all unit tests:
         $ ./tools/test.py
     - Launch all doctests:
@@ -169,7 +169,7 @@ if args:
             help()
     else:
         action = 'test'
-    if action in actions.itervalues():
+    if action in actions.values():
         locals()[action](*args)
     else:
         help()

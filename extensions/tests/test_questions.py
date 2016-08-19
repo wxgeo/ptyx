@@ -29,7 +29,7 @@ An example:
 
     === END ===
 """
-from __future__ import division, absolute_import, print_function, unicode_literals
+
 import sys
 from os.path import join, dirname, realpath
 
@@ -100,6 +100,6 @@ ok, have a nice day then.
     filename = join(dirname(dirname(this_file)), 'questions.py')
 
     d = {}
-    execfile(filename, d)
+    exec(compile(open(filename).read(), filename, 'exec'), d)
     assertEq(d['main'](text), text2)
 

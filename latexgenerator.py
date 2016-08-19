@@ -1,4 +1,4 @@
-from __future__ import division, absolute_import, print_function, unicode_literals
+
 import re
 from functools import partial
 from os.path import dirname, realpath, join
@@ -39,14 +39,14 @@ from utilities import print_sympy_expr, find_closing_bracket, numbers_to_floats,
 def wxgeometrie_needed(f):
     def g(*args, **kw):
         if not wxgeometrie:
-            raise ImportError, 'Library wxgeometrie not found !'
+            raise ImportError('Library wxgeometrie not found !')
         f(*args, **kw)
     return g
 
 
 
 class Node(object):
-    u"""A node.
+    """A node.
 
     name is the tag name, or the argument number."""
     def __init__(self, name):
@@ -70,7 +70,7 @@ class Node(object):
         #~ return self.children[0]
 
     def arg(self, i):
-        u"Return argument number i content."
+        "Return argument number i content."
         child = self.children[i]
         if child.name != i:
             raise ValueError('Incorrect argument number.')
@@ -110,7 +110,7 @@ class Node(object):
     def _format(self, val, color):
         if not color:
             return str(val)
-        if isinstance(val, basestring):
+        if isinstance(val, str):
             return self.yellow(val)
         elif isinstance(val, int):
             return self.blue(str(val))
@@ -228,7 +228,7 @@ class SyntaxTreeGenerator(object):
 
 
     def preparse(self, text):
-        u"""Pre-parse pTyX code and generate a syntax tree.
+        """Pre-parse pTyX code and generate a syntax tree.
 
         :param text: some pTyX code.
         :type text: string
@@ -250,7 +250,7 @@ class SyntaxTreeGenerator(object):
         for extension in extensions:
             this_file = realpath(sys._getframe().f_code.co_filename)
             filename = join(dirname(this_file), 'extensions', extension)
-            execfile(filename + ".py", d)
+            exec(compile(open(filename + ".py").read(), filename + ".py", 'exec'), d)
             # execute `main()` function of extension.
             text = d['main'](text)
 
@@ -482,7 +482,7 @@ class SyntaxTreeGenerator(object):
 
 
 class LatexGenerator(object):
-    u"""Convert text containing ptyx tags to plain LaTeX."""
+    """Convert text containing ptyx tags to plain LaTeX."""
 
     convert_tags = {'+': 'ADD', '-': 'SUB', '*': 'MUL', '=': 'EQUAL', '?': 'SIGN', '#': 'SHARP'}
 
@@ -503,7 +503,7 @@ class LatexGenerator(object):
         self.flags = {}
 
     def parse(self, text):
-        u"""Convert text containing ptyx tags to plain LaTeX.
+        """Convert text containing ptyx tags to plain LaTeX.
 
         :param text: a pTyX file content, to be converted to plain LaTeX.
         :type text: str
@@ -517,7 +517,7 @@ class LatexGenerator(object):
 
 
     def parse_node(self, node):
-        u"""Parse a node in a pTyX syntax tree.
+        """Parse a node in a pTyX syntax tree.
 
         Return True if block content was recursively parsed, and False else.
 
@@ -541,7 +541,7 @@ class LatexGenerator(object):
             self.context['LATEX'] = []
 
         for child in children:
-            if isinstance(child, basestring):
+            if isinstance(child, str):
                 self.write(child)
             else:
                 # All remaining children should be nodes now.
@@ -549,7 +549,7 @@ class LatexGenerator(object):
                 # Nodes are either numbered, or have a name.
                 # Numbered nodes correspond to command arguments. Those should
                 # have been processed before, and not be passed to _parse_children().
-                assert isinstance(child.name, basestring)
+                assert isinstance(child.name, str)
 
                 self.parse_node(child)
 
@@ -560,7 +560,7 @@ class LatexGenerator(object):
 
 
     def _parse_options(self, node):
-        u'Parse a tag options, following the syntax {key1=val1,...}.'
+        'Parse a tag options, following the syntax {key1=val1,...}.'
         options = node.options
         args = []
         kw = {}
@@ -576,7 +576,7 @@ class LatexGenerator(object):
 
 
     def write(self, text, parse=False):
-        u"""Append a piece of LaTeX text to context['LATEX'].
+        """Append a piece of LaTeX text to context['LATEX'].
 
         :param text: a block of text, which may contain pTyX code.
         :type text: string
@@ -674,7 +674,7 @@ class LatexGenerator(object):
     def _parse_PYTHON_tag(self, node):
         assert len(node.children) == 1
         python_code = node.children[0]
-        assert isinstance(python_code, basestring)
+        assert isinstance(python_code, str)
         self._exec_python_code(python_code, self.context)
 
     #Remove comments before generating tree ?
@@ -716,10 +716,10 @@ class LatexGenerator(object):
             elif arg == 'str':
                 self.flags['str'] = True
             else:
-                raise ValueError, ('Unknown flag: ' + repr(arg))
+                raise ValueError('Unknown flag: ' + repr(arg))
         # XXX: support options round, float, (sympy, python,) pick and rand
         code = node.arg(0)
-        assert isinstance(code, basestring), type(code)
+        assert isinstance(code, str), type(code)
         txt = self._eval_and_format_python_expr(code)
         # Tags must be cleared *before* calling .write(txt), since .write(txt)
         # add '+', '-' and '\times ' before txt if corresponding flags are set,
@@ -734,7 +734,7 @@ class LatexGenerator(object):
     def _parse_MACRO_tag(self, node):
         name = node.arg(0)
         if name not in self.macros:
-            raise NameError, ('Error: MACRO "%s" undefined.' % name)
+            raise NameError('Error: MACRO "%s" undefined.' % name)
         self._parse_children(self.macros[name])
 
     def _parse_ENUM_tag(self, node):
@@ -897,14 +897,14 @@ class LatexGenerator(object):
 
     def _parse_DEBUG_tag(self, node):
         while True:
-            command = raw_input('Debug point. Enter command, or quit (q! + ENTER):')
+            command = input('Debug point. Enter command, or quit (q! + ENTER):')
             if command == 'q!':
                 break
             else:
                 print(eval(command, self.context))
 
     def _exec(self, code, context):
-        u"""exec is encapsulated in this function so as to avoid problems
+        """exec is encapsulated in this function so as to avoid problems
         with free variables in nested functions."""
         try:
             exec(code, context)
@@ -936,7 +936,7 @@ class LatexGenerator(object):
         sympy_code = flags.get('sympy', param['sympy_is_default'])
 
         if sympy_code and sympy is None:
-            raise ImportError, 'sympy library not found.'
+            raise ImportError('sympy library not found.')
 
         varname = ''
         i = code.find('=')
@@ -956,7 +956,7 @@ class LatexGenerator(object):
         if sympy_code:
             try:
                 result = sympy.sympify(code, locals = context)
-                if isinstance(result, basestring):
+                if isinstance(result, str):
                     result = result.replace('**', '^')
             except (SympifyError, AttributeError):
                 # sympy.sympify() can't parse attributes and methods inside
