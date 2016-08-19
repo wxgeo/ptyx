@@ -13,6 +13,7 @@ identically)
 * portable
 
 """
+from __future__ import division, absolute_import, print_function, unicode_literals
 import os
 import sys
 import inspect
@@ -279,21 +280,21 @@ def doctest(*paths, **kwargs):
                     msg = 'txt doctests start'
                     lhead = '='*((80 - len(msg))//2 - 1)
                     rhead = '='*(79 - len(msg) - len(lhead) - 1)
-                    print ' '.join([lhead, msg, rhead])
-                    print
+                    print(' '.join([lhead, msg, rhead]))
+                    print()
                 # use as the id, everything past the first 'sympy'
                 file_id = txt_file[txt_file.find('sympy') + len('sympy') + 1:]
-                print file_id, # get at least the name out so it is know who is being tested
+                print(file_id) # get at least the name out so it is know who is being tested)
                 wid = 80 - len(file_id) - 1 #update width
-                test_file = '[%s]' % (tested)
+                test_file = '[%s]' % tested
                 report = '[%s]' % (txtfailed or 'OK')
-                print ''.join([test_file,' '*(wid-len(test_file)-len(report)), report])
+                print(''.join([test_file,' '*(wid-len(test_file)-len(report)), report]))
 
         # the doctests for *py will have printed this message already if there was
         # a failure, so now only print it if there was intervening reporting by
         # testing the *txt as evidenced by first_report no longer being True.
         if not first_report and failed:
-            print
+            print()
             print("DO *NOT* COMMIT!")
     return not failed
 
@@ -324,7 +325,7 @@ class SymPyTests(object):
             try:
                 self.test_file(f)
             except KeyboardInterrupt:
-                print " interrupted by user"
+                print(" interrupted by user")
                 break
         return self._reporter.finish()
 
@@ -444,7 +445,7 @@ class SymPyDocTests(object):
             try:
                 self.test_file(f)
             except KeyboardInterrupt:
-                print " interrupted by user"
+                print(" interrupted by user")
                 break
         return self._reporter.finish()
 
@@ -556,7 +557,7 @@ class SymPyDocTestFinder(DocTestFinder):
         add them to `tests`.
         """
         if self._verbose:
-            print 'Finding tests in %s' % name
+            print('Finding tests in %s' % name)
 
         # If we've already processed this object, then ignore it.
         if id(obj) in seen:

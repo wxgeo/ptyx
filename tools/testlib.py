@@ -1,5 +1,4 @@
-# -*- coding: iso-8859-1 -*-
-from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
+from __future__ import division, absolute_import, print_function, unicode_literals
 
 from random import random, randint as _randint
 from os.path import split, realpath, abspath
@@ -27,14 +26,14 @@ def assertAlmostEqual(x, y):
     else:
         TEST = abs(y - x) < EPSILON
         if not TEST:
-            print x,  "!=",  y
+            print("%s != %s" % (x, y))
         assert TEST
 
 def assertNotAlmostEqual(x, y):
     # TODO: define test for tuple
     TEST = abs(y - x) > EPSILON
     if not TEST:
-        print x,  "==",  y
+        print("%s == %s" % (x, y))
     assert TEST
 
 def assertEqual(x, y):
@@ -68,4 +67,4 @@ def assertRaises(error, f, *args, **kw):
     except Exception as e:
         assert type(e) == error
     else:
-        raise AssertionError, '%s should be raised.' %type(e).__name__
+        raise AssertionError('%s should be raised.' %type(e).__name__)

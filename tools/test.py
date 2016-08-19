@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 from __future__ import division, absolute_import, print_function, unicode_literals
 #    WxGeometrie
 #    Dynamic geometry, graph plotter, and more for french mathematic teachers.
@@ -19,9 +18,9 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-"""Utilitaires et tests à effectuer avant de publier une nouvelle version de WxGéométrie.
+"""Tests utilities. Test should be done before every commit.
 
-    La suite de tests suivante est librement inspirée de Sympy.
+    Sympy test utilities were slightly adapted fot this purpose.
 
     python test.py audit -> will run pyflakes checker on source code
     python test.py bench -> will run the complete benchmark suite
@@ -52,7 +51,7 @@ if sys.version_info[:2] < PYTHON_MIN:
     sys.exit(-1)
 
 
-#TODO: use argparse once python 2.6 is deprecated for WxGéométrie.
+#TODO: use argparse once python 2.6 is deprecated for Geophar/ptyx.
 
 actions = {'u': 'audit', 'c': 'clean', 't': 'test', 'd': 'doc', 'a': 'all', 'h': 'help'}
 

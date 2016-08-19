@@ -1,4 +1,4 @@
-from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
+from __future__ import division, absolute_import, print_function, unicode_literals
 
 import os, sys
 import subprocess
@@ -36,7 +36,7 @@ def execute(string, quiet=False):
     sys.stdout.write(output)
     out.close()
     if not quiet:
-        print "Command '%s' executed." %string
+        print("Command '%s' executed." %string)
     return output
 
 
@@ -73,7 +73,7 @@ def make_files(input_name, syntax_tree, options, start, names, make_tex, formats
             os.mkdir(tail)
         output_name = output_name + os.sep + tail
 
-        print output_name
+        print(output_name)
 
 
 

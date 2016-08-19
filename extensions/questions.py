@@ -46,7 +46,7 @@ An other simpler example:
 
     >>>>>>>>>>>>>>>>
 """
-
+from __future__ import division, absolute_import, print_function, unicode_literals
 import re
 
 def main(text):

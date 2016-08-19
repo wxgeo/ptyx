@@ -29,8 +29,8 @@ An example:
 
     === END ===
 """
-
-import re, os, sys
+from __future__ import division, absolute_import, print_function, unicode_literals
+import sys
 from os.path import join, dirname, realpath
 
 from testlib import assertEq

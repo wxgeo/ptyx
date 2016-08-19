@@ -1,4 +1,4 @@
-from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
+from __future__ import division, absolute_import, print_function, unicode_literals
 import re
 from functools import partial
 from os.path import dirname, realpath, join
@@ -697,10 +697,10 @@ class LatexGenerator(object):
         code = node.arg(0)
         test = eval(code, self.context)
         if not test:
-            print "Error in assertion (NUM=%s):" % self.NUM
-            print "***"
-            print code
-            print "***"
+            print("Error in assertion (NUM=%s):" % self.NUM)
+            print("***")
+            print(code)
+            print("***")
             assert test
 
     def _parse_EVAL_tag(self, node):
@@ -909,11 +909,11 @@ class LatexGenerator(object):
         try:
             exec(code, context)
         except:
-            print "** ERROR found in the following code: **"
+            print("** ERROR found in the following code: **")
             print(code)
-            print "-----"
-            print repr(code)
-            print "-----"
+            print("-----")
+            print(repr(code))
+            print("-----")
             raise
 
     def _exec_python_code(self, code, context):
@@ -1056,11 +1056,11 @@ class LatexGenerator(object):
                 else:
                     round_result = round(result, flags['round'])
             except ValueError:
-                print "** ERROR while rounding value: **"
-                print result
-                print "-----"
-                print ''.join(self.context['LATEX'])[-100:]
-                print "-----"
+                print("** ERROR while rounding value: **")
+                print(result)
+                print("-----")
+                print(''.join(self.context['LATEX'])[-100:])
+                print("-----")
                 raise
             if sympy and isinstance(result, sympy.Basic):
                 flags['result_is_exact'] = (

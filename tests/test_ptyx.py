@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-from __future__ import division # 1/2 == .5
-
+from __future__ import division, absolute_import, print_function, unicode_literals
 import sys
 
 #~ print sys.path
@@ -144,8 +142,8 @@ def test_SEED_SHUFFLE():
     g = LatexGenerator()
     g.parse(test)
     assertEq(g.read(), result)
-# À TESTER :
-# "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> voir si 'message 3' s'affiche bien.
+# ADD A TEST :
+# "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> test that 'message 3' is printed.
 
 
 def test_SEED_SHUFFLE_2():

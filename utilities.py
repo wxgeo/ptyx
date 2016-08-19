@@ -1,4 +1,4 @@
-from __future__ import division # 1/2 == .5 (par defaut, 1/2 == 0)
+from __future__ import division, absolute_import, print_function, unicode_literals
 
 import re
 from math import ceil, floor, isnan, isinf
