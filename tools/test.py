@@ -28,6 +28,8 @@
     python test.py test -> will run the complete test suite
 """
 
+from __future__ import division, unicode_literals, absolute_import, print_function
+
 PYTHON_MIN = (2, 6)
 
 import sys, os

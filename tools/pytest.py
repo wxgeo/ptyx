@@ -3,6 +3,7 @@
 
 # XXX this should be integrated into py.test
 # XXX but we can't force everyone to install py-lib trunk
+from __future__ import division, unicode_literals, absolute_import, print_function
 
 import sys
 try:
