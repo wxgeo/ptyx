@@ -42,10 +42,11 @@ from compilation import join_files, make_files
 from latexgenerator import latex_generator
 from context import global_context
 
-#~ if sys.platform == 'win32':
-    #~ sys.stdout = codecs.getwriter('cp850')(sys.stdout)
-#~ else:
-    #~ sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+if sys.version_info.major == 2:
+    if sys.platform == 'win32':
+        sys.stdout = codecs.getwriter('cp850')(sys.stdout)
+    else:
+        sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
 
 
