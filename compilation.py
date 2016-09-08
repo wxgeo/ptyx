@@ -25,6 +25,9 @@ class CustomOutput(object):
             sys.stderr = sys.__stderr__
             raise
 
+    def flush(self):
+        sys.__stdout__.flush()
+
 
 def execute(string, quiet=False):
     out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True).stdout

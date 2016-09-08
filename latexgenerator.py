@@ -5,6 +5,7 @@ from functools import partial
 from os.path import dirname, realpath, join
 import random
 import sys
+from importlib import import_module
 
 from context import global_context, SympifyError
 from config import param, sympy, wxgeometrie
@@ -249,11 +250,9 @@ class SyntaxTreeGenerator(object):
             extensions.append(text[i + 6:pos])
         d = {}
         for extension in extensions:
-            this_file = realpath(sys._getframe().f_code.co_filename)
-            filename = join(dirname(this_file), 'extensions', extension)
-            exec(compile(open(filename + ".py").read(), filename + ".py", 'exec'), d)
+            ext_as_module = import_module('extensions.%s' % extension)
             # execute `main()` function of extension.
-            text = d['main'](text)
+            text = ext_as_module.main(text)
 
 
 
