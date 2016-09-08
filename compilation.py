@@ -16,22 +16,18 @@ class CustomOutput(object):
 
     def write(self, string_):
         try:
-            if isinstance(string_, str):
-                string_ = string_.encode('utf8')
             sys.__stdout__.write(string_)
             if self.logfile_name:
-                try:
-                    f = open(self.logfile_name, 'a')
+                with open(self.logfile_name, 'a', encoding='utf-8') as f:
                     f.write(string_)
-                finally:
-                    f.close()
+
         except Exception:
             sys.stderr = sys.__stderr__
             raise
 
 
 def execute(string, quiet=False):
-    out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
+    out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True).stdout
     output = out.read()
     sys.stdout.write(output)
     out.close()

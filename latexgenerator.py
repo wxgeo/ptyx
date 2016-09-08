@@ -669,7 +669,7 @@ class LatexGenerator(object):
         exec('from %s import *' % node.arg(0), self.context)
 
     def _parse_LOAD_tag(self, node):
-        # LOAD tag is used to load extensions before syntax tree is built.
+        # LOAD tag is used to load extensions **before** syntax tree is built.
         pass
 
     def _parse_PYTHON_tag(self, node):
