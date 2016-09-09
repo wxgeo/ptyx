@@ -148,7 +148,7 @@ def make_file(syntax_tree, output_name, make_tex_file=False,
         texfile = None
         try:
             texfile = tempfile.NamedTemporaryFile(suffix='.tex')
-            texfile.write(latex)
+            texfile.write(latex.encode('utf8'))
             if make_pdf_file:
                 tmp_name  = os.path.split(texfile.name)[1][:-4] # without .tex extension
                 tmp_names = {}
