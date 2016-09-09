@@ -56,10 +56,16 @@ def main(text):
     text = re.sub('\n[ ]*[<][<][<][<][<]+', '\n#ASK', text)
     text = re.sub('\n[ ]*[>][>][>][>][>]+', '\n#END_ANY_ASK_OR_ANS', text)
     text = re.sub('\n[ ]*[=]+[ ]*((QUESTIONS)|[?]+)[ ]*[=]+', '\n#END_ANY_ASK_OR_ANS\n\\\\begin{enumerate}\n#ENUM\n\\\\item\n#ASK ', text)
-    text = re.sub('\n[ ]*[=]+[ ]*((SHUFFLE)|[?!]|[!?])[ ]*[=]+', '\n#END_ANY_ASK_OR_ANS\n\\\\begin{enumerate}\n#SHUFFLE\n\\\\item\n#ITEM\n#ASK ', text)
+    text = re.sub('\n[ ]*[=]+[ ]*((SHUFFLE)|[?!]|[!?])[ ]*[=]+', '\n#END_ANY_ASK_OR_ANS\n\\\\begin{enumerate}\n#SHUFFLE\n#ITEM\n\\\\item\n#ASK ', text)
     text = re.sub('\n[ ]*([=]+[ ]*END[ ]*[=]+)|([=][=][=][=][=]+)', '\n#END_ANY_ASK_OR_ANS\n#END\n\\\\end{enumerate}', text)
-    text = re.sub('\n[ ]*[_][_][_][_][_]+', '\n#END_ANY_ASK_OR_ANS\n\\\\item\n#ITEM\n#ASK ', text)
+    text = re.sub('\n[ ]*[_][_][_][_][_]+', '\n#END_ANY_ASK_OR_ANS\n#ITEM\n\\\\item\n#ASK ', text)
     text = re.sub('\n[ ]*[-][-][-][-][-]+', '\n#ANS ', text)
+    # Create blank dotted lines for answers:
+    # a line containing only "-" will be converted to a dotted line.
+    def f(m):
+        return '\n#ASK_ONLY\n%s\n#END\n' % m.group(0).replace('-', '\n\dotfill')
+    text = re.sub('\n([ ]*-[ ]*\n)+', f, text)
+
     with open('/tmp/ptyx-questions.log', 'w') as f:
         f.write(text)
     return text
