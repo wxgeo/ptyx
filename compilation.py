@@ -1,6 +1,6 @@
 from __future__ import division, unicode_literals, absolute_import, print_function
 
-import os, sys
+import os, sys, locale
 import subprocess
 import tempfile
 import shutil
@@ -30,8 +30,9 @@ class CustomOutput(object):
 
 
 def execute(string, quiet=False):
-    out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True).stdout
-    output = out.read()
+    out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
+    encoding = locale.getdefaultlocale(False)
+    output = out.read().decode(encoding, errors='replace')
     sys.stdout.write(output)
     out.close()
     if not quiet:
