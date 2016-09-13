@@ -305,17 +305,17 @@ if __name__ == '__main__':
             help = "Switch to --make-directory mode, except if .ptyx file \
                    is already in a directory with the same name \
                    (e.g. myfile123/myfile123.ptyx).")
-    parser.add_option("-b", "--debug", action = "store_true",
+    parser.add_option("-b", "--debug", action="store_true",
             help = "Debug mode.")
-    parser.add_option("-q", "--quiet", action = "store_true",
+    parser.add_option("-q", "--quiet", action="store_true",
             help = "Suppress most of latex processor output.")
-    parser.add_option("-s", "--start", default = 0,
+    parser.add_option("-s", "--start", default=1,
             help = "Number of the first generated file \
                    (initial value of internal NUM counter). Default is 0.")
     parser.add_option("-c", "--cat", action = "store_true",
             help = "Cat all generated pdf files inside a single one. \
                    The pdftk command must be installed.")
-    parser.add_option("-C", "--compress", action = "store_true",
+    parser.add_option("-C", "--compress", action="store_true",
             help = "Like --cat, but compress final pdf file using pdf2ps and ps2pdf.")
     parser.add_option("--reorder-pages",
             help = "Reorder pages for printing.\n\

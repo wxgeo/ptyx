@@ -31,7 +31,7 @@ class CustomOutput(object):
 
 def execute(string, quiet=False):
     out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
-    encoding = locale.getdefaultlocale(False)
+    encoding = locale.getpreferredencoding(False)
     output = out.read().decode(encoding, errors='replace')
     sys.stdout.write(output)
     out.close()
