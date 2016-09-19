@@ -154,8 +154,10 @@ def print_sympy_expr(expr, **flags):
         # -0.06000000000000001 means probably -0.06 ; that's because
         # floating point arithmetic is not based on decimal numbers, and
         # so some decimal numbers do not have exact internal representation.
-        # Python str() handles this better than sympy.latex()
-        latex = str(float(expr))
+        # Python str() handles this better than sympy.latex().
+        # Keep 'only' 14 digits (precision rarely  exceed 16 or 17 digits with raw floats,
+        # and then decreased with successive operations...)
+        latex = format(float(expr), '.14g')
 
         # Strip unused trailing 0.
         latex = latex.rstrip('0').rstrip('.')

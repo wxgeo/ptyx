@@ -710,7 +710,7 @@ class LatexGenerator(object):
                 self.flags['round'] = int(arg)
             elif arg == '.':
                 self.flags['.'] = True
-            elif arg == 'floats':
+            elif arg in ('floats', 'float'):
                 self.flags['floats'] = True
 
             elif arg == 'str':
