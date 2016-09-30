@@ -393,7 +393,13 @@ class SyntaxTreeGenerator(object):
                 end = text.index('#END', position)
                 # Create and enter new node.
                 node = node.add_child(Node(tag))
-                node.add_child(text[position:end])
+                # Some specific parsing is done however:
+                # a line starting with `%` will be interpreted as a comment.
+                # This makes code a bit more readable, since `%` is already used
+                # for comments in LateX code.
+                _text = text[position:end]
+                _text = re.sub(r'^\s*%', '#', _text, flags=re.MULTILINE)
+                node.add_child(_text)
                 node = node.parent
                 position = end + 4
 
@@ -674,6 +680,10 @@ class LatexGenerator(object):
     def _parse_PYTHON_tag(self, node):
         assert len(node.children) == 1
         python_code = node.children[0]
+        print("--------------------------------")
+        print("Executing following python code:")
+        print(python_code)
+        print("--------------------------------")
         assert isinstance(python_code, str)
         self._exec_python_code(python_code, self.context)
 
@@ -745,10 +755,18 @@ class LatexGenerator(object):
         if node.children:
             if isinstance(node.children[0], Node):
                 children = node.children[:]
-                random.shuffle(children)
+                #~ print('\n------------')
+                #~ print('SHUFFLE: %s elements' % len(children))
+                #~ print('state hash is %s' % hash(random.getstate()))
+                #~ print('------------\n')
+                randfunc.shuffle(children)
             else:
                 children = node.children[1:]
-                random.shuffle(children)
+                #~ print('\n------------')
+                #~ print('SHUFFLE: %s elements, excluding first' % len(children))
+                #~ print('state hash is %s' % hash(random.getstate()))
+                #~ print('------------\n')
+                randfunc.shuffle(children)
                 children.insert(0, node.children[0])
             self._parse_children(children)
 

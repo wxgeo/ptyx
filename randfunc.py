@@ -2,6 +2,8 @@ from __future__ import division, unicode_literals, absolute_import, print_functi
 
 import random
 import functools
+from collections import namedtuple
+
 from fractions import gcd
 
 from config import param, sympy
@@ -15,6 +17,20 @@ if sympy is not None:
 
 _RANDOM_STATE = random.getstate()
 _SANDBOXED_MODE = False
+
+
+class Point(namedtuple('Point', ['x', 'y'])):
+    def __add__(self, vec):
+        return Point(self.x + vec[0], self.y + vec[1])
+
+    def __neg__(self):
+        return Point(-self.x, -self.y)
+
+    def __sub__(self, vec):
+        return Point(self.x - vec[0], self.y - vec[1])
+
+    def __rmul__(self, k):
+        return Point(k*self.x, k*self.y)
 
 
 def sandboxed(func):
@@ -81,13 +97,14 @@ def randsign():
 def randbool():
     return bool(randint(0, 1))
 
+
 @sandboxed
 def randpoint(a=None, b=None, exclude=()):
     while True:
         x = randint(a, b)
         y = randint(a, b)
         if (x, y) not in exclude:
-            return (x, y)
+            return Point(x, y)
 
 @sandboxed
 def srandpoint(a=None, b=None, exclude=()):
@@ -95,7 +112,7 @@ def srandpoint(a=None, b=None, exclude=()):
         x = srandint(a, b)
         y = srandint(a, b)
         if (x, y) not in exclude:
-            return (x, y)
+            return Point(x, y)
 
 def is_mult_2_5(val):
     "Test if integer val matches 2^n*5^m."
@@ -115,9 +132,9 @@ def is_mult_2_5(val):
 
 @sandboxed
 def randfrac(a=None, b=None, exclude=(), not_decimal=False, den=None):
-    '''Return a random fraction which is never an integer.
+    '''Return a random positive fraction which is never an integer.
 
-    Use `d` to specify denominator value; `d` must be an integer or a tuple
+    Use `den` to specify denominator value; `den` must be an integer or a tuple
     of integers.
     '''
     if b is None:
@@ -154,17 +171,25 @@ def randfrac(a=None, b=None, exclude=(), not_decimal=False, den=None):
 
 @sandboxed
 def srandfrac(a=None, b=None, exclude=(), not_decimal=False, den=None):
+    '''Return a random signed fraction which is never an integer.
+
+    Use `den` to specify denominator value; `den` must be an integer or a tuple
+    of integers.
+    '''
     while True:
         val = (-1)**randint(0, 1)*randfrac(a, b, not_decimal=not_decimal, den=den)
         if val not in exclude:
             return val
 
 @sandboxed
-def randchoice(*items, **kw):
+def randchoice(items, *others, **kw):
     """Select randomly an item.
+
+    Note that `randchoice(1, 2, 3)` is equivalent to `randchoice([1, 2, 3])`.
     """
-    if len(items) == 1 and hasattr(items[0], '__iter__'):
-        items = items[0]
+    if others:
+        # `items` is then only the first element.
+        items = [items] + list(others)
     if kw.get('signed'):
         items = list(items) + [-1*item for item in items]
     if 'exclude' in kw:
@@ -179,3 +204,20 @@ def srandchoice(*items, **kw):
     kw['signed'] = True
     return randchoice(*items, **kw)
 
+@sandboxed
+def shuffle(l, _random=None):
+    random.shuffle(l, _random)
+
+
+def many(n=2, func=srandint, unique=True, **kw):
+    """Return several numbers at once.
+
+    By default, every number is unique.
+    Note this can lead to infinite recursion if n is too large."""
+    l = []
+    kw.setdefault('exclude', [])
+    for i in range(n):
+        val = func(**kw)
+        kw['exclude'].append(val)
+        l.append(val)
+    return l
