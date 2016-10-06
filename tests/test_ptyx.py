@@ -6,7 +6,7 @@ import sys
 sys.path.append('..')
 
 from latexgenerator import SyntaxTreeGenerator, LatexGenerator
-from utilities import find_closing_bracket, round
+from utilities import find_closing_bracket, round, print_sympy_expr
 from randfunc import randchoice, srandchoice, randfrac
 from ptyx import enumerate_shuffle_tree, display_enumerate_tree
 
@@ -42,6 +42,12 @@ def test_round():
     assertEq(round(float('inf'), 4), float('inf'))
     assertEq(round(float('-inf'), 4), float('-inf'))
     assertEq(str(round(float('nan'), 4)), 'nan')
+
+def test_print_sympy_expr():
+    assertEq(print_sympy_expr(0.0), "0")
+    assertEq(print_sympy_expr(-2.0), "-2")
+    assertEq(print_sympy_expr(-0.0), "0")
+
 
 def test_syntax_tree():
     s = SyntaxTreeGenerator()

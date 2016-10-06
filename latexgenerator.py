@@ -1022,7 +1022,7 @@ class LatexGenerator(object):
             latex = str(result)
 
         def neg(latex):
-            return latex.lstrip()[0] == '-'
+            return latex.lstrip().startswith('-')
 
         if flags.get('+'):
             if result == 0:

@@ -101,6 +101,7 @@ global_context['randfrac'] = randfunc.randfrac
 global_context['srandfrac'] = randfunc.srandfrac
 global_context['randchoice'] = randfunc.randchoice
 global_context['srandchoice'] = randfunc.srandchoice
+global_context['shuffle'] = randfunc.shuffle
 global_context['many'] = randfunc.many
 # If a document is compiled several times (to produce different versions of the same document),
 # NUM is the compilation number (starting from 0).
@@ -312,7 +313,7 @@ if __name__ == '__main__':
             help = "Suppress most of latex processor output.")
     parser.add_option("-s", "--start", default=1,
             help = "Number of the first generated file \
-                   (initial value of internal NUM counter). Default is 0.")
+                   (initial value of internal NUM counter). Default is 1.")
     parser.add_option("-c", "--cat", action = "store_true",
             help = "Cat all generated pdf files inside a single one. \
                    The pdftk command must be installed.")

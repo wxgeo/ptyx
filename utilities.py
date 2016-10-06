@@ -158,9 +158,8 @@ def print_sympy_expr(expr, **flags):
         # Keep 'only' 14 digits (precision rarely  exceed 16 or 17 digits with raw floats,
         # and then decreased with successive operations...)
         latex = format(float(expr), '.14g')
-
-        # Strip unused trailing 0.
-        latex = latex.rstrip('0').rstrip('.')
+        if latex == "-0":
+            latex = "0"
     elif wxgeometrie is not None:
         latex = custom_latex(expr, mode='plain')
     elif sympy and expr is sympy.oo:
