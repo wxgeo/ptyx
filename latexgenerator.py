@@ -238,6 +238,9 @@ class SyntaxTreeGenerator(object):
         .. note:: To access generated syntax tree, use `.syntax_tree` attribute.
         """
         # First, we search if some extensions must be load.
+        # This must be done at the very begining, since extensions may
+        # define their own specialized language, to be converted to
+        # valid pTyX code (and then to LaTeX).
         extensions = []
         pos = 0
         while True:
@@ -253,8 +256,8 @@ class SyntaxTreeGenerator(object):
             ext_as_module = import_module('extensions.%s' % extension)
             # execute `main()` function of extension.
             text = ext_as_module.main(text)
-
-
+        self.extensions_loaded = extensions
+        self.ptyx_code = text
 
         # Now, we will parse Ptyx code to generate a syntax tree.
         self._found_tags = set()
