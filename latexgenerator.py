@@ -257,7 +257,7 @@ class SyntaxTreeGenerator(object):
             # execute `main()` function of extension.
             text = ext_as_module.main(text)
         self.extensions_loaded = extensions
-        self.ptyx_code = text
+        self.plain_ptyx_code = text
 
         # Now, we will parse Ptyx code to generate a syntax tree.
         self._found_tags = set()
@@ -629,12 +629,12 @@ class LatexGenerator(object):
     def _parse_ANS_tag(self, node):
         if self.context.get('WITH_ANSWERS'):
             self._parse_children(node.children,
-                    function=self.context.get('format_answer',
-                            self.context.get('format_ans')))
+                    function=self.context.get('format_ans'))
 
     def _parse_ANSWER_tag(self, node):
         if self.context.get('WITH_ANSWERS'):
-            self._parse_children(node.children[0].children)
+            self._parse_children(node.children[0].children,
+                    function=self.context.get('format_answer'))
 
     def _parse_QUESTION_tag(self, node):
         if not self.context.get('WITH_ANSWERS'):
