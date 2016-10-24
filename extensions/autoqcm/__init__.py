@@ -1,5 +1,5 @@
 """
-AUTOmcq
+AUTOqcm
 
 This extension enables computer corrected tests.
 
@@ -33,11 +33,11 @@ An example:
     - detective
     - cheese maker
 
-    -> his son is also famous for
-    -  dancing french cancan
+    > his son is also famous for
+    - dancing french cancan
     - conquering Honolulu
     - walking for the first time on the moon
-    - having breafkeast at Tiffany
+    - having breakfast at Tiffany
 
     + none of the above is correct
 
@@ -52,14 +52,10 @@ One may include some PTYX code of course.
     """
 
 import re
-from generate import generate_tex
+from .generate import generate_tex
 
 def main(text):
-
-    code, cfg = generate_tex(text)
-
-    with open('/tmp/ptyx-autoqcm.log', 'w') as f:
-        f.write(code)
-    return code, cfg
+    code = generate_tex(text)
+    return code
 
 
