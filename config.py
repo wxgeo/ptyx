@@ -62,5 +62,4 @@ except ImportError:
     numpy = None
 
 
-import latexgenerator
-latexgenerator.sympy = sympy
+

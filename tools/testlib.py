@@ -4,6 +4,7 @@ from random import random, randint as _randint
 from os.path import split, realpath, abspath
 import sys
 
+from utilities import term_color
 
 _module_path = split(realpath(sys._getframe().f_code.co_filename))[0]
 ROOTDIR = abspath(_module_path + '/..') # /.../nom_du_projet/
@@ -37,8 +38,6 @@ def assertNotAlmostEqual(x, y):
     assert TEST
 
 def assertEqual(x, y):
-    def yellow(s):
-        return '\033[0;33m' + s + '\033[0m'
     if x != y:
         rx = repr(x)
         ry = repr(y)
@@ -46,7 +45,8 @@ def assertEqual(x, y):
             for i in range(min(len(rx), len(ry))):
                 if rx[i] != ry[i]:
                     break
-            ry = ry[:i] + yellow(ry[i:])
+            rx = rx[:i] + term_color(rx[i:], 'yellow')
+            ry = ry[:i] + term_color(ry[i:], 'green')
 
         print('''
 --------------
