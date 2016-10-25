@@ -93,8 +93,8 @@ def generate_header(identifier=0, questions=(), answers=None, introduction="", o
     # Generate students list.
     if csv_path:
         try:
-            l = []
-            l.append(r'''
+            tmp_content = []
+            tmp_content.append(r'''
                 \vspace{-1em}
                 \begin{center}
                 \begin{tikzpicture}[scale=.25]
@@ -113,10 +113,10 @@ def generate_header(identifier=0, questions=(), answers=None, introduction="", o
                     b = a + 1
                     c = a + 0.5
                     color = ('black' if _n_student == n_students - i else 'white')
-                    l.append(r'''\draw[fill={color}] ({a},0) rectangle ({b},1) ({c},0) node[below]
+                    tmp_content.append(r'''\draw[fill={color}] ({a},0) rectangle ({b},1) ({c},0) node[below]
                         {{\tiny \rotatebox{{-90}}{{\texttt{{{name}}}}}}};'''.format(**locals()))
             b += 1
-            l.append(r'''\draw[rounded corners] (-3,2) rectangle ({b}, -6.5);
+            tmp_content.append(r'''\draw[rounded corners] (-3,2) rectangle ({b}, -6.5);
                 \draw[] (-0.5,2) -- (-0.5,-6.5);
                 \end{{tikzpicture}}
                 \end{{center}}
@@ -125,8 +125,8 @@ def generate_header(identifier=0, questions=(), answers=None, introduction="", o
         except FileNotFoundError:
             print("Warning: `%s` not found." % csv_path)
             n_students = 0
-            l.clear()
-        content.extend(l)
+            tmp_content.clear()
+        content.extend(tmp_content)
 
 
 
