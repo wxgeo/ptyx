@@ -10,7 +10,8 @@ from importlib import import_module
 from context import global_context, SympifyError
 from config import param, sympy, wxgeometrie
 import randfunc
-from utilities import print_sympy_expr, find_closing_bracket, numbers_to_floats, _float_me_if_you_can
+from utilities import print_sympy_expr, find_closing_bracket, \
+                      numbers_to_floats, _float_me_if_you_can, term_color
 
 #ASSERT{}
 #CASE{int}...#CASE{int}...#END
@@ -105,7 +106,7 @@ class Node(object):
                         text += ' [...]'
                     text = repr(text)
                 if color:
-                    text = self.green(text)
+                    text = term_color(text, 'green')
                 texts.append('%s  - text: %s' % (indent*' ', text))
         return '\n'.join(texts)
 
@@ -113,31 +114,11 @@ class Node(object):
         if not color:
             return str(val)
         if isinstance(val, str):
-            return self.yellow(val)
+            return term_color(val, 'yellow')
         elif isinstance(val, int):
-            return self.blue(str(val))
+            return term_color(str(val), 'blue')
         return val
 
-    def blue(self, s):
-        return '\033[0;36m' + s + '\033[0m'
-
-    #~ def blue2(self, s):
-        #~ return '\033[1;36m' + s + '\033[0m'
-#~
-    #~ def red(self, s):
-        #~ return '\033[0;31m' + s + '\033[0m'
-#~
-    def green(self, s):
-        return '\033[0;32m' + s + '\033[0m'
-#~
-    #~ def green2(self, s):
-        #~ return '\033[1;32m' + s + '\033[0m'
-#~
-    def yellow(self, s):
-        return '\033[0;33m' + s + '\033[0m'
-#~
-    #~ def white(self, s):
-        #~ return '\033[1;37m' + s + '\033[0m'
 
 
 

@@ -178,3 +178,38 @@ def print_sympy_expr(expr, **flags):
     latex = latex.replace(r'\operatorname{log}', r'\operatorname{ln}')
     return latex
 
+
+def term_color(string, color, **kw):
+    """On Linux, format string for terminal printing.
+
+    Available keywords: bold, dim, italic, underline and hightlight.
+
+    >>> color('hello world !', 'blue', bold=True, underline=True)
+    '\x1b[4;1;34mhello world !\x1b[0m'
+    """
+    colors = {
+            'gray':        30,
+            'red':         31,
+            'green':       32,
+            'yellow':      33,
+            'blue':        34,
+            'purple':      35,
+            'cyan':        36,
+            'white':       37,
+            }
+    styles = {
+            'bold':         1,
+            'dim':          2,
+            'italic':       3,
+            'underline':    4,
+            'highlight':    7,
+            }
+    if color not in colors:
+        raise KeyError('Color %s is unknown. Available colors: %s.' % (repr(color), list(colors.keys())))
+    l = []
+    for style, n in styles.items():
+        val = kw.get(style)
+        if val is not None:
+            l.append(str(n) if val else str(20 + n))
+    l.append(str(colors[color]))
+    return '\033[%sm%s\033[0m' % (';'.join(l), string)

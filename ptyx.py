@@ -37,7 +37,7 @@ import optparse, re, random, os, sys, codecs, csv, math
 
 from config import param, sympy, numpy#, custom_latex
 import randfunc
-import utilities
+from utilities import print_sympy_expr, term_color
 from compilation import join_files, make_files
 from latexgenerator import latex_generator
 from context import global_context
@@ -111,7 +111,7 @@ global_context['NUM'] = 0
 
 
 
-global_context['latex'] = utilities.print_sympy_expr
+global_context['latex'] = print_sympy_expr
 
 #if sympy is not None:
 #    sympy.Basic.__str__ = print_sympy_expr
@@ -190,30 +190,12 @@ def enumerate_shuffle_tree(text, start=0):
 def display_enumerate_tree(tree, color=True, indent=0, raw=False):
     "Return enumerate tree in a human readable form for debugging purpose."
 
-    def blue(s):
-        return '\033[0;36m' + s + '\033[0m'
-
-    #~ def blue2(self, s):
-        #~ return '\033[1;36m' + s + '\033[0m'
-#~
-    #~ def red(self, s):
-        #~ return '\033[0;31m' + s + '\033[0m'
-#~
-    def green(s):
-        return '\033[0;32m' + s + '\033[0m'
-#~
-    #~ def green2(self, s):
-        #~ return '\033[1;32m' + s + '\033[0m'
-#~
-    def yellow(s):
-        return '\033[0;33m' + s + '\033[0m'
-
     texts = []
     for child in tree:
         if isinstance(child, EnumNode):
             node_name = "Node " + child.node_type
             if color:
-                node_name = yellow(node_name)
+                node_name = term_color(node_name, 'yellow')
             texts.append('%s  + %s [%s]' % (indent*' ', node_name, ",".join(child.options)))
             texts.append(display_enumerate_tree(child.items, color, indent + 2, raw=raw))
         else:
@@ -226,7 +208,7 @@ def display_enumerate_tree(tree, color=True, indent=0, raw=False):
                     text += ' [...]'
                 text = repr(text)
             if color:
-                text = green(text)
+                text = term_color(text, 'green')
             texts.append('%s  - text: %s' % (indent*' ', text))
     return '\n'.join(texts)
 
