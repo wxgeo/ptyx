@@ -208,7 +208,7 @@ def generate_body(text):
                 # Start of Multiple Choice Questions.
                 mode_qcm = True
                 # Shuffles groups (if any).
-                content.append('#SHUFFLE')
+                content.append('#SHUFFLE_QCM')
             else:
                 content.append(_line_)
         else:
@@ -252,7 +252,7 @@ def generate_body(text):
                 if not group_opened:
                     group_opened = True
                     content.append('\\begin{enumerate}[resume]')
-                    content.append('#SHUFFLE')
+                    content.append('#SHUFFLE_QUESTIONS')
                 if line[0] == '*':
                     # (If line starts with '>', question must follow
                     # the last one.)
@@ -261,7 +261,7 @@ def generate_body(text):
                 content.append('\\setcounter{answerNumber}{0}')
                 content.append(line[2:])
                 # Shuffle answers.
-                content.append('#SHUFFLE')
+                content.append('#SHUFFLE_ANSWERS')
                 question_opened = True
 
             elif line.startswith('- ') or line.startswith('+ '):

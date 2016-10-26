@@ -2,9 +2,8 @@ from __future__ import division, unicode_literals, absolute_import, print_functi
 
 import re
 from functools import partial
-from os.path import dirname, realpath, join
+from os.path import dirname, basename, join #, realpath
 import random
-import sys
 from importlib import import_module
 
 from context import global_context, SympifyError
@@ -218,34 +217,13 @@ class SyntaxTreeGenerator(object):
 
         .. note:: To access generated syntax tree, use `.syntax_tree` attribute.
         """
-        # First, we search if some extensions must be load.
-        # This must be done at the very begining, since extensions may
-        # define their own specialized language, to be converted to
-        # valid pTyX code (and then to LaTeX).
-        extensions = []
-        pos = 0
-        while True:
-            i = text.find("#LOAD{", pos)
-            if i == -1:
-                break
-            pos = text.find('}', i)
-            if pos == -1:
-                raise RuntimeError("#LOAD tag has no closing bracket !")
-            extensions.append(text[i + 6:pos])
-        d = {}
-        for extension in extensions:
-            ext_as_module = import_module('extensions.%s' % extension)
-            # execute `main()` function of extension.
-            text = ext_as_module.main(text)
-        self.extensions_loaded = extensions
-        self.plain_ptyx_code = text
-
         # Now, we will parse Ptyx code to generate a syntax tree.
         self._found_tags = set()
         self.syntax_tree = Node('ROOT')
         self._preparse(self.syntax_tree, text)
         self.syntax_tree.tags = self._found_tags
         return self.syntax_tree
+
 
     def _preparse(self, node, text):
         position = 0
@@ -479,8 +457,8 @@ class LatexGenerator(object):
     re_varname = re.compile('[A-Za-z_][A-Za-z0-9_]*([[].+[]])?$')
 
     def __init__(self):
-        self.preparser = SyntaxTreeGenerator()
         self.clear()
+        self._tags_defined_by_extensions = {}
 
     def clear(self):
         self.macros = {}
@@ -492,14 +470,6 @@ class LatexGenerator(object):
         # Internal flags
         self.flags = {}
 
-    def parse(self, text):
-        """Convert text containing ptyx tags to plain LaTeX.
-
-        :param text: a pTyX file content, to be converted to plain LaTeX.
-        :type text: str
-        """
-        self.preparser.preparse(text)
-        self.parse_node(self.preparser.syntax_tree)
 
     @property
     def NUM(self):
@@ -518,6 +488,10 @@ class LatexGenerator(object):
         try:
             method = getattr(self, '_parse_%s_tag' % tag)
         except AttributeError:
+            # Extensions can define their own tags.
+            tags_dict = self._tags_defined_by_extensions
+            if tag in tags_dict:
+                return tags_dict[tag][0](self, node)
             print("Error: method '_parse_%s_tag' not found" % tag)
             raise
         return method(node)
@@ -736,24 +710,21 @@ class LatexGenerator(object):
         self._parse_children(node.children)
 
     def _parse_SHUFFLE_tag(self, node):
+        # Shuffles all the #ITEM sections inside a #SHUFFLE block.
+        # Note that they may be some text or nodes before first #ITEM,
+        # if so they should be left unmodified at first position.
         if node.children:
-            if isinstance(node.children[0], Node):
-                children = node.children[:]
-                #~ print('\n------------')
-                #~ print('SHUFFLE: %s elements' % len(children))
-                #~ print('state hash is %s' % hash(random.getstate()))
-                #~ print('------------\n')
-                randfunc.shuffle(children)
-            else:
-                children = node.children[1:]
-                #~ print('\n------------')
-                #~ print('SHUFFLE: %s elements, excluding first' % len(children))
-                #~ print('state hash is %s' % hash(random.getstate()))
-                #~ print('------------\n')
-                randfunc.shuffle(children)
-                children.insert(0, node.children[0])
-            self._parse_children(children)
-
+            for i, child in enumerate(node.children):
+                if isinstance(child, Node) and child.name == 'ITEM':
+                    break
+            items = node.children[i:]
+            assert all(isinstance(item, Node) and item.name == 'ITEM' for item in items)
+            randfunc.shuffle(items)
+            self._parse_children(node.children[:i] + items)
+            #~ print('\n------------')
+            #~ print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
+            #~ print('state hash is %s' % hash(random.getstate()))
+            #~ print('------------\n')
 
     def _parse_ITEM_tag(self, node):
         self._parse_children(node.children)
@@ -904,6 +875,7 @@ class LatexGenerator(object):
                 break
             else:
                 print(eval(command, self.context))
+
 
     def _exec(self, code, context):
         """exec is encapsulated in this function so as to avoid problems
@@ -1078,5 +1050,124 @@ class LatexGenerator(object):
         return result
 
 
+class Compiler(object):
+    def __init__(self):
+        self.syntax_tree_generator = SyntaxTreeGenerator()
+        self.latex_generator = LatexGenerator()
 
-latex_generator = LatexGenerator()
+    def read_file(self, path):
+        "Set the path of the file to be compiled."
+        self.path = path
+        with open(path, 'rU') as input_file:
+            self.raw_text = input_file.read()
+        return self.raw_text
+
+    def call_extensions(self, code=None):
+        # First, we search if some extensions must be load.
+        # This must be done at the very begining, since extensions may
+        # define their own specialized language, to be converted to
+        # valid pTyX code (and then to LaTeX).
+        if code is not None:
+            self.raw_text = code
+        else:
+            code = self.raw_text
+        names = []
+        pos = 0
+        while True:
+            i = code.find("#LOAD{", pos)
+            if i == -1:
+                break
+            pos = code.find('}', i)
+            if pos == -1:
+                raise RuntimeError("#LOAD tag has no closing bracket !")
+            names.append(code[i + 6:pos])
+        extensions = {}
+        for name in names:
+            extensions[name] = import_module('extensions.%s' % name)
+            # execute `main()` function of extension.
+            code = extensions[name].main(code, self)
+        if extensions:
+            # Save pTyX code generated by extensions (this is used for debuging,
+            # but if needed extensions can also save some data this way using #COMMENT tag).
+            # If input file was /path/to/file/myfile.ptyx,
+            # plain pTyX code is saved in /path/to/file/.myfile.ptyx.plain-ptyx
+            filename = join(dirname(self.path),
+                                '.%s.plain-ptyx' % basename(self.path))
+            with open(filename, 'w') as f:
+                f.write(code)
+        self.extensions_loaded = extensions
+        self.plain_ptyx_code = code
+        return code
+
+    def generate_syntax_tree(self, code=None):
+        if code is not None:
+            self.plain_ptyx_code = code
+        self.syntax_tree = self.syntax_tree_generator.preparse(self.plain_ptyx_code)
+        return self.syntax_tree
+
+    def generate_latex(self, tree=None, **context):
+        if tree is not None:
+            self.syntax_tree = tree
+        gen = self.latex_generator
+        try:
+            gen.clear()
+            gen.context.update(context)
+            gen.parse_node(self.syntax_tree)
+        except Exception:
+            print('\n*** Error occured while parsing. ***')
+            print('This is current parser state for debugging purpose:')
+            print(80*'-')
+            print('... ' + ''.join(gen.context['LATEX'][-10:]))
+            print(80*'-')
+            print('')
+            raise
+        self.latex = gen.read()
+        return self.latex
+
+    def close(self, path):
+        for name, module in self.extensions_loaded:
+            if hasattr(module, 'close'):
+                module.close(path, self)
+
+    def add_new_tag(self, name, syntax, handler, extension_name, update=True):
+        """Add abbility for extensions to extend syntax, adding new tags.
+
+        Using `extension_name`, the compiler also checks that two different
+        extensions loaded simultaneously do not define define the same tag.
+        * if tag is already define by the same extension, nothing is done.
+        * if it is defined by an other extension, an error is raised.
+        """
+        tags_dict = self.latex_generator._tags_defined_by_extensions
+        if name in tags_dict:
+            if tags_dict[name][1] == extension_name:
+                print(("Warning: Tag %s already defined by same extension (%s),"
+                       " doing nothing.") % (name, extension_name))
+                return
+            else:
+                raise NameError(("Extension %s tries to define tag %s, which was"
+                                 "already defined by extension %s.")
+                                 % (extension_name, name, tags_dict[name][1]))
+        tags_dict[name] = (handler, extension_name)
+        stg = self.syntax_tree_generator
+        stg.tags[name] = syntax
+        if update:
+            stg.sorted_tags = sorted(stg.tags, key=len,reverse=True)
+
+    def parse(self, code, **context):
+        """Convert ptyx code to plain LaTeX in one shot.
+
+        :param text: a pTyX file content, to be converted to plain LaTeX.
+        :type text: str
+
+        This is used mainly fo testing.
+        """
+        self.call_extensions(code)
+        self.generate_syntax_tree()
+        return self.generate_latex(**context)
+
+
+
+compiler = Compiler()
+
+parse = compiler.parse
+

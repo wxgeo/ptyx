@@ -88,7 +88,7 @@ from __future__ import division, unicode_literals, absolute_import, print_functi
 from re import sub, DOTALL
 
 
-def main(text):
+def main(text, compiler):
     text = sub("\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n", "\n#ASK_ONLY\n\g<content>\n#END_ANY_ASK_OR_ANS\n", text, flags=DOTALL)
     text = sub("\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n", "\n#ASK\n\g<content>\n#END_ANY_ASK_OR_ANS\n", text, flags=DOTALL)
     text = sub('<{3,}(?P<content>.*?)>{3,}', '#ANSWER{\g<content>}', text)

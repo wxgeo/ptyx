@@ -5,7 +5,7 @@ import sys
 #~ print sys.path
 sys.path.append('..')
 
-from latexgenerator import SyntaxTreeGenerator, LatexGenerator
+from latexgenerator import SyntaxTreeGenerator, LatexGenerator, Compiler, parse
 from utilities import find_closing_bracket, round, print_sympy_expr
 from randfunc import randchoice, srandchoice, randfrac
 from ptyx import enumerate_shuffle_tree, display_enumerate_tree
@@ -98,15 +98,15 @@ def test_syntax_tree():
 
 def test_latex_code_generator():
     test = "#{variable=3;b=1;}#{a=2}#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END ok"
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), '2some text here ok')
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, '2some text here ok')
 
 def test_CALC():
     test = "$#CALC{\dfrac{2}{3}+1}=#RESULT$ et $#CALC[a]{\dfrac{2}{3}-1}=#a$"
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), r'$\dfrac{2}{3}+1=\frac{5}{3}$ et $\dfrac{2}{3}-1=- \frac{1}{3}$')
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, r'$\dfrac{2}{3}+1=\frac{5}{3}$ et $\dfrac{2}{3}-1=- \frac{1}{3}$')
 
 def test_TABVAR():
     test = "$#{a=2;}\\alpha=#{alpha=3},\\beta=#{beta=5}\n\n#TABVAR[limites=False,derivee=False]f(x)=#a*(x-#alpha)^2+#beta#END$"
@@ -122,9 +122,9 @@ def test_TABVAR():
 \\end{tabvar}\\]
 % x;f(x):(-oo;) >> (3;5) << (+oo;)
 % f(x)=2*(x-3)^2+5\n$'''
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), result)
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, result)
 
 def test_SEED_SHUFFLE():
     test = '''#SEED{16}Who said "Having nothing, nothing can he lose" ?
@@ -146,9 +146,9 @@ def test_SEED_SHUFFLE():
 \\end{enumerate}
 
 "The game is up."'''
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), result)
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, result)
 # ADD A TEST :
 # "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> test that 'message 3' is printed.
 
@@ -206,37 +206,37 @@ c
 
 def test_PICK():
     test = '''#PICK{a=1,2,3,4}'''
-    g = LatexGenerator()
+    c = Compiler()
+    c.generate_syntax_tree(test)
+    g = c.latex_generator
     assertEq(g.NUM, 0)
-    g.parse(test)
-    assertEq(g.read(), '1')
+    assertEq(c.generate_latex(), '1')
     g.clear()
     g.context['NUM'] = 2
     assertEq(g.NUM, 2)
-    g.parse(test)
+    g.parse_node(c.syntax_tree)
     assertEq(g.read(), '3')
 
 def test_CASE():
     test = "#CASE{0}first case#CASE{1}second case#CASE{2}third one#END#CASE{1} bonus#END this is something else."
     result = "second case bonus this is something else."
-    g = LatexGenerator()
-    g.context['NUM'] = 1
-    g.parse(test)
-    assertEq(g.read(), result)
+    c = Compiler()
+    latex = c.parse(test, NUM=1)
+    assertEq(latex, result)
 
 def test_IF_ELIF_ELSE():
     test = r"#{a=1;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=0;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=2;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END."
     result = r"10{}2."
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), result)
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, result)
 
 def test_MACRO():
     test = r"#NEW_MACRO{a0}#IF{a==0}$a=0$#ELSE$a\neq 0$#END#END#{a=0;}Initially #MACRO{a0}#{a=2;}, but now #MACRO{a0}."
     result = r"Initially $a=0$, but now $a\neq 0$."
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), result)
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, result)
 
 def test_randchoice():
     for i in range(1000):
@@ -255,16 +255,16 @@ def test_latex_newcommand():
     # \newcommand parameters #1, #2... are not tags.
     test = r'''\newcommand{\rep}[1]{\ding{114}\,\,#1\hfill}'''
     result = test
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), result)
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, result)
 
 def test_TEST():
     test = r'''#{hxA=2;}#{yA=3;}\fbox{#TEST{hxA==yA}{is in}{isn't in}}'''
     result = r'''\fbox{isn't in}'''
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), result)
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, result)
 
 def test_MUL():
     test = r'''
@@ -283,9 +283,9 @@ $\dfrac{-8\times (5 x + 8)-\left(- 8 x + 4\right)\times 5}{(5 x + 8)^2}$'''
 
     test = "2#*3"
     result = r"2\times 3"
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), result)
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, result)
 
 def test_MUL_SUB_Add_expr():
     test = r'''
@@ -299,9 +299,9 @@ $#a#-#{b*x+c}$'''
     result = r'''
 $6\times \left(6 x + 5\right)$
 $6-\left(6 x + 5\right)$'''
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), result)
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, result)
 
 def test_ADD():
     test = r'''
@@ -312,9 +312,9 @@ b = 3
 $#a#+\dfrac{#b}{x}$'''
     result = r'''
 $2+\dfrac{3}{x}$'''
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), result)
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, result)
 
 
 def test_enumerate_tree():

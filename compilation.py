@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import shutil
 
-from latexgenerator import latex_generator
+from latexgenerator import compiler
 from config import param
 
 
@@ -41,7 +41,8 @@ def execute(string, quiet=False):
 
 
 
-def make_files(input_name, syntax_tree, options, start, names, make_tex, formats, correction=False):
+def make_files(options, start, names, make_tex, formats, correction=False):
+    input_name = compiler.path
     # Choose output names
     os.chdir(os.path.split(input_name)[0])
     if input_name.endswith('.ptyx'):
@@ -79,9 +80,6 @@ def make_files(input_name, syntax_tree, options, start, names, make_tex, formats
 
     filenames = []
     for num in range(start, start + options.number):
-        latex_generator.clear()
-        latex_generator.context['WITH_ANSWERS'] = correction
-        latex_generator.context['NUM'] = num
         if names:
             name = names[num]
             filename = '%s-%s' % (output_name, name)
@@ -89,39 +87,29 @@ def make_files(input_name, syntax_tree, options, start, names, make_tex, formats
             name = ''
             filename = ('%s-%s' % (output_name, num) if options.number > 1
                         else output_name)
-        latex_generator.context['NAME'] = name
         #~ filename = filename.replace(' ', '\ ')
         filenames.append(filename)
 
         # Output is redirected to a .log file
         sys.stdout = sys.stderr = CustomOutput((filename + '-python.log')
                                               if not options.remove else '')
-        make_file(syntax_tree, filename, make_tex_file=make_tex, \
-                    make_pdf_file=('pdf' in formats), options=options
+        make_file(filename, make_tex_file=make_tex, \
+                    make_pdf_file=('pdf' in formats), options=options,
+                    WITH_ANSWERS=correction, NUM=num, NAME=name,
                     )
 
     return filenames, output_name
 
 
 
-def make_file(syntax_tree, output_name, make_tex_file=False,
-                 make_pdf_file=True, options=None):
+def make_file(output_name, make_tex_file=False,
+                 make_pdf_file=True, options=None, **context):
     remove = getattr(options, 'remove', False)
     quiet = getattr(options, 'quiet', False)
 
     dir_name = os.path.split(output_name)[0]
     extra = (('-output-directory "%s"' % dir_name) if dir_name else '')
-    try:
-        latex_generator.parse_node(syntax_tree)
-    except Exception:
-        print('\n*** Error occured while parsing. ***')
-        print('This is current parser state for debugging purpose:')
-        print(80*'-')
-        print('... ' + ''.join(latex_generator.context['LATEX'][-10:]))
-        print(80*'-')
-        print('')
-        raise
-    latex = latex_generator.read()
+    latex = compiler.generate_latex(**context)
 
     def compile_latex_file(filename):
         if quiet:
