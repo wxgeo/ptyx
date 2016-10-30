@@ -56,56 +56,41 @@ from latexgenerator import Node
 import randfunc
 
 class AutoQCMTags(object):
-    def _parse_SHUFFLE_QUESTIONS_tag(self, node):
-        # Shuffles all the #ITEM sections inside a #SHUFFLE block.
-        # Note that they may be some text or nodes before first #ITEM,
-        # if so they should be left unmodified at first position.
-        if node.children:
-            for i, child in enumerate(node.children):
-                if isinstance(child, Node) and child.name == 'ITEM':
-                    break
-            items = node.children[i:]
-            assert all(isinstance(item, Node) and item.name == 'ITEM' for item in items)
-            randfunc.shuffle(items)
-            self._parse_children(node.children[:i] + items)
+    def _parse_NEW_QCM_tag(self, node):
+        self.autoqcm_correct_answers = []
 
-    def _parse_SHUFFLE_ANSWERS_tag(self, node):
-        # Shuffles all the #ITEM sections inside a #SHUFFLE block.
-        # Note that they may be some text or nodes before first #ITEM,
-        # if so they should be left unmodified at first position.
-        if node.children:
-            for i, child in enumerate(node.children):
-                if isinstance(child, Node) and child.name == 'ITEM':
-                    break
-            items = node.children[i:]
-            assert all(isinstance(item, Node) and item.name == 'ITEM' for item in items)
-            randfunc.shuffle(items)
-            self._parse_children(node.children[:i] + items)
+    def _parse_END_QCM_tag(self, node):
+        # TODO: Store QCM with NUM value.
+        pass
 
-    def _parse_SHUFFLE_QCM_tag(self, node):
-        # Shuffles all the #ITEM sections inside a #SHUFFLE block.
-        # Note that they may be some text or nodes before first #ITEM,
-        # if so they should be left unmodified at first position.
-        if node.children:
-            for i, child in enumerate(node.children):
-                if isinstance(child, Node) and child.name == 'ITEM':
-                    break
-            items = node.children[i:]
-            assert all(isinstance(item, Node) and item.name == 'ITEM' for item in items)
-            randfunc.shuffle(items)
-            self._parse_children(node.children[:i] + items)
+    def _parse_NEW_QUESTION_tag(self, node):
+        self.autoqcm_correct_answers.append([])
+        self.autoqcm_answer_number = 0
 
-    def _parse_ITEM_tag(self, node):
-        self._parse_children(node.children)
+    def _parse_NEW_ANSWER_tag(self, node):
+        self.autoqcm_answer_number += 1
+        if (node.arg(0) == 'True'):
+            self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
 
+    def _parse_DEBUG_AUTOQCM_tag(self, node):
+        ans = self.autoqcm_correct_answers
+        print('---------------------------------------------------------------')
+        print('AutoQCM answers:')
+        print(ans)
+        print('---------------------------------------------------------------')
+        self.write(ans)
 
 def main(text, compiler):
     code = generate_tex(text)
-    syntax = compiler.syntax_tree_generator.tags['SHUFFLE']
     # For efficiency, update only for last tag.
-    compiler.add_new_tag('SHUFFLE_QUESTIONS', syntax, AutoQCMTags._parse_SHUFFLE_QUESTIONS_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('SHUFFLE_ANSWERS', syntax, AutoQCMTags._parse_SHUFFLE_ANSWERS_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('SHUFFLE_QCM', syntax, AutoQCMTags._parse_SHUFFLE_QCM_tag, 'autoqcm')
+    compiler.add_new_tag('NEW_QCM', (0, 0, None), AutoQCMTags._parse_NEW_QCM_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('NEW_QUESTION', (0, 0, None), AutoQCMTags._parse_NEW_QUESTION_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('NEW_ANSWER', (1, 0, None), AutoQCMTags._parse_NEW_ANSWER_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('END_QCM', (0, 0, None), AutoQCMTags._parse_END_QCM_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), AutoQCMTags._parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
     return code
 
+def close(compiler):
+    #TODO: write a file using compiler.path with correct answers numbers.
+    pass
 

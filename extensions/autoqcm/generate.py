@@ -198,7 +198,7 @@ def generate_body(text):
     content = []
     # Set all flags to False before parsing.
     mode_qcm = group_opened = question_opened = False
-    correct_answers = []
+    lastline = None
 
     for _line_ in text.split('\n'):
         line = _line_.lstrip()
@@ -207,8 +207,9 @@ def generate_body(text):
             if line.startswith('<<') and not line.strip('< '):
                 # Start of Multiple Choice Questions.
                 mode_qcm = True
-                # Shuffles groups (if any).
-                content.append('#SHUFFLE_QCM')
+                # Shuffles QCM sections.
+                content.append('#NEW_QCM')
+                content.append('#SHUFFLE')
             else:
                 content.append(_line_)
         else:
@@ -252,31 +253,36 @@ def generate_body(text):
                 if not group_opened:
                     group_opened = True
                     content.append('\\begin{enumerate}[resume]')
-                    content.append('#SHUFFLE_QUESTIONS')
+                    # Shuffle questions.
+                    content.append('#SHUFFLE')
                 if line[0] == '*':
                     # (If line starts with '>', question must follow
                     # the last one.)
                     content.append('#ITEM')
                 content.append('\\item')
+                content.append('#NEW_QUESTION')
                 content.append('\\setcounter{answerNumber}{0}')
                 content.append(line[2:])
                 # Shuffle answers.
-                content.append('#SHUFFLE_ANSWERS')
+                content.append('#SHUFFLE')
                 question_opened = True
 
             elif line.startswith('- ') or line.startswith('+ '):
                 if answer_number == 0:
                     content.append('\n\n')
+                elif lastline == '':
+                    # A blank line may be used to separate answers groups.
+                    content.append('#END')
+                    content.append('#SHUFFLE')
                 answer_number += 1
                 assert question_opened
                 content.append('#ITEM')
+                content.append('#NEW_ANSWER{%s}' % (line[0] == '+'))
                 # Add counter for each answer.
                 #char = chr(96 + answer_number)
                 content.append('\\stepcounter{answerNumber}')
                 content.append('\\circled{\\alph{answerNumber}}~')
                 content.append('\\mbox{%s}\\hfill\\hfil' % line[2:])
-                if line[0] == '+':
-                    correct_answers[-1].append(answer_number)
 
             # -------------------- ENDING QCM --------------------------
             elif line.startswith('>>') and not line.strip('> '):
@@ -291,13 +297,15 @@ def generate_body(text):
                     content.append('#END')
                     group_opened = False
                     content.append('\\end{enumerate}')
-                # Ending groups shuffling...
+                # Ending QCM sections shuffling...
                 content.append('#END')
+                content.append('#END_QCM')
                 # ... bye bye !
             # ----------------------------------------------------------
 
             else:
                 content.append(_line_)
+        lastline = line
 
     n_answers = max(n_answers, answer_number)
     if question_opened:
