@@ -183,24 +183,14 @@ b
 #ITEM
 c
 #END''')
-    #~ s = SyntaxTreeGenerator()
-    #~ s.parse(tests[0])
-    #~ print(s.syntax_tree.display())
-    #~ s = SyntaxTreeGenerator()
-    #~ s.parse(tests[1])
-    #~ print(s.syntax_tree.display())
-    s = SyntaxTreeGenerator()
-    s.preparse(tests[1])
-    #~ print(s.syntax_tree.display(raw=True))
-    g = LatexGenerator()
+
+    c = Compiler()
     results = []
     for test in tests:
-        g.clear()
-        g.parse(test)
-        results.append(g.read())
-    assertEq(results[0], 'bac')
-    assertEq(results[1], 'bac')
-    assertEq(results[2], 'bac')
+        results.append(c.parse(test))
+    assertEq(results[0], 'cab')
+    assertEq(results[1], 'cab')
+    assertEq(results[2], 'cab')
 
 
 
@@ -267,6 +257,7 @@ def test_TEST():
     assertEq(latex, result)
 
 def test_MUL():
+    # Test 1
     test = r'''
 #PYTHON
 a=-8
@@ -277,10 +268,11 @@ d=8
 $\dfrac{#a#*(#{c*x+d})#-#{a*x+b}#*#c}{(#{c*x+d})^2}$'''
     result = r'''
 $\dfrac{-8\times (5 x + 8)-\left(- 8 x + 4\right)\times 5}{(5 x + 8)^2}$'''
-    g = LatexGenerator()
-    g.parse(test)
-    assertEq(g.read(), result)
+    c = Compiler()
+    latex = c.parse(test)
+    assertEq(latex, result)
 
+    # Test 2
     test = "2#*3"
     result = r"2\times 3"
     c = Compiler()

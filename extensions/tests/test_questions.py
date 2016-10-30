@@ -77,7 +77,7 @@ yes, of course.
 
 _______________________________________________________________________________
 
-...fried spider legs ?
+Or maybe fried spider legs ?
 
 -----------------
 
@@ -103,5 +103,5 @@ ok, have a nice day then.
 
     d = {}
     exec(compile(open(filename).read(), filename, 'exec'), d)
-    assertEq(d['main'](text), text2)
+    assertEq(d['main'](text, None), text2)
 
