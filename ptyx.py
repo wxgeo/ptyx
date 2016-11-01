@@ -369,21 +369,22 @@ if __name__ == '__main__':
     # ---------------------------------------------
 
     for input_name in arguments:
-        input_name = pth(input_name)
-
         # Read pTyX file.
+        input_name = pth(input_name)
         compiler.read_file(input_name)
-        text = compiler.call_extensions()
+        compiler.call_extensions()
 
         # Preparse text (option _shuffle_ in enumerate/itemize)
         # This is mainly for compatibility with old versions, extensions should
         # be used instead now (extensions are handled directly by SyntaxTreeGenerator).
+        text = compiler.plain_ptyx_code
         if '_shuffle_' in text or '_answer_' in text:
             print("Warning: deprecated option _shuffle_ or _answer__ is used !")
             text = ''.join(tree2strlist(enumerate_shuffle_tree(text)))
             tmp_file_name = os.path.join(os.path.dirname(input_name), '.ptyx.tmp')
             with open(tmp_file_name, 'w') as tmp_ptyx_file:
                 tmp_ptyx_file.write(text)
+            compiler.plain_ptyx_code = text
 
         # Generate syntax tree
         compiler.generate_syntax_tree()
@@ -425,5 +426,6 @@ if __name__ == '__main__':
                 with open(bat_file_name, 'w') as bat_file:
                     bat_file.write(param['win_print_command'] + ' '.join('%s.pdf'
                                         % os.path.basename(f) for f in filenames))
+        compiler.close()
 
 

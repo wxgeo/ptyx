@@ -1124,10 +1124,10 @@ class Compiler(object):
         self.latex = gen.read()
         return self.latex
 
-    def close(self, path):
-        for name, module in self.extensions_loaded:
+    def close(self):
+        for name, module in self.extensions_loaded.items():
             if hasattr(module, 'close'):
-                module.close(path, self)
+                module.close(self)
 
     def add_new_tag(self, name, syntax, handler, extension_name, update=True):
         """Add abbility for extensions to extend syntax, adding new tags.
