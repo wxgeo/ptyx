@@ -56,10 +56,11 @@ def generate_identification_band(identifier):
 
 
 
-def generate_students_list(csv_path=''):
+def generate_students_list(csv_path='', _n_student=None):
     """Generate a list of all students, where student can check his name.
 
     `csv_path` is the path of the CSV file who contains students names.
+    `_n_student` is used to prefilled the table (for debuging).
     """
     if not csv_path:
         return ''
@@ -201,9 +202,10 @@ def generate_tex(text):
     # Extract from text the path of the csv file containing students names.
     m=re.match("[ ]*%[ ]*csv:(.*)", text, re.IGNORECASE)
     if m:
-        path = m.group(1).strip()
-        csv_path = path
-        content.append(generate_students_list())
+        csv_path = m.group(1).strip()
+        content.append(generate_students_list(csv_path))
+    else:
+        print("Warning: no student list provided (or incorrect syntax), ignoring...")
 
 
     content.append('<--Table for answers-->') # To be filled later with table for answers.
