@@ -4,3 +4,10 @@
 *.log
 *.aux
 BAZAR/
+*.tex
+*.ptyx
+*.plain-ptyx
+*.pdf
+*.csv
+*.autoqcm.config
+*.seed
