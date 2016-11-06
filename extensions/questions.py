@@ -89,13 +89,28 @@ from re import sub, DOTALL
 
 
 def main(text, compiler):
-    text = sub("\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n", "\n#ASK_ONLY\n\g<content>\n#END_ANY_ASK_OR_ANS\n", text, flags=DOTALL)
-    text = sub("\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n", "\n#ASK\n\g<content>\n#END_ANY_ASK_OR_ANS\n", text, flags=DOTALL)
-    text = sub('<{3,}(?P<content>.*?)>{3,}', '#ANSWER{\g<content>}', text)
+    text = sub("\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n",
+               "\n#ASK_ONLY\n\g<content>\n#END_ANY_ASK_OR_ANS\n", text, flags=DOTALL)
+    text = sub("\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n",
+               "\n#ASK\n\g<content>\n#END_ANY_ASK_OR_ANS\n", text, flags=DOTALL)
+
+    def inline_answer(m):
+        content = m.group('content')
+        # Don't use | to split as it is commonly used for absolute values in mathematics.
+        l = content.split('///')
+        if len(l) == 2:
+            return '#QUESTION{%s}#ANSWER{%s}' % tuple(l)
+        # It's not clear what to do if there are more than one ///.
+        return '#ANSWER{%s}' % content
+
+    text = sub('<{3,}(?P<content>.*?)>{3,}', inline_answer, text)
     text = sub('\n[ \t]*[*]+[ \t]*EXERCISE[ \t]*[*]+', '\n\section{}\n#ASK', text)
-    text = sub('\n[ \t]*=+[ \t]*((QUESTIONS)|[?]+)[ \t]*=+', '\n#END_ANY_ASK_OR_ANS\n\\\\begin{enumerate}\n#ENUM\n\\\\item\n#ASK ', text)
-    text = sub('\n[ \t]*=+[ \t]*((SHUFFLE)|[?]!|![?])[ \t]*=+', '\n#END_ANY_ASK_OR_ANS\n\\\\begin{enumerate}\n#SHUFFLE\n#ITEM\n\\\\item\n#ASK ', text)
-    text = sub('\n[ \t]*(=+[ \t]*END[ \t]*=+)|(={3,})', '\n#END_ANY_ASK_OR_ANS\n#END\n\\\\end{enumerate}', text)
+    text = sub('\n[ \t]*=+[ \t]*((QUESTIONS)|[?]+)[ \t]*=+',
+               '\n#END_ANY_ASK_OR_ANS\n\\\\begin{enumerate}\n#ENUM\n\\\\item\n#ASK ', text)
+    text = sub('\n[ \t]*=+[ \t]*((SHUFFLE)|[?]!|![?])[ \t]*=+',
+               '\n#END_ANY_ASK_OR_ANS\n\\\\begin{enumerate}\n#SHUFFLE\n#ITEM\n\\\\item\n#ASK ', text)
+    text = sub('\n[ \t]*(=+[ \t]*END[ \t]*=+)|(={3,})',
+               '\n#END_ANY_ASK_OR_ANS\n#END\n\\\\end{enumerate}', text)
     text = sub('\n[ \t]*_{3,}', '\n#END_ANY_ASK_OR_ANS\n#ITEM\n\\\\item\n#ASK ', text)
     text = sub('\n[ \t]*-{3,}', '\n#ANS ', text)
 
