@@ -61,7 +61,7 @@ class AutoQCMTags(object):
     def _parse_END_QCM_tag(self, node):
         # TODO: Store QCM with NUM value.
         n = self.context['NUM']
-        self.autoqcm_data[n] = self.autoqcm_correct_answers
+        self.autoqcm_data['answers'][n] = self.autoqcm_correct_answers
 
 
     def _parse_NEW_QUESTION_tag(self, node):
@@ -87,27 +87,35 @@ class AutoQCMTags(object):
 
 def main(text, compiler):
     # For efficiency, update only for last tag.
-    compiler.latex_generator.autoqcm_data = {}
     compiler.add_new_tag('NEW_QCM', (0, 0, None), AutoQCMTags._parse_NEW_QCM_tag, 'autoqcm', update=False)
     compiler.add_new_tag('NEW_QUESTION', (0, 0, None), AutoQCMTags._parse_NEW_QUESTION_tag, 'autoqcm', update=False)
     compiler.add_new_tag('NEW_ANSWER', (1, 0, None), AutoQCMTags._parse_NEW_ANSWER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('END_QCM', (0, 0, None), AutoQCMTags._parse_END_QCM_tag, 'autoqcm', update=False)
     compiler.add_new_tag('AUTOQCM_HEADER', (0, 0, None), AutoQCMTags._parse_AUTOQCM_HEADER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), AutoQCMTags._parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
-    code = generate_tex(text)
+    code, students_list, n_questions, n_max_answers = generate_tex(text)
+    compiler.latex_generator.autoqcm_data = {'answers': {},
+            'students': students_list, 'n_questions': n_questions,
+            'n_max_answers': n_max_answers,}
     assert isinstance(code, str)
     return code
 
 def close(compiler):
     g = compiler.latex_generator
-    data = sorted(g.autoqcm_data.items())
+    answers = sorted(g.autoqcm_data['answers'].items())
     l = []
-    for n, correct_answers in data:
-        l.append('*** NUM = %s ***' % n)
+    l.append('QUESTIONS: %s' % g.autoqcm_data['n_questions'])
+    l.append('ANSWERS (MAX): %s' % g.autoqcm_data['n_max_answers'])
+    for n, correct_answers in answers:
+        l.append('*** ANSWERS (TEST %s) ***' % n)
         for i, nums in enumerate(correct_answers):
             # Format: question -> correct answers
             # For example: 1 -> 1,3,4
             l.append('%s -> %s' % (i + 1, ','.join(str(j) for j in nums)))
+
+    l.append('*** STUDENTS LIST ***')
+    for name in g.autoqcm_data['students']:
+        l.append(name)
 
     with open(compiler.path + '.autoqcm.config', 'w') as f:
         f.write('\n'.join(l))

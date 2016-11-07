@@ -62,8 +62,9 @@ def generate_students_list(csv_path='', _n_student=None):
     `csv_path` is the path of the CSV file who contains students names.
     `_n_student` is used to prefilled the table (for debuging).
     """
+    students = []
     if not csv_path:
-        return ''
+        return '', []
     try:
         content = []
         content.append(r'''
@@ -71,22 +72,26 @@ def generate_students_list(csv_path='', _n_student=None):
             \begin{center}
             \begin{tikzpicture}[scale=.25]
             \draw [fill=black] (-2,0) rectangle (-1,1) (-1.5,0) node[below] {\tiny\rotatebox{-90}{\texttt{\textbf{Cochez le nom}}}};''')
+        # Read CSV file and generate list of students name.
         with open(csv_path) as f:
-            l = list(csv.reader(f))
-            n_students = len(l)
-            for i, row in enumerate(reversed(l)):
+            for row in csv.reader(f):
                 name = ' '.join(item.strip() for item in row)
-                if len(name) >= 15:
-                    _name = name[:13].strip()
-                    if " " not in name[12:13]:
-                        _name += "."
-                    name = _name
-                a = 2*i
-                b = a + 1
-                c = a + 0.5
-                color = ('black' if _n_student == n_students - i else 'white')
-                content.append(r'''\draw[fill={color}] ({a},0) rectangle ({b},1) ({c},0) node[below]
-                    {{\tiny \rotatebox{{-90}}{{\texttt{{{name}}}}}}};'''.format(**locals()))
+                students.append(name)
+
+        # Generate the corresponding names table in LaTeX.
+        for i, name in enumerate(reversed(students)):
+            # Troncate long names.
+            if len(name) >= 15:
+                _name = name[:13].strip()
+                if " " not in name[12:13]:
+                    _name += "."
+                name = _name
+            a = 2*i
+            b = a + 1
+            c = a + 0.5
+            color = ('black' if _n_student == len(students) - i else 'white')
+            content.append(r'''\draw[fill={color}] ({a},0) rectangle ({b},1) ({c},0) node[below]
+                {{\tiny \rotatebox{{-90}}{{\texttt{{{name}}}}}}};'''.format(**locals()))
         b += 1
         content.append(r'''\draw[rounded corners] (-3,2) rectangle ({b}, -6.5);
             \draw[] (-0.5,2) -- (-0.5,-6.5);
@@ -96,8 +101,8 @@ def generate_students_list(csv_path='', _n_student=None):
             '''.format(**locals()))
     except FileNotFoundError:
         print("Warning: `%s` not found." % csv_path)
-        return ''
-    return '\n'.join(content)
+        return '', []
+    return '\n'.join(content), students
 
 
 
@@ -203,7 +208,8 @@ def generate_tex(text):
     m=re.match("[ ]*%[ ]*csv:(.*)", text, re.IGNORECASE)
     if m:
         csv_path = m.group(1).strip()
-        content.append(generate_students_list(csv_path))
+        code, students_list = generate_students_list(csv_path)
+        content.append(code)
     else:
         print("Warning: no student list provided (or incorrect syntax), ignoring...")
 
@@ -337,7 +343,7 @@ def generate_tex(text):
     i = content.index('<--Table for answers-->')
     content[i] = generate_table_for_answers(question_number, n_answers)
     content.append(r"\end{document}")
-    return '\n'.join(content)
+    return '\n'.join(content), students_list, question_number, n_answers
 
 
 
