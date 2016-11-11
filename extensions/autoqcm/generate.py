@@ -117,7 +117,7 @@ def generate_table_for_answers(questions, answers, introduction='', options={}):
     or an integer n≤26 (answers identifiers will be automatically generated then:
     a, b, c, ...).
 
-    `options` is a dict keys are tuples (column, line) and values are tikz options
+    `options` is a dict whom keys are tuples (column, line) and values are tikz options
     to be passed to corresponding cell in the table for answers.
     """
     content = []
@@ -188,9 +188,11 @@ def generate_tex(text):
         \fontencoding{U}\fontfamily{futs}\selectfont\char#1}}
         \newcommand*{\decofourleft}{\TakeFourierOrnament{91}}
         \newcommand*{\decofourright}{\TakeFourierOrnament{92}}
-        \newcommand*\circled[1]{\tikz[baseline=(char.base)]{
+        \newcommand*\graysquared[1]{\tikz[baseline=(char.base)]{
             \node[fill=gray,shape=rectangle,draw,inner sep=2pt] (char) {\color{white}\textbf{#1}};}}
-        \newcommand*\squared[1]{\tikz[baseline=(char.base)]{
+        \newcommand*\whitesquared[1]{\tikz[baseline=(char.base)]{
+            \node[fill=white,shape=rectangle,draw,inner sep=2pt] (char) {\color{black}\textbf{#1}};}}
+        \newcommand*\circled[1]{\tikz[baseline=(char.base)]{
             \node[shape=circle,fill=blue!20!white,draw,inner sep=2pt] (char) {\textbf{#1}};}}
         \makeatletter
         \newcommand{\simfill}{%
@@ -199,7 +201,7 @@ def generate_tex(text):
         \makeatother
         \newcounter{answerNumber}
         \renewcommand{\thesubsection}{\Alph{subsection}}
-        \setenumerate[0]{label=\protect\squared{\arabic*}}
+        \setenumerate[0]{label=\protect\circled{\arabic*}}
         \begin{document}"""]
 
     content.append("#AUTOQCM_HEADER")
@@ -209,7 +211,9 @@ def generate_tex(text):
     if m:
         csv_path = m.group(1).strip()
         code, students_list = generate_students_list(csv_path)
+        content.append('#ASK')
         content.append(code)
+        content.append('#END')
     else:
         print("Warning: no student list provided (or incorrect syntax), ignoring...")
 
@@ -305,11 +309,20 @@ def generate_tex(text):
                 answer_number += 1
                 assert question_opened
                 content.append('#ITEM')
-                content.append('#NEW_ANSWER{%s}' % (line[0] == '+'))
+                iscorrect = (line[0] == '+')
+                content.append('#NEW_ANSWER{%s}' % iscorrect)
                 # Add counter for each answer.
                 #char = chr(96 + answer_number)
                 content.append('\\stepcounter{answerNumber}')
-                content.append('\\circled{\\alph{answerNumber}}~~\\mbox{%s}\\qquad\linebreak[3]' % line[2:])
+                # When the pdf with solutions will be generated, incorrect answers
+                # will be preceded by a white square, while correct ones will
+                # be preceded by a gray one.
+                if iscorrect:
+                    command = '\\graysquared'
+                else:
+                    command = '#QUESTION{\\graysquared}#ANSWER{\\whitesquared}'
+                content.append('%s{\\alph{answerNumber}}~~\\mbox{%s}\\qquad\linebreak[3]' % (command, line[2:]))
+
 
             # -------------------- ENDING QCM --------------------------
             elif line.startswith('>>') and not line.strip('> '):

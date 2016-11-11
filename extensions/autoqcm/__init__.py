@@ -63,6 +63,17 @@ class AutoQCMTags(object):
         n = self.context['NUM']
         self.autoqcm_data['answers'][n] = self.autoqcm_correct_answers
 
+    def _parse_SCORES_tag(self, node):
+        arg = node.args(0)
+        vals = sorted(arg.split(), key=float)
+        self.autoqcm['data']['correct'] = vals[-1]
+        assert 1 <= len(vals) <= 3, 'One must provide between 1 and 3 scores '\
+                '(for correct answers, incorrect answers and no answer at all).'
+        if len(vals) >= 2:
+            self.autoqcm['data']['incorrect'] = vals[0]
+            if len(vals) >= 3:
+                self.autoqcm['data']['skipped'] = vals[1]
+
 
     def _parse_NEW_QUESTION_tag(self, node):
         self.autoqcm_correct_answers.append([])
@@ -92,11 +103,17 @@ def main(text, compiler):
     compiler.add_new_tag('NEW_ANSWER', (1, 0, None), AutoQCMTags._parse_NEW_ANSWER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('END_QCM', (0, 0, None), AutoQCMTags._parse_END_QCM_tag, 'autoqcm', update=False)
     compiler.add_new_tag('AUTOQCM_HEADER', (0, 0, None), AutoQCMTags._parse_AUTOQCM_HEADER_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('SCORES', (1, 0, None), AutoQCMTags._parse_SCORES_tag, 'autoqcm', update=False)
     compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), AutoQCMTags._parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
     code, students_list, n_questions, n_max_answers = generate_tex(text)
     compiler.latex_generator.autoqcm_data = {'answers': {},
             'students': students_list, 'n_questions': n_questions,
-            'n_max_answers': n_max_answers,}
+            'n_max_answers': n_max_answers,
+            'correct': 1,
+            'incorrect': -1/n_max_answers,
+            'skipped': 0,
+            'mode': 'some',
+            }
     assert isinstance(code, str)
     return code
 
@@ -104,6 +121,10 @@ def close(compiler):
     g = compiler.latex_generator
     answers = sorted(g.autoqcm_data['answers'].items())
     l = []
+    l.append('MODE: %s' % g.autoqcm_data['mode'])
+    l.append('CORRECT: %s' % g.autoqcm_data['correct'])
+    l.append('INCORRECT: %s' % g.autoqcm_data['incorrect'])
+    l.append('SKIPPED: %s' % g.autoqcm_data['skipped'])
     l.append('QUESTIONS: %s' % g.autoqcm_data['n_questions'])
     l.append('ANSWERS (MAX): %s' % g.autoqcm_data['n_max_answers'])
     for n, correct_answers in answers:

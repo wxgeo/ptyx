@@ -182,18 +182,22 @@ def read_config(pth):
     cfg = {'answers': {}, 'students': []}
     ans = cfg['answers']
     with open(pth) as f:
+        cfg['mode'] = f.readline()[6:-1]
+        cfg['correct'] = float(f.readline()[9:])
+        cfg['incorrect'] = float(f.readline()[11:])
+        cfg['skipped'] = float(f.readline()[9:])
         cfg['n_questions'] = int(f.readline()[11:])
         cfg['n_max_answers'] = int(f.readline()[15:])
         for line in f:
             try:
                 if line.startswith('*** ANSWERS (TEST '):
-                    num = line[18:-6]
+                    num = int(line[18:-6])
                     ans[num] = []
                 elif line.startswith('*** STUDENTS LIST ***'):
                     break
                 else:
                     q, correct_ans = line.split(' -> ')
-                    ans[num].append([int(n) for n in correct_ans.split(',')])
+                    ans[num].append([int(n) - 1 for n in correct_ans.split(',')])
             except Exception:
                 print("Error while parsing this line: " + repr(line))
                 raise
@@ -368,7 +372,37 @@ def scan_picture(m, config):
 
     print("Answers:\n%s" % '\n'.join(str(a) for a in answers))
 
-    return identifier, answers, student_number
+    correct_answers = config['answers'][identifier]
+
+    scores = []
+    mode = config['mode']
+    for i, (correct, proposed) in enumerate(zip(correct_answers, answers)):
+        # Nota: most of the time, there should be only one correct answer.
+        # This code also deals with cases where there are more than one correct
+        # though.
+        # If mode is set to 'all', student must check *all* correct propositions,
+        # if not answer will be considered as incorrect. But if mode is set to
+        # 'some', then student has only to check a subset of correct propositions
+        # for his answer to be considered correct.
+        proposed = {j for (j, b) in enumerate(proposed) if b}
+        correct = set(correct)
+        if mode == 'all':
+            ok = (correct == proposed)
+        elif mode == 'some':
+            ok = proposed.issubset(correct)
+        else:
+            raise RuntimeError('Invalid mode (%s) !' % mode)
+        if ok:
+            scores.append(config['correct'])
+        elif not proposed:
+            scores.append(config['skipped'])
+        else:
+            scores.append(config['incorrect'])
+    print('Scores: ', scores)
+    score = sum(scores)
+
+
+    return identifier, answers, student_number, score
 
 
 def scan_all_pages(pics, config):
