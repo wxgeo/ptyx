@@ -66,23 +66,30 @@ class AutoQCMTags(object):
     def _parse_SCORES_tag(self, node):
         arg = node.args(0)
         vals = sorted(arg.split(), key=float)
-        self.autoqcm['data']['correct'] = vals[-1]
+        self.autoqcm_data['correct'] = vals[-1]
         assert 1 <= len(vals) <= 3, 'One must provide between 1 and 3 scores '\
                 '(for correct answers, incorrect answers and no answer at all).'
         if len(vals) >= 2:
-            self.autoqcm['data']['incorrect'] = vals[0]
+            self.autoqcm_data['incorrect'] = vals[0]
             if len(vals) >= 3:
-                self.autoqcm['data']['skipped'] = vals[1]
+                self.autoqcm_data['skipped'] = vals[1]
 
+    def _parse_GRAY_IF_CORRECT_tag(self, node):
+        n = self.context['NUM']
+        if n in self.autoqcm_data['answers']:
+            col = int(node.arg(0))
+            line = int(node.arg(1))
+            if line in self.autoqcm_data['answers'][n][col]:
+                self.write('fill=gray,')
 
     def _parse_NEW_QUESTION_tag(self, node):
         self.autoqcm_correct_answers.append([])
         self.autoqcm_answer_number = 0
 
     def _parse_NEW_ANSWER_tag(self, node):
-        self.autoqcm_answer_number += 1
         if (node.arg(0) == 'True'):
             self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
+        self.autoqcm_answer_number += 1
 
     def _parse_AUTOQCM_HEADER_tag(self, node):
         n = self.context['NUM']
@@ -104,6 +111,7 @@ def main(text, compiler):
     compiler.add_new_tag('END_QCM', (0, 0, None), AutoQCMTags._parse_END_QCM_tag, 'autoqcm', update=False)
     compiler.add_new_tag('AUTOQCM_HEADER', (0, 0, None), AutoQCMTags._parse_AUTOQCM_HEADER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('SCORES', (1, 0, None), AutoQCMTags._parse_SCORES_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('GRAY_IF_CORRECT', (2, 0, None), AutoQCMTags._parse_GRAY_IF_CORRECT_tag, 'autoqcm', update=False)
     compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), AutoQCMTags._parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
     code, students_list, n_questions, n_max_answers = generate_tex(text)
     compiler.latex_generator.autoqcm_data = {'answers': {},
@@ -132,7 +140,7 @@ def close(compiler):
         for i, nums in enumerate(correct_answers):
             # Format: question -> correct answers
             # For example: 1 -> 1,3,4
-            l.append('%s -> %s' % (i + 1, ','.join(str(j) for j in nums)))
+            l.append('%s -> %s' % (i + 1, ','.join(str(j + 1) for j in nums)))
 
     l.append('*** STUDENTS LIST ***')
     for name in g.autoqcm_data['students']:

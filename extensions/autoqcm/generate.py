@@ -132,7 +132,7 @@ def generate_table_for_answers(questions, answers, introduction='', options={}):
         \hfill\hfill
         {introduction}
         \begin{{tikzpicture}}[scale={scale}]
-        \draw[fill=black] (-1,0) rectangle (0,1);""".format(**locals()))
+        \draw[thin,fill=black] (-1,0) rectangle (0,1);""".format(**locals()))
 
     if isinstance(questions, int):
         questions = range(1, questions + 1)
@@ -143,7 +143,7 @@ def generate_table_for_answers(questions, answers, introduction='', options={}):
     for x1, name in enumerate(questions):
         x2=x1 + 1
         x3=.5*(x1 + x2)
-        write(r"""\draw ({x1},0) rectangle ({x2},1) ({x3},0.5) node {{{name}}};""".format(**locals()))
+        write(r"""\draw[ultra thin] ({x1},0) rectangle ({x2},1) ({x3},0.5) node {{{name}}};""".format(**locals()))
         n_questions += 1
 
     if isinstance(answers, int):
@@ -154,13 +154,21 @@ def generate_table_for_answers(questions, answers, introduction='', options={}):
         y2 = y1 - 1
         y3 = .5*(y1 + y2)
         write(r"""
-            \draw (-1,{y1}) rectangle (0,{y2}) (-0.5,{y3}) node {{{name}}};""".format(**locals()))
+            \draw[ultra thin] (-1,{y1}) rectangle (0,{y2}) (-0.5,{y3}) node {{{name}}};""".format(**locals()))
         for x1 in range(n_questions):
             opt = options.get((x1, i), "")
             x2=x1 + 1
-            write(r"""\draw [{opt}] ({x1},{y1}) rectangle ({x2},{y2});""".format(**locals()))
+            write(r"""\draw [ultra thin,#GRAY_IF_CORRECT{{{x1}}}{{{i}}}{opt}] ({x1},{y1}) rectangle ({x2},{y2});""".format(**locals()))
 
     n_answers = i + 1
+
+    write(r'''\draw [thick] (-1,1) rectangle ({x2},{y2});
+              %\draw [thick] (-1,0) -- ({x2},0);
+              '''.format(**locals()))
+
+    for i in range(0, x2):
+        write(r'''\draw [thick] ({i},1) -- ({i},{y2});
+              '''.format(**locals()))
 
     write(r"""\end{tikzpicture}\hfill\hfill\hfil
         """)
