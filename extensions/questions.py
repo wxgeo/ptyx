@@ -89,10 +89,37 @@ from re import sub, DOTALL
 
 
 def main(text, compiler):
+    # ~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~
+    # Lonely question or some explications
+    # (won't be displayed in the version with answers)
+    # ~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~
     text = sub("\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n",
                "\n#ASK_ONLY\n\g<content>\n#END_ANY_ASK_OR_ANS\n", text, flags=DOTALL)
+    # ~~~~~~~~~~~~~~~~~~
+    # Lonely question or some explications
+    # (will also be displayed in the version with answers)
+    # ~~~~~~~~~~~~~~~~~~
     text = sub("\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n",
                "\n#ASK\n\g<content>\n#END_ANY_ASK_OR_ANS\n", text, flags=DOTALL)
+    # ............
+    # Python code
+    # ............
+    text = sub("\n[ \t]*\\.{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\.{3,}[ \t]*\n",
+               "\n#PYTHON\n\g<content>\n#END\n", text, flags=DOTALL)
+    # ------------------
+    # Answer
+    # ------------------
+    def apply_ans_tag(m):
+        content = m.group('content')
+        if '___' in content or '===' in content:
+            return m.group()
+        else:
+            return "\n#ANS\n%s\n#END\n" % content
+
+    text = sub("\n[ \t]*\\-{4,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\-{4,}[ \t]*\n",
+               apply_ans_tag, text, flags=DOTALL)
 
     def inline_answer(m):
         content = m.group('content')
@@ -105,14 +132,19 @@ def main(text, compiler):
 
     text = sub('<{3,}(?P<content>.*?)>{3,}', inline_answer, text)
     text = sub('\n[ \t]*[*]+[ \t]*EXERCISE[ \t]*[*]+', '\n\section{}\n#ASK', text)
-    text = sub('\n[ \t]*=+[ \t]*((QUESTIONS)|[?]+)[ \t]*=+',
+    # ==== QUESTIONS ====
+    text = sub('\n[ \t]*=+[ \t]*((QUESTIONS)|[?]+)[ \t]*=+[ \t]*(?=\n)',
                '\n#END_ANY_ASK_OR_ANS\n\\\\begin{enumerate}\n#ENUM\n\\\\item\n#ASK ', text)
-    text = sub('\n[ \t]*=+[ \t]*((SHUFFLE)|[?]!|![?])[ \t]*=+',
+    # ==== SHUFFLE ====
+    text = sub('\n[ \t]*=+[ \t]*((SHUFFLE)|[?]!|![?])[ \t]*=+[ \t]*(?=\n)',
                '\n#END_ANY_ASK_OR_ANS\n\\\\begin{enumerate}\n#SHUFFLE\n#ITEM\n\\\\item\n#ASK ', text)
-    text = sub('\n[ \t]*(=+[ \t]*END[ \t]*=+)|(={3,})',
+    # ===============
+    text = sub('\n[ \t]*((=+[ \t]*END[ \t]*=+)|(={3,}))[ \t]*(?=\n)',
                '\n#END_ANY_ASK_OR_ANS\n#END\n\\\\end{enumerate}', text)
-    text = sub('\n[ \t]*_{3,}', '\n#END_ANY_ASK_OR_ANS\n#ITEM\n\\\\item\n#ASK ', text)
-    text = sub('\n[ \t]*-{3,}', '\n#ANS ', text)
+    # _______________
+    text = sub('\n[ \t]*_{3,}[ \t]*(?=\n)', '\n#END_ANY_ASK_OR_ANS\n#ITEM\n\\\\item\n#ASK ', text)
+    # ---------------
+    text = sub('\n[ \t]*-{3,}[ \t]*(?=\n)', '\n#ANS', text)
 
     # Create blank dotted lines for answers:
     # a line containing only "-" will be converted to a dotted line.
