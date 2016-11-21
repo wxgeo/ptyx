@@ -459,6 +459,8 @@ class LatexGenerator(object):
     def __init__(self):
         self.clear()
         self._tags_defined_by_extensions = {}
+        # This syntax tree generator will be used to scan code at runtime.
+        self.preparser = SyntaxTreeGenerator()
 
     def clear(self):
         self.macros = {}
@@ -563,7 +565,7 @@ class LatexGenerator(object):
         if parse and '#' in text:
             if param['debug']:
                 print('Parsing %s...' % repr(text))
-            self.parse(text)
+            self.parse_node(self.preparser.preparse(text))
         else:
             self.context['LATEX'].append(text)
 
@@ -1054,13 +1056,14 @@ class Compiler(object):
     def __init__(self):
         self.syntax_tree_generator = SyntaxTreeGenerator()
         self.latex_generator = LatexGenerator()
+        self.state = {}
 
     def read_file(self, path):
         "Set the path of the file to be compiled."
-        self.path = path
+        self.state['path'] = path
         with open(path, 'rU') as input_file:
-            self.raw_text = input_file.read()
-        return self.raw_text
+            raw_text = self.state['raw_text'] = input_file.read()
+        return raw_text
 
     def call_extensions(self, code=None):
         # First, we search if some extensions must be load.
@@ -1068,9 +1071,9 @@ class Compiler(object):
         # define their own specialized language, to be converted to
         # valid pTyX code (and then to LaTeX).
         if code is not None:
-            self.raw_text = code
+            self.state['raw_text'] = code
         else:
-            code = self.raw_text
+            code = self.state['raw_text']
         names = []
         pos = 0
         while True:
@@ -1091,28 +1094,32 @@ class Compiler(object):
             # but if needed extensions can also save some data this way using #COMMENT tag).
             # If input file was /path/to/file/myfile.ptyx,
             # plain pTyX code is saved in /path/to/file/.myfile.ptyx.plain-ptyx
-            filename = join(dirname(self.path),
-                                '.%s.plain-ptyx' % basename(self.path))
+            path = self.state['path']
+            filename = join(dirname(path), '.%s.plain-ptyx' % basename(path))
             with open(filename, 'w') as f:
                 f.write(code)
-        self.extensions_loaded = extensions
-        self.plain_ptyx_code = code
+        self.state['extensions_loaded'] = extensions
+        self.state['plain_ptyx_code'] = code
         return code
 
     def generate_syntax_tree(self, code=None):
         if code is not None:
-            self.plain_ptyx_code = code
-        self.syntax_tree = self.syntax_tree_generator.preparse(self.plain_ptyx_code)
-        return self.syntax_tree
+            self.state['plain_ptyx_code'] = code
+        else:
+            code = self.state['plain_ptyx_code']
+        tree = self.state['syntax_tree'] = self.syntax_tree_generator.preparse(code)
+        return tree
 
     def generate_latex(self, tree=None, **context):
         if tree is not None:
-            self.syntax_tree = tree
+            self.state['syntax_tree'] = tree
+        else:
+            tree = self.state['syntax_tree']
         gen = self.latex_generator
+        gen.clear()
+        gen.context.update(context)
         try:
-            gen.clear()
-            gen.context.update(context)
-            gen.parse_node(self.syntax_tree)
+            gen.parse_node(tree)
         except Exception:
             print('\n*** Error occured while parsing. ***')
             print('This is current parser state for debugging purpose:')
@@ -1125,7 +1132,7 @@ class Compiler(object):
         return self.latex
 
     def close(self):
-        for name, module in self.extensions_loaded.items():
+        for name, module in self.state['extensions_loaded'].items():
             if hasattr(module, 'close'):
                 module.close(self)
 
@@ -1159,11 +1166,13 @@ class Compiler(object):
         :param text: a pTyX file content, to be converted to plain LaTeX.
         :type text: str
 
-        This is used mainly fo testing.
+        This is mainly used fo testing.
         """
         self.call_extensions(code)
         self.generate_syntax_tree()
-        return self.generate_latex(**context)
+        latex = self.generate_latex(**context)
+        self.close()
+        return latex
 
 
 

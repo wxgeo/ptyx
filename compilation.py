@@ -42,7 +42,7 @@ def execute(string, quiet=False):
 
 
 def make_files(options, start, names, make_tex, formats, correction=False):
-    input_name = compiler.path
+    input_name = compiler.state['path']
     # Choose output names
     os.chdir(os.path.split(input_name)[0])
     if input_name.endswith('.ptyx'):

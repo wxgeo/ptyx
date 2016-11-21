@@ -375,14 +375,14 @@ if __name__ == '__main__':
         # Preparse text (option _shuffle_ in enumerate/itemize)
         # This is mainly for compatibility with old versions, extensions should
         # be used instead now (extensions are handled directly by SyntaxTreeGenerator).
-        text = compiler.plain_ptyx_code
+        text = compiler.state['plain_ptyx_code']
         if '_shuffle_' in text or '_answer_' in text:
             print("Warning: deprecated option _shuffle_ or _answer__ is used !")
             text = ''.join(tree2strlist(enumerate_shuffle_tree(text)))
             tmp_file_name = os.path.join(os.path.dirname(input_name), '.ptyx.tmp')
             with open(tmp_file_name, 'w') as tmp_ptyx_file:
                 tmp_ptyx_file.write(text)
-            compiler.plain_ptyx_code = text
+            compiler.state['plain_ptyx_code'] = text
 
         # Generate syntax tree
         compiler.generate_syntax_tree()
@@ -412,7 +412,7 @@ if __name__ == '__main__':
 
         # Do the same for the version with the answers.
 
-        tags = compiler.syntax_tree.tags
+        tags = compiler.state['syntax_tree'].tags
         if 'ANS' in tags or 'ANSWER' in tags:
             filenames, output_name = make_files(options, start, names, make_tex, formats, correction=True)
 
