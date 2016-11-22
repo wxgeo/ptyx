@@ -108,18 +108,19 @@ def main(text, compiler):
     # ............
     text = sub("\n[ \t]*\\.{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\.{3,}[ \t]*\n",
                "\n#PYTHON\n\g<content>\n#END\n", text, flags=DOTALL)
-    # ------------------
-    # Answer
-    # ------------------
-    def apply_ans_tag(m):
-        content = m.group('content')
-        if '___' in content or '===' in content:
-            return m.group()
-        else:
-            return "\n#ANS\n%s\n#END\n" % content
+    #~ # ------------------
+    #~ # Answer
+    #~ # ------------------
+    #~ def apply_ans_tag(m):
+        #~ content = m.group('content')
+        #~ if '___' in content or '===' in content or '~~~' in content:
+            #~ return m.group()
+        #~ else:
+            #~ print('<<<toto', content, 'toto>>>')
+            #~ return "\n#ANS\n%s\n#END\n" % content
 
-    text = sub("\n[ \t]*\\-{4,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\-{4,}[ \t]*\n",
-               apply_ans_tag, text, flags=DOTALL)
+    #~ text = sub("\n[ \t]*\\-{4,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\-{4,}[ \t]*\n",
+               #~ apply_ans_tag, text, flags=DOTALL)
 
     def inline_answer(m):
         content = m.group('content')
