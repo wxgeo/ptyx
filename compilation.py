@@ -81,7 +81,7 @@ def make_files(options, start, names, make_tex, formats, correction=False):
     filenames = []
     for num in range(start, start + options.number):
         if names:
-            name = names[num]
+            name = names[num - 1]
             filename = '%s-%s' % (output_name, name)
         else:
             name = ''
