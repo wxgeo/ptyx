@@ -96,13 +96,13 @@ def main(text, compiler):
     # ~~~~~~~~~~~~~~~~~~
     # ~~~~~~~~~~~~~~~~~~
     text = sub("\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n",
-               "\n#ASK_ONLY\n\g<content>\n#END_ANY_ASK_OR_ANS\n", text, flags=DOTALL)
+               "\n#ASK_ONLY\n\g<content>\n#END\n", text, flags=DOTALL)
     # ~~~~~~~~~~~~~~~~~~
     # Lonely question or some explications
     # (will also be displayed in the version with answers)
     # ~~~~~~~~~~~~~~~~~~
     text = sub("\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n",
-               "\n#ASK\n\g<content>\n#END_ANY_ASK_OR_ANS\n", text, flags=DOTALL)
+               "\n#ASK\n\g<content>\n#END\n", text, flags=DOTALL)
     # ............
     # Python code
     # ............
@@ -122,30 +122,31 @@ def main(text, compiler):
     #~ text = sub("\n[ \t]*\\-{4,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\-{4,}[ \t]*\n",
                #~ apply_ans_tag, text, flags=DOTALL)
 
+    # <<<text for question (optional):::inline answer>>>
     def inline_answer(m):
         content = m.group('content')
         # Don't use | to split as it is commonly used for absolute values in mathematics.
-        l = content.split('///')
+        l = content.split(':::')
         if len(l) == 2:
             return '#QUESTION{%s}#ANSWER{%s}' % tuple(l)
-        # It's not clear what to do if there are more than one ///.
+        # It's not clear what to do if there are more than one :::.
         return '#ANSWER{%s}' % content
-
     text = sub('<{3,}(?P<content>.*?)>{3,}', inline_answer, text)
+
     text = sub('\n[ \t]*[*]+[ \t]*EXERCISE[ \t]*[*]+', '\n\section{}\n#ASK', text)
     # ==== QUESTIONS ====
     text = sub('\n[ \t]*=+[ \t]*((QUESTIONS)|[?]+)[ \t]*=+[ \t]*(?=\n)',
-               '\n#END_ANY_ASK_OR_ANS\n\\\\begin{enumerate}\n#ENUM\n\\\\item\n#ASK ', text)
+               '\n\\\\begin{enumerate}\n#ENUM\n\\\\item\n#ASK ', text)
     # ==== SHUFFLE ====
     text = sub('\n[ \t]*=+[ \t]*((SHUFFLE)|[?]!|![?])[ \t]*=+[ \t]*(?=\n)',
-               '\n#END_ANY_ASK_OR_ANS\n\\\\begin{enumerate}\n#SHUFFLE\n#ITEM\n\\\\item\n#ASK ', text)
+               '\n\\\\begin{enumerate}\n#SHUFFLE\n#ITEM\n\\\\item\n#ASK ', text)
     # ===============
     text = sub('\n[ \t]*((=+[ \t]*END[ \t]*=+)|(={3,}))[ \t]*(?=\n)',
-               '\n#END_ANY_ASK_OR_ANS\n#END\n\\\\end{enumerate}', text)
+               '\n#END\n#END\n\\\\end{enumerate}', text)
     # _______________
-    text = sub('\n[ \t]*_{3,}[ \t]*(?=\n)', '\n#END_ANY_ASK_OR_ANS\n#ITEM\n\\\\item\n#ASK ', text)
+    text = sub('\n[ \t]*_{3,}[ \t]*(?=\n)', '\n#END\n#ITEM\n\\\\item\n#ASK ', text)
     # ---------------
-    text = sub('\n[ \t]*-{3,}[ \t]*(?=\n)', '\n#ANS', text)
+    text = sub('\n[ \t]*-{3,}[ \t]*(?=\n)', '\n#END\n#ANS', text)
 
     # Create blank dotted lines for answers:
     # a line containing only "-" will be converted to a dotted line.

@@ -24,8 +24,8 @@
 
 from __future__ import division, unicode_literals, absolute_import, print_function
 
-__version__ = "3.0"
-__release_date__ = (16, 2, 2016)
+__version__ = "4.0"
+__release_date__ = (30, 11, 2016)
 
 
 

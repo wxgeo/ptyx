@@ -143,14 +143,10 @@ class SyntaxTreeGenerator(object):
     # By contrast, in code arguments, inner strings should be detected:
     # in {val=='}'}, the bracket closing the tag is the second }, not the first one !
 
-    tags = {'ANS':          (0, 0, ['ANS', 'ASK_ONLY', 'ASK', 'END_ANY_ASK_OR_ANS', '@END']),
+    tags = {'ANS':          (0, 0, ['@END']),
             'ANSWER':       (0, 1, None),
-            'ASK':          (0, 0, ['ANS', 'ASK_ONLY', 'ASK', 'END_ANY_ASK_OR_ANS', '@END']),
-            'ASK_ONLY':     (0, 0, ['ANS', 'ASK_ONLY', 'ASK', 'END_ANY_ASK_OR_ANS', '@END']),
-            # Following tag is useful for some extensions.
-            # It closes ASK or ANS block if any is left opened.
-            # If no such block is opened, it does nothing.
-            'END_ANY_ASK_OR_ANS':  (0, 0, None),
+            'ASK':          (0, 0, ['@END']),
+            'ASK_ONLY':     (0, 0, ['@END']),
             'ASSERT':       (1, 0, None),
             'CALC':         (1, 0, None),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
