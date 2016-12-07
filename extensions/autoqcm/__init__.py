@@ -146,7 +146,7 @@ def close(compiler):
     for name in g.autoqcm_data['students']:
         l.append(name)
 
-    with open(compiler.path + '.autoqcm.config', 'w') as f:
+    with open(compiler.state['path'] + '.autoqcm.config', 'w') as f:
         f.write('\n'.join(l))
 
 
