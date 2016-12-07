@@ -25,6 +25,8 @@
 from __future__ import division, unicode_literals, absolute_import, print_function
 
 __version__ = "4.0"
+# API version number changes only when backward compatibility is broken.
+__api__ = "4.0"
 __release_date__ = (30, 11, 2016)
 
 

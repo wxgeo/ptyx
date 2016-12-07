@@ -145,6 +145,7 @@ class SyntaxTreeGenerator(object):
 
     tags = {'ANS':          (0, 0, ['@END']),
             'ANSWER':       (0, 1, None),
+            'API_VERSION':  (0, 1, None),
             'ASK':          (0, 0, ['@END']),
             'ASK_ONLY':     (0, 0, ['@END']),
             'ASSERT':       (1, 0, None),
@@ -568,6 +569,17 @@ class LatexGenerator(object):
     def read(self):
         return ''.join(self.context['LATEX'])
 
+    def _parse_API_VERSION(self, node):
+        def v(version):
+            return version.split('.')
+        version = v(node.children[0].children)
+        from ptyx import __version__, __api__
+        if v(__version__) < version:
+            print("Warning: pTyX engine is too old (v%s required)." % version)
+        if version < v(__api__):
+            print("Warning: pTyX file uses an old API. You may have to update your pTyX file code before compiling it.")
+        #TODO: display a short list of API changes which broke compatibility.
+        self.context['API_VERSION'] = version
 
     def _parse_ASK_tag(self, node):
         self._parse_children(node.children, function=self.context.get('format_ask'))
@@ -671,6 +683,8 @@ class LatexGenerator(object):
 
     def _parse_EVAL_tag(self, node):
         args, kw = self._parse_options(node)
+        if self.context.get('ALL_FLOATS'):
+            self.flags['floats'] = True
         for arg in args:
             if arg.isdigit():
                 self.flags['round'] = int(arg)
@@ -1125,6 +1139,8 @@ class Compiler(object):
             print('')
             raise
         self.latex = gen.read()
+        if 'API_VERSION' not in gen.context:
+            print('Warning: no API version specified. This may be an old pTyX file.')
         return self.latex
 
     def close(self):
