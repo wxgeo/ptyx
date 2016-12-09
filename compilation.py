@@ -119,7 +119,8 @@ def make_file(output_name, make_tex_file=False,
         command += ' %s "%s"' % (extra, filename)
         log = execute(command)
         # Run command twice if references were found.
-        if 'Rerun to get cross-references right.' in log:
+        if 'Rerun to get cross-references right.' in log or \
+           'There were undefined references.' in log:
             log = execute(command)
 
     if make_tex_file:

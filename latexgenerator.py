@@ -403,24 +403,24 @@ class SyntaxTreeGenerator(object):
                     self._preparse(arg, text[position:end])
                     position = new_pos
 
-                if remove_trailing_newline:
-                    # Remove new line and spaces *after* #IF, #ELSE, ... tags.
-                    # This is more convenient, since two successive \n
-                    # induce a new paragraph in LaTeX.
-                    # So, something like this
-                    #   [some text here]
-                    #   #IF{delta>0}
-                    #   #IF{a>0}
-                    #   [some text there]
-                    #   #END
-                    #   #END
-                    # would automatically result in two paragraphs else.
-                    try:
-                        i = text.index('\n', position) + 1
-                        if text[position:i].isspace():
-                            position = i
-                    except ValueError:
-                        pass
+                #~ if remove_trailing_newline:
+                    #~ # Remove new line and spaces *after* #IF, #ELSE, ... tags.
+                    #~ # This is more convenient, since two successive \n
+                    #~ # induce a new paragraph in LaTeX.
+                    #~ # So, something like this
+                    #~ #   [some text here]
+                    #~ #   #IF{delta>0}
+                    #~ #   #IF{a>0}
+                    #~ #   [some text there]
+                    #~ #   #END
+                    #~ #   #END
+                    #~ # would automatically result in two paragraphs else.
+                    #~ try:
+                        #~ i = text.index('\n', position) + 1
+                        #~ if text[position:i].isspace():
+                            #~ position = i
+                    #~ except ValueError:
+                        #~ pass
 
                 # Close node if needed.
                 # ~~~~~~~~~~~~~~~~~~~~~~~
@@ -463,6 +463,7 @@ class LatexGenerator(object):
         self.macros = {}
         self.context = global_context.copy()
         self.context['LATEX'] = []
+        self.backups = []
         # When write() is called from inside a #PYTHON ... #END code block,
         # its argument may contain pTyX code needing parsing.
         self.context['write'] = partial(self.write, parse=True)
@@ -500,7 +501,9 @@ class LatexGenerator(object):
             # Store generated text in a temporary location, instead of self.context['LATEX'].
             # Function `function` will then be applied to this text,
             # before text is appended to self.context['LATEX'].
-            backup = self.context['LATEX']
+            # Backups may need to be read when parsing #= special tag,
+            # so store them in `self.backups`.
+            self.backups.append(self.context['LATEX'])
             self.context['LATEX'] = []
 
         for child in children:
@@ -518,7 +521,7 @@ class LatexGenerator(object):
 
         if function is not None:
             code = function(''.join(self.context['LATEX']), **options)
-            self.context['LATEX'] = backup
+            self.context['LATEX'] = self.backups.pop()
             self.write(code)
 
 
@@ -882,11 +885,21 @@ class LatexGenerator(object):
 
     def _parse_DEBUG_tag(self, node):
         while True:
-            command = input('Debug point. Enter command, or quit (q! + ENTER):')
+            msg = 'Debug point. Enter command, or quit (q! + ENTER):'
+            sep = len(msg)*"="
+            print(sep)
+            print(msg)
+            print(sep)
+            command = input('[In]: ')
+            print('[Out]: ')
             if command == 'q!':
                 break
             else:
-                print(eval(command, self.context))
+                try:
+                    exec(command)
+                except Exception as e:
+                    print('*** ERROR ***')
+                    print(e)
 
 
     def _exec(self, code, context):
@@ -1012,13 +1025,14 @@ class LatexGenerator(object):
                 symb = r' \approx '
             # Search backward for temporary `#=` marker in list, and replace
             # by appropriate symbol.
-            textlist = context['LATEX']
-            for i, elt in enumerate(reversed(textlist)):
-                if elt == '#=':
-                    textlist[len(textlist) - i - 1] = symb
-                    break
-            else:
-                print("Debug warning: `#=` couldn't be found when scanning context !")
+            for textlist in self.backups + [context['LATEX']]:
+                for i, elt in enumerate(reversed(textlist)):
+                    if elt == '#=':
+                        textlist[len(textlist) - i - 1] = symb
+                        return latex
+            print("Debug warning: `#=` couldn't be found when scanning context !")
+            print("There is most probably a bug in pTyX, entering debuging...")
+            self._parse_DEBUG_tag(None)
         return latex
 
 

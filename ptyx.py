@@ -24,10 +24,10 @@
 
 from __future__ import division, unicode_literals, absolute_import, print_function
 
-__version__ = "4.0"
+__version__ = "4.1"
 # API version number changes only when backward compatibility is broken.
-__api__ = "4.0"
-__release_date__ = (30, 11, 2016)
+__api__ = "4.1"
+__release_date__ = (9, 12, 2016)
 
 
 
