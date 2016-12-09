@@ -129,8 +129,8 @@ def generate_table_for_answers(questions, answers, introduction='', options={}):
         \simfill
         \vspace{{.5em}}
 
-        \hfill\hfill
         {introduction}
+
         \begin{{tikzpicture}}[scale={scale}]
         \draw[thin,fill=black] (-1,0) rectangle (0,1);""".format(**locals()))
 
@@ -237,8 +237,10 @@ def generate_tex(text):
     n_answers = 0
     answer_number = 0
     # Set all flags to False before parsing.
-    mode_qcm = group_opened = question_opened = False
+    mode_qcm = group_opened = question_opened = has_groups = has_qcm =False
     lastline = None
+
+    intro = []
 
     for _line_ in text.split('\n'):
         line = _line_.lstrip()
@@ -246,12 +248,15 @@ def generate_tex(text):
             # -------------------- STARTING QCM ------------------------
             if line.startswith('<<') and not line.strip('< '):
                 # Start of Multiple Choice Questions.
-                mode_qcm = True
+                mode_qcm = has_qcm = True
                 # Shuffles QCM sections.
                 content.append('#NEW_QCM')
-                content.append('#SHUFFLE')
-            else:
+
+            elif has_qcm:
                 content.append(_line_)
+            else:
+                # Some indications for students before QCM.
+                intro.append(_line_)
         else:
             # -------------------- PARSING QCM -------------------------
             if line.startswith('='):
@@ -259,9 +264,20 @@ def generate_tex(text):
                 # By default, questions inside a group are shuffled,
                 # and groups are printed in random order.
 
+                if not has_groups:
+                    # This is the first group encountered.
+                    # Shuffle groups.
+                    content.append('#SHUFFLE')
+                has_groups = True
+
                 # First, close previous group (if any).
                 if group_opened:
                     if question_opened:
+                        # Remove any previous blank lines.
+                        # This avoid blank lines beeing inserted between
+                        # two consecutive answers when shuffling answers.
+                        while content[-1].strip() == '':
+                            content.pop()
                         content.append('#END')
                         question_opened = False
                     # End last group of questions.
@@ -287,6 +303,11 @@ def generate_tex(text):
                 answer_number = 0
                 # Close last question before opening a new one.
                 if question_opened:
+                    # Remove any previous blank lines.
+                    # This avoid blank lines beeing inserted between
+                    # two consecutive answers when shuffling answers.
+                    while content[-1].strip() == '':
+                        content.pop()
                     content.append('#END')
                 # Maybe this is the first question of the group.
                 if not group_opened:
@@ -308,6 +329,7 @@ def generate_tex(text):
 
             elif line.startswith('- ') or line.startswith('+ '):
                 if answer_number == 0:
+                    #content.append('\n\n')
                     content.append('\n\n\\sloppy')
                 elif lastline == '':
                     # A blank line may be used to separate answers groups.
@@ -329,7 +351,7 @@ def generate_tex(text):
                     command = '\\graysquared'
                 else:
                     command = '#QUESTION{\\graysquared}#ANSWER{\\whitesquared}'
-                content.append('%s{\\alph{answerNumber}}~~\\mbox{%s}\\qquad\linebreak[3]' % (command, line[2:]))
+                content.append('%s{\\alph{answerNumber}}~~\\mbox{%s}\\qquad\\linebreak[3]' % (command, line[2:]))
 
 
             # -------------------- ENDING QCM --------------------------
@@ -339,15 +361,22 @@ def generate_tex(text):
                 # Ending last group...
                 if group_opened:
                     if question_opened:
-                        content.append('\\fussy')
+                        # Remove any previous blank lines.
+                        # This avoid blank lines beeing inserted between
+                        # two consecutive answers when shuffling answers.
+                        while content[-1].strip() == '':
+                            content.pop()
                         content.append('#END')
+                        #content.append('\\fussy')
                         question_opened = False
                     # End last group of questions.
-                    content.append('#END')
+                        content.append('#END')
                     group_opened = False
                     content.append('\\end{enumerate}')
                 # Ending QCM sections shuffling...
-                content.append('#END')
+                if has_groups:
+                    content.append('#END')
+                has_groups = False
                 content.append('#END_QCM')
                 # ... bye bye !
             # ----------------------------------------------------------
@@ -362,7 +391,7 @@ def generate_tex(text):
     if group_opened:
         content.append('#END')
     i = content.index('<--Table for answers-->')
-    content[i] = generate_table_for_answers(question_number, n_answers)
+    content[i] = generate_table_for_answers(question_number, n_answers, introduction='\n'.join(intro))
     content.append(r"\end{document}")
     return '\n'.join(content), students_list, question_number, n_answers
 
