@@ -24,11 +24,16 @@
 
 
 from math import atan, degrees
+from os.path import isdir, join as joinpath, expanduser, abspath, dirname
+from os import listdir
+import subprocess
+import tempfile
 import argparse
+import csv
 
-from numpy import array#, apply_along_axis
+from numpy import array, nonzero, transpose
 from pylab import imread
-#~ from PIL import Image
+from PIL import Image
 
 
 from parameters import SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM
@@ -40,17 +45,24 @@ def convert_png_to_gray(name):
     # Read from PNG file.
     m = imread(name)
     # m.shape[2] is 4 if there is an alpha channel (transparency), 3 else (RGB).
-    n = m.shape[2]
-    assert n in (3, 4)
-    m = (m.sum(2) - (n - 3))/3
+    print("Image data:", m)
+    print("Image data shape:", m.shape)
+    if len(m.shape) == 3: # Colored picture
+        n = m.shape[2]
+        assert n in (3, 4) # RGB or RGBA
+        m = (m.sum(2) - (n - 3))/3
+    assert len(m.shape) == 2
+    # Return a grayscale picture, as a matrix.
+    # Each pixel is represented by a float between 0.0 and 1.0,
+    # where 0.0 stands for black (and so 1.0 stands for white).
     return m
 
 
 
-def find_black_square(matrix, size=50, error=0.30, gray_level=.4):
+def find_black_square(matrix, size=50, error=0.30, gray_level=.4, mode='l'):
     """Detect a black square of given size (edge in pixels) in matrix.
 
-    The matrix should contain only 1 (black) and 0 (white).
+    The n*m matrix must contain only floats between 0 (white) and 1 (black).
 
     Optional parameters:
         - `error` is the ratio of white pixels allowed is the black square.
@@ -58,11 +70,14 @@ def find_black_square(matrix, size=50, error=0.30, gray_level=.4):
            If it is set to 0, only black pixels will be considered black ; if it
            is close to 1 (max value), almost all pixels are considered black
            except white ones (for which value is 1.).
+        - `mode` is either 'l' (picture is scanned line by line) or 'c' (picture
+           is scanned column by column).
 
     Return a generator of (i, j) where i is line number and j is column number,
     indicating black squares top left corner.
 
     """
+    # First, convert grayscale image to black and white.
     m = array(matrix, copy=False) < gray_level
     # Black pixels are represented by False, white ones by True.
     height, width = m.shape
@@ -71,7 +86,13 @@ def find_black_square(matrix, size=50, error=0.30, gray_level=.4):
     to_avoid = []
     # Find a black pixel, starting from top left corner,
     # and scanning line by line (ie. from top to bottom).
-    for (i, j) in zip(*m.nonzero()):
+    if mode == 'l':
+        black_pixels = nonzero(m)
+    elif mode == 'c':
+        black_pixels = reversed(nonzero(transpose(array(m))))
+    else:
+        raise RuntimeError("Unknown mode: %s. Mode should be either 'l' or 'c'." % repr(mode))
+    for (i, j) in zip(*black_pixels):
         #print("Black pixel found at %s, %s" % (i, j))
         # Avoid to detect an already found square.
         if any((li_min <= i <= li_max and co_min <= j <= co_max)
@@ -207,10 +228,13 @@ def read_config(pth):
     return cfg
 
 
-def scan_picture(m, config):
+
+
+
+def scan_picture(filename, config):
     """Scan picture and return page identifier and list of answers for each question.
 
-    - m is either a numpy array or a path pointing to a PNG file.
+    - filename is a path pointing to a PNG file.
     - config is either a path poiting to a config file, or a dictionnary
     containing the following keys:
       * n_questions is the number of questions
@@ -220,12 +244,41 @@ def scan_picture(m, config):
     Return an integer and a list of lists of booleans.
     """
 
+    def color2debug(from_=None, to_=None, color=(255, 0, 0), display=True, _d={}):
+        """Display a red (by default) rectangle for debuging.
+
+        _d is used to store values between two runs, if display=False.
+        """
+        if not _d.get('rgb'):
+            _d['rgb'] = pic.convert('RGB')
+        rgb = _d['rgb']
+        if from_ is not None:
+            if to_ is None:
+                to_ = from_
+            pix = rgb.load()
+            imin, imax = min(from_[0], to_[0]), max(from_[0], to_[0])
+            jmin, jmax = min(from_[1], to_[1]), max(from_[1], to_[1])
+            for i in range(imin, imax + 1):
+                for j in range(jmin, jmax + 1):
+                    pix[j, i] = color
+        if display:
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                path = joinpath(tmpdirname, 'test.png')
+                rgb.save(path)
+                subprocess.run(["display", path])
+                input('-- pause --')
+            del _d['rgb']
+
+
+    # Convert to grayscale picture.
+    pic = Image.open(filename).convert('L')
+    m = array(pic)/255.
+    #~ m = convert_png_to_gray(m)
+
     # ------------------------------------------------------------------
     #                          CONFIGURATION
     # ------------------------------------------------------------------
     # Load configuration.
-    if isinstance(m, str):
-        m = convert_png_to_gray(m)
     if isinstance(config, str):
         config = read_config(config)
     n_questions = config['n_questions']
@@ -236,35 +289,50 @@ def scan_picture(m, config):
     # ------------------------------------------------------------------
     #                          CALIBRATION
     # ------------------------------------------------------------------
-    # Evaluate approximatively squares size using image dpi.
-    # Square size is equal to SQUARE_SIZE_IN_CM in theory, but this vary
-    # in practice depending on printer and scanner configuration.
-    # Unit conversion: 1 inch = 2.54 cm
-    dpi = 2.54*m.shape[1]/21
-    print("Detect dpi: %s" % dpi)
-    square_size = int(round(SQUARE_SIZE_IN_CM*dpi/2.54))
-    print("Square size 1st value (pixels): %s" % square_size)
+    for i in range(1, 3):
+        print("Calibration: step %s/2" % i)
+        # Evaluate approximatively squares size using image dpi.
+        # Square size is equal to SQUARE_SIZE_IN_CM in theory, but this vary
+        # in practice depending on printer and scanner configuration.
+        # Unit conversion: 1 inch = 2.54 cm
+        dpi = 2.54*m.shape[1]/21
+        print("Detect dpi: %s" % dpi)
+        square_size = int(round(SQUARE_SIZE_IN_CM*dpi/2.54))
+        print("Square size 1st value (pixels): %s" % square_size)
 
-    #~ print("Squares list:\n" + str(detect_all_squares(m, square_size, 0.5)))
+        #~ print("Squares list:\n" + str(detect_all_squares(m, square_size, 0.5)))
 
-    # Detecting the top 2 squares (at the top left and the top right of the
-    # page) to calibrate. Since square size is not known precisely,
-    # keep a high error rate for now.
-    maxi = maxj = int(round(2*(1 + SQUARE_SIZE_IN_CM)*dpi/2.54))
-    i1, j1 = find_black_square(m[:maxi,:maxj], size=square_size, error=0.5).__next__()
-    minj = int(round((20 - 2*(1 + SQUARE_SIZE_IN_CM))*dpi/2.54))
-    i2, j2 = find_black_square(m[:maxi,minj:], size=square_size, error=0.5).__next__()
-    j2 += minj
+        # Detecting the top 2 squares (at the top left and the top right of the
+        # page) to calibrate. Since square size is not known precisely,
+        # keep a high error rate for now.
+        maxi = maxj = int(round(2*(1 + SQUARE_SIZE_IN_CM)*dpi/2.54))
+        i1, j1 = find_black_square(m[:maxi,:maxj], size=square_size, error=0.5).__next__()
+        minj = int(round((20 - 2*(1 + SQUARE_SIZE_IN_CM))*dpi/2.54))
+        i2, j2 = find_black_square(m[:maxi,minj:], size=square_size, error=0.5).__next__()
+        j2 += minj
 
-    print("Top left square at (%s,%s)." % (i1, j1))
-    print("Top right square at (%s,%s)." % (i2, j2))
+        print("Top left square at (%s,%s)." % (i1, j1))
+        print("Top right square at (%s,%s)." % (i2, j2))
 
-    # Detect rotation, and rotate picture if needed.
-    rotation = atan((i2 - i1)/(j2 - j1))
-    print("Detect rotation: %s" % degrees(rotation))
-    # TODO: rotate picture using ImageMagick or PIL if necessary
-    # ImageMagick: convert -rotate
-    # PIL: Image.Image.rotate()
+        #~ # Control top squares position:
+        #~ color2debug((i1, j1), (i1 + square_size, j1 + square_size))
+        #~ color2debug((i2, j2), (i2 + square_size, j2 + square_size))
+
+        #~ # Control top squares alignement after rotation:
+        #~ if i == 2:
+            #~ color2debug((i1, j1), (i1, j2 + square_size))
+
+        if i == 1:
+            # Detect rotation, and rotate picture if needed.
+            rotation = atan((i2 - i1)/(j2 - j1))
+            print("Detect rotation: %s degrees." % degrees(round(rotation, 4)))
+            # cf. http://stackoverflow.com/questions/5252170/specify-image-filling-color-when-rotating-in-python-with-pil-and-setting-expand
+            rgba = pic.convert('RGBA')
+            rgba = rgba.rotate(degrees(rotation), resample=Image.BICUBIC, expand=True)
+            white = Image.new('RGBA', rgba.size, (255, 255, 255, 255))
+            out = Image.composite(rgba, white, rgba)
+            pic = out.convert(pic.mode)
+            m = array(pic)/255.
 
     # From there, we assume that the rotation is negligable.
 
@@ -297,9 +365,15 @@ def scan_picture(m, config):
     # ■■□■□■□■■□□□■□□■ = 0b100100011010101 =  21897
     # 2**15 = 32768 different values.
 
-    i3, j3 = find_black_square(m[:maxi,maxj:minj], size=square_size, error=0.3).__next__()
+    # Restrict search area to avoid detecting anything else, like students names list.
+    imin = i1 - square_size
+    imax = i1 + 2*square_size
+    i3, j3 = find_black_square(m[imin:imax,maxj:minj], size=square_size, error=0.3, mode='c').__next__()
+    i3 += imin
     j3 += maxj
     print("Identification band starts at (%s, %s)" % (i3, j3))
+    #~ color2debug((i3, j3), (i3 + square_size, j3), color=(0,255,0), display=False)
+    #~ color2debug((i3, j3), (i3, j3 + square_size), color=(0,255,0), display=False)
 
     identifier = 0
     # Test the color of the 15 following squares,
@@ -307,12 +381,18 @@ def scan_picture(m, config):
     j = j3
     for k in range(15):
         j = int(round(j3 + (k + 1)*f_square_size))
+        #~ if k%2:
+            #~ color2debug((i3, j), (i3 + square_size, j), display=False)
+            #~ color2debug((i3, j), (i3, j + square_size), display=False)
+        #~ else:
+            #~ color2debug((i3, j), (i3 + square_size, j), color=(0,0,255), display=False)
+            #~ color2debug((i3, j), (i3, j + square_size), color=(0,0,255), display=False)
         if test_square_color(m, i3, j, square_size, proportion=0.5, gray_level=0.5):
             print((k, (i3, j)), " -> black")
             identifier += 2**k
         else:
             print((k, (i3, j)), " -> white")
-
+    #~ color2debug()
     # Nota: If necessary (although this is highly unlikely !), one may extend protocol
     # by adding a second band (or more !), starting with a black square.
     # This function will test if a black square is present below the first one ;
@@ -321,15 +401,18 @@ def scan_picture(m, config):
 
     print("Identification: %s" % identifier)
 
-    vpos = max(i1, i2, i3) + square_size
+    vpos = max(i1, i2, i3) + 2*square_size
 
     # ------------------------------------------------------------------
     #                  READ STUDENT NAME (OPTIONAL)
     # ------------------------------------------------------------------
     student_number = None
+    student_name = "Unknown student!"
     if n_students:
-        search_area = m[vpos:,:]
-        i, j0 = find_black_square(search_area, size=square_size, error=0.3).__next__()
+        search_area = m[vpos:vpos + 4*square_size,:]
+        i, j0 = find_black_square(search_area, size=square_size, error=0.3, mode='c').__next__()
+        #~ color2debug((vpos + i, j0), (vpos + i + square_size, j0), color=(0,255,0), display=False)
+        #~ color2debug((vpos + i, j0), (vpos + i, j0 + square_size), color=(0,255,0))
 
         l = []
         for k in range(1, n_students + 1):
@@ -342,8 +425,11 @@ def scan_picture(m, config):
         elif n > 1:
             print("Warning: several students names !")
         else:
-            student_number = n_students - l.index(True)
+            student_number = n_students - l.index(True) - 1
             print("Student number: %s" % student_number)
+            student_name = students[student_number]
+    else:
+        print("No students list.")
 
     vpos += i + square_size
 
@@ -374,12 +460,15 @@ def scan_picture(m, config):
 
     correct_answers = config['answers'][identifier]
 
+    # ------------------------------------------------------------------
+    #                      CALCULATE SCORE
+    # ------------------------------------------------------------------
     scores = []
     mode = config['mode']
     for i, (correct, proposed) in enumerate(zip(correct_answers, answers)):
         # Nota: most of the time, there should be only one correct answer.
-        # This code also deals with cases where there are more than one correct
-        # though.
+        # Anyway, this code intends to deal with cases where there are more
+        # than one correct answer too.
         # If mode is set to 'all', student must check *all* correct propositions,
         # if not answer will be considered as incorrect. But if mode is set to
         # 'some', then student has only to check a subset of correct propositions
@@ -401,33 +490,73 @@ def scan_picture(m, config):
     print('Scores: ', scores)
     score = sum(scores)
 
-
-    return identifier, answers, student_number, score
-
-
-def scan_all_pages(pics, config):
-    for pic in pics:
-        identifier, answers, student_number = scan_picture(pic, config)
+    return identifier, answers, student_name, score
 
 
-def _pgm_from_matrix(matrix, squares, size):
-    """"This tools generate a PGM file for debuging purpose.
-    """
-    with open("debug_squares_detection.pgm"):
-        pass
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Extract information from numerised tests.")
-    parser.add_argument('configfile')
-    parser.add_argument('filenames', nargs='+')
+    parser.add_argument('directory', help=("Path to a directory which must contain "
+                        "a .autoqcm.config file and a .scan.pdf file "
+                        "(alternatively, this path may point to any file in this folder)."))
     args = parser.parse_args()
-    configfile = args.configfile
-    if configfile.endswith('.ptyx'):
-        configfile += '.autoqcm.config'
+    directory = abspath(expanduser(args.directory))
+    if not isdir(directory):
+        directory = dirname(directory)
+    if not isdir(directory):
+        raise FileNotFoundError('%s does not seem to be a directory !' % directory)
+    configfile = scanpdf = None
+    error_msg = ('Several `%s` file found in that directory ! '
+                'Keep one and delete all others (or rename their extensions).')
+    for name in listdir(directory):
+        if name.endswith('.autoqcm.config'):
+            if configfile is not None:
+                raise RuntimeError(error_msg % '.autoqcm.config')
+            configfile = joinpath(directory, name)
+        elif name.endswith('.scan.pdf'):
+            if scanpdf is not None:
+                raise RuntimeError(error_msg % '.scan.pdf')
+            scanpdf = joinpath(directory, name)
+
+    error_msg = 'No `%s` file found in that directory ! '
+    if configfile is None:
+        raise FileNotFoundError(error_msg % '.autoqcm.config')
+    if scanpdf is None:
+        raise FileNotFoundError(error_msg % '.scan.pdf')
+
+    # Read configuration file.
     config = read_config(configfile)
     print(config)
-    for filename in args.filenames:
-        print(scan_picture(filename, config))
+
+    # Extract all images from pdf.
+    with tempfile.TemporaryDirectory() as tmp_path:
+        #tmp_path = '/home/nicolas/.tmp/scan'
+        print(scanpdf, tmp_path)
+        print('Extracting all images from pdf, please wait...')
+        result = subprocess.run(["pdfimages", "-all", scanpdf, joinpath(tmp_path, 'pic')], stdout=subprocess.PIPE)
+        print(result.stdout)
+        print(result.stderr)
+        scores = {}
+        for pic in sorted(listdir(tmp_path)):
+            print(pic)
+            # Extract data from image
+            data = scan_picture(joinpath(tmp_path, pic), config)
+            name, score = data[2:]
+            scores[name] = score
+            print(data)
+
+    # Generate CSV file with results.
+    csvname = scanpdf[:-9] + '.scores.csv'
+    with open(csvname, 'w', newline='') as csvfile:
+        writerow = csv.writer(csvfile).writerow
+        for name in sorted(scores):
+            writerow([name, scores[name]])
+
+        #~ input('-pause-')
+
+
+
 
         #TODO: if image format is multipage PDF, use `pdfimages -all` to extract images from it.
 
