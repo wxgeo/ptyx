@@ -30,14 +30,17 @@ import subprocess
 import tempfile
 import argparse
 import csv
+import sys
 
 from numpy import array, nonzero, transpose
 from pylab import imread
 from PIL import Image
 
-
 from parameters import SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM
-
+# File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
+script_path = dirname(abspath(sys._getframe().f_code.co_filename))
+sys.path.append(joinpath(script_path, '../..'))
+from compilation import compiler, make_file, join_files
 
 
 
@@ -102,7 +105,7 @@ def find_black_square(matrix, size=50, error=0.30, gray_level=.4, mode='l'):
         total = m[i:i+size, j:j+size].sum()
 #        print("Detection: %s found (minimum was %s)." % (total, goal))
         if total >= goal:
-            print("\nBlack square found at (%s,%s)." % (i, j))
+            #~ print("\nBlack square found at (%s,%s)." % (i, j))
             # Adjust detection if top left corner is a bit "damaged"
             # (ie. if some pixels are missing there), or if this pixel is
             # only an artefact before the square.
@@ -116,7 +119,7 @@ def find_black_square(matrix, size=50, error=0.30, gray_level=.4, mode='l'):
                     while abs(j - j0) < error*size \
                         and (m[i:i+size, j+size+1].sum() > per_line > m[i:i+size, j].sum()):
                         j += 1
-                        print("j+=1")
+                        #~ print("j+=1")
                         horizontal = True
                 except IndexError:
                     pass
@@ -127,7 +130,7 @@ def find_black_square(matrix, size=50, error=0.30, gray_level=.4, mode='l'):
                         while abs(j - j0) < error*size \
                             and m[i:i+size, j+size].sum() < per_line < m[i:i+size, j-1].sum():
                             j -= 1
-                            print("j-=1")
+                            #~ print("j-=1")
                             horizontal = True
                     except IndexError:
                         pass
@@ -135,18 +138,18 @@ def find_black_square(matrix, size=50, error=0.30, gray_level=.4, mode='l'):
                 try:
                     while abs(i - i0) < error*size and m[i+size+1, j:j+size].sum() > per_line > m[i, j:j+size].sum():
                         i += 1
-                        print("i+=1")
+                        #~ print("i+=1")
                         vertical = True
                     while abs(i - i0) < error*size and m[i+size, j:j+size].sum() < per_line < m[i-1, j:j+size].sum():
                         i -= 1
-                        print("i-=1")
+                        #~ print("i-=1")
                         vertical = True
                 except IndexError:
                         pass
                 if not (vertical or horizontal):
                     break
             else:
-                print("Adjustement seems abnormally long... Skiping...")
+                print("Warning: adjustement of square position seems abnormally long... Skiping...")
             #
             #      Do not detect pixels there to avoid detecting
             #      the same square twice.
@@ -172,7 +175,7 @@ def find_black_square(matrix, size=50, error=0.30, gray_level=.4, mode='l'):
                 continue
 
             to_avoid.append((i - error*size - 1, i + size - 2, j - error*size - 1, j + size - 2))
-            print("Final position of this new square is (%s, %s)" % (i, j))
+            #~ print("Final position of this new square is (%s, %s)" % (i, j))
             #~ print("Forbidden areas are now:")
             #~ print(to_avoid)
             yield (i, j)
@@ -298,7 +301,7 @@ def scan_picture(filename, config):
         dpi = 2.54*m.shape[1]/21
         print("Detect dpi: %s" % dpi)
         square_size = int(round(SQUARE_SIZE_IN_CM*dpi/2.54))
-        print("Square size 1st value (pixels): %s" % square_size)
+        #~ print("Square size 1st estimation (pixels): %s" % square_size)
 
         #~ print("Squares list:\n" + str(detect_all_squares(m, square_size, 0.5)))
 
@@ -311,8 +314,8 @@ def scan_picture(filename, config):
         i2, j2 = find_black_square(m[:maxi,minj:], size=square_size, error=0.5).__next__()
         j2 += minj
 
-        print("Top left square at (%s,%s)." % (i1, j1))
-        print("Top right square at (%s,%s)." % (i2, j2))
+        #~ print("Top left square at (%s,%s)." % (i1, j1))
+        #~ print("Top right square at (%s,%s)." % (i2, j2))
 
         #~ # Control top squares position:
         #~ color2debug((i1, j1), (i1 + square_size, j1 + square_size))
@@ -371,7 +374,7 @@ def scan_picture(filename, config):
     i3, j3 = find_black_square(m[imin:imax,maxj:minj], size=square_size, error=0.3, mode='c').__next__()
     i3 += imin
     j3 += maxj
-    print("Identification band starts at (%s, %s)" % (i3, j3))
+    #~ print("Identification band starts at (%s, %s)" % (i3, j3))
     #~ color2debug((i3, j3), (i3 + square_size, j3), color=(0,255,0), display=False)
     #~ color2debug((i3, j3), (i3, j3 + square_size), color=(0,255,0), display=False)
 
@@ -388,10 +391,10 @@ def scan_picture(filename, config):
             #~ color2debug((i3, j), (i3 + square_size, j), color=(0,0,255), display=False)
             #~ color2debug((i3, j), (i3, j + square_size), color=(0,0,255), display=False)
         if test_square_color(m, i3, j, square_size, proportion=0.5, gray_level=0.5):
-            print((k, (i3, j)), " -> black")
             identifier += 2**k
-        else:
-            print((k, (i3, j)), " -> white")
+            #~ print((k, (i3, j)), " -> black")
+        #~ else:
+            #~ print((k, (i3, j)), " -> white")
     #~ color2debug()
     # Nota: If necessary (although this is highly unlikely !), one may extend protocol
     # by adding a second band (or more !), starting with a black square.
@@ -399,7 +402,7 @@ def scan_picture(filename, config):
     # if so, the second band will be joined with the first
     # (allowing 2**30 = 1073741824 different values), and so on.
 
-    print("Identification: %s" % identifier)
+    print("Identifier read: %s" % identifier)
 
     vpos = max(i1, i2, i3) + 2*square_size
 
@@ -426,8 +429,8 @@ def scan_picture(filename, config):
             print("Warning: several students names !")
         else:
             student_number = n_students - l.index(True) - 1
-            print("Student number: %s" % student_number)
             student_name = students[student_number]
+            print("Student name: %s" % student_name)
     else:
         print("No students list.")
 
@@ -446,6 +449,7 @@ def scan_picture(filename, config):
     i0, j0 = find_black_square(search_area, size=cell_size, error=0.3).__next__()
 
     # List of all answers grouped by question.
+    # (So answers will be a matrix, each line corresponding to a question.)
     answers = []
     j = j0
     for kj in range(n_questions):
@@ -456,7 +460,11 @@ def scan_picture(filename, config):
             i = int(round(i0 + (ki + 1)*f_cell_size))
             answers[-1].append(test_square_color(search_area, i, j, cell_size))
 
-    print("Answers:\n%s" % '\n'.join(str(a) for a in answers))
+    #~ print("Answers:\n%s" % '\n'.join(str(a) for a in answers))
+    print("Result of grid scanning:")
+    for question in zip(*answers):
+        print(' '.join(('■' if checked else '□') for checked in question))
+
 
     correct_answers = config['answers'][identifier]
 
@@ -469,16 +477,18 @@ def scan_picture(filename, config):
         # Nota: most of the time, there should be only one correct answer.
         # Anyway, this code intends to deal with cases where there are more
         # than one correct answer too.
-        # If mode is set to 'all', student must check *all* correct propositions,
-        # if not answer will be considered as incorrect. But if mode is set to
+        # If mode is set to 'all', student must check *all* correct propositions ;
+        # if not, answer will be considered incorrect. But if mode is set to
         # 'some', then student has only to check a subset of correct propositions
         # for his answer to be considered correct.
         proposed = {j for (j, b) in enumerate(proposed) if b}
         correct = set(correct)
+        #~ print("proposed:", proposed, "correct answers:", correct)
+        #~ input('-- pause --')
         if mode == 'all':
             ok = (correct == proposed)
         elif mode == 'some':
-            ok = proposed.issubset(correct)
+            ok = proposed and proposed.issubset(correct)
         else:
             raise RuntimeError('Invalid mode (%s) !' % mode)
         if ok:
@@ -497,62 +507,110 @@ def scan_picture(filename, config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Extract information from numerised tests.")
-    parser.add_argument('directory', help=("Path to a directory which must contain "
+    parser.add_argument('path', help=("Path to a directory which must contain "
                         "a .autoqcm.config file and a .scan.pdf file "
                         "(alternatively, this path may point to any file in this folder)."))
     args = parser.parse_args()
-    directory = abspath(expanduser(args.directory))
-    if not isdir(directory):
-        directory = dirname(directory)
-    if not isdir(directory):
-        raise FileNotFoundError('%s does not seem to be a directory !' % directory)
-    configfile = scanpdf = None
-    error_msg = ('Several `%s` file found in that directory ! '
-                'Keep one and delete all others (or rename their extensions).')
-    for name in listdir(directory):
-        if name.endswith('.autoqcm.config'):
-            if configfile is not None:
-                raise RuntimeError(error_msg % '.autoqcm.config')
-            configfile = joinpath(directory, name)
-        elif name.endswith('.scan.pdf'):
-            if scanpdf is not None:
-                raise RuntimeError(error_msg % '.scan.pdf')
-            scanpdf = joinpath(directory, name)
 
-    error_msg = 'No `%s` file found in that directory ! '
-    if configfile is None:
-        raise FileNotFoundError(error_msg % '.autoqcm.config')
-    if scanpdf is None:
-        raise FileNotFoundError(error_msg % '.scan.pdf')
 
-    # Read configuration file.
-    config = read_config(configfile)
-    print(config)
+    def search_by_extension(directory, ext):
+        names = [name for name in listdir(directory) if name.endswith(ext)]
+        if not names:
+            raise FileNotFoundError('No `%s` file found in that directory (%s) ! '
+                                    % (ext, directory))
+        elif len(names) > 1:
+            raise RuntimeError('Several `%s` file found in that directory (%s) ! '
+                'Keep one and delete all others (or rename their extensions).'
+                % (ext, directory))
+        return joinpath(directory, names[0])
 
-    # Extract all images from pdf.
-    with tempfile.TemporaryDirectory() as tmp_path:
-        #tmp_path = '/home/nicolas/.tmp/scan'
-        print(scanpdf, tmp_path)
-        print('Extracting all images from pdf, please wait...')
-        result = subprocess.run(["pdfimages", "-all", scanpdf, joinpath(tmp_path, 'pic')], stdout=subprocess.PIPE)
-        print(result.stdout)
-        print(result.stderr)
-        scores = {}
-        for pic in sorted(listdir(tmp_path)):
-            print(pic)
-            # Extract data from image
-            data = scan_picture(joinpath(tmp_path, pic), config)
-            name, score = data[2:]
-            scores[name] = score
-            print(data)
+    if args.path.endswith('.png'):
+        # This is used for debuging (it allows to test pages one by one).
+        configfile = search_by_extension(dirname(args.path), '.autoqcm.config')
+        config = read_config(configfile)
+        print(config)
+        data = scan_picture(abspath(expanduser(args.path)), config)
+        print(data)
 
-    # Generate CSV file with results.
-    csvname = scanpdf[:-9] + '.scores.csv'
-    with open(csvname, 'w', newline='') as csvfile:
-        writerow = csv.writer(csvfile).writerow
-        for name in sorted(scores):
-            writerow([name, scores[name]])
+    else:
+        # This is the usual case: tests are stored in only one big pdf file ;
+        # we will process all these pdf pages.
 
+        # First, detect pdf file.
+        # NB: file extension must be `.scan.pdf`.
+        directory = abspath(expanduser(args.path))
+        if not isdir(directory):
+            directory = dirname(directory)
+            if not isdir(directory):
+                raise FileNotFoundError('%s does not seem to be a directory !' % directory)
+        scanpdf = search_by_extension(directory, '.scan.pdf')
+
+
+        # Read configuration file.
+        configfile = search_by_extension(directory, '.autoqcm.config')
+        config = read_config(configfile)
+        #~ print(config)
+
+        # Extract all images from pdf.
+        with tempfile.TemporaryDirectory() as tmp_path:
+            #tmp_path = '/home/nicolas/.tmp/scan'
+            print(scanpdf, tmp_path)
+            print('Extracting all images from pdf, please wait...')
+            result = subprocess.run(["pdfimages", "-all", scanpdf, joinpath(tmp_path, 'pic')], stdout=subprocess.PIPE)
+            scores = {}
+            all_data = []
+            for pic in sorted(listdir(tmp_path)):
+                print('-------------------------------------------------------')
+                #~ print(pic)
+                # Extract data from image
+                data = scan_picture(joinpath(tmp_path, pic), config)
+                all_data.append(data)
+                name, score = data[2:]
+                if name in scores:
+                    raise RuntimeError('2 tests for same student (%s) !' % name)
+                scores[name] = score
+                print("Score: %s/%s" % (data[3], len(data[1])))
+
+
+        # Generate CSV file with results.
+        print(scores)
+        csvname = scanpdf[:-9] + '.scores.csv'
+        with open(csvname, 'w', newline='') as csvfile:
+            writerow = csv.writer(csvfile).writerow
+            for name in sorted(scores):
+                writerow([name, scores[name]])
+
+
+
+        # Generate pdf files, with the score and the table of correct answers for each test.
+
+        # First, generate the syntax tree once.
+        filename = search_by_extension(directory, '.ptyx')
+        compiler.read_file(filename)
+        compiler.call_extensions()
+        compiler.generate_syntax_tree()
+
+        # Since there is only one pass (we generate only the answers, not the blank test),
+        # autoqcm_data['answers'] will not be filled automatically at the end of the first pass.
+        # So, we have to provide it manually (but fortunately, it has been saved in config).
+        compiler.latex_generator.autoqcm_data['answers'] = config['answers']
+
+        # Now, let's generate each pdf.
+        pdfnames = []
+        for identifier, answers, name, score in all_data:
+            output_name = '%s-%s-corr-score' % (filename[:-5], identifier)
+            pdfnames.append(output_name)
+            make_file(output_name, context={'NUM': identifier,
+                                'AUTOQCM__SCORE_FOR_THIS_STUDENT': score,
+                                'AUTOQCM__MAX_SCORE': len(answers),
+                                'AUTOQCM__STUDENT_NAME': name,
+                                'WITH_ANSWERS': True},
+                                remove=True,
+                                formats=['pdf'],
+                                )
+
+        output_name = '%s-corr-score' % filename[:-5]
+        join_files(output_name, pdfnames, remove_all=True, compress=True)
         #~ input('-pause-')
 
 

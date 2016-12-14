@@ -93,7 +93,8 @@ class AutoQCMTags(object):
 
     def _parse_AUTOQCM_HEADER_tag(self, node):
         n = self.context['NUM']
-        self.write(generate_identification_band(identifier=n))
+        full=('AUTOQCM__SCORE_FOR_THIS_STUDENT' not in self.context)
+        self.write(generate_identification_band(identifier=n, full=full))
 
     def _parse_DEBUG_AUTOQCM_tag(self, node):
         ans = self.autoqcm_correct_answers

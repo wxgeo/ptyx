@@ -6,7 +6,7 @@ from .parameters import SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM
 
 
 
-def generate_identification_band(identifier):
+def generate_identification_band(identifier, full=True):
     """Generate top banner of the page to be scanned later.
 
     `identifier` is the integer which identifies the sheet.
@@ -20,15 +20,22 @@ def generate_identification_band(identifier):
 
     # Two top squares to calibrate and identification band between them
 
-    # Top left square.
-    write(r"""\begin{{tikzpicture}}[scale={scale}]
-        \draw[fill=black] (0,0) rectangle (1,1);
-        \end{{tikzpicture}}""".format(scale=SQUARE_SIZE_IN_CM))
+    if full:
+        # Top left and top right squares.
+        write(r"""\begin{{tikzpicture}}[scale={scale}]
+            \draw[fill=black] (0,0) rectangle (1,1);
+            \draw[fill=black] (\linewidth/{scale}-28.45274,0) rectangle (\linewidth/{scale},1);
+            \end{{tikzpicture}}
+            \vspace{{-{scale}cm}}
+
+            """.format(scale=SQUARE_SIZE_IN_CM))
 
     # Identification band
     write(r"""\hfill
         \begin{{tikzpicture}}[scale={scale}]
-        \draw[fill=black] (-1,0) rectangle (0,1);""".format(scale=SQUARE_SIZE_IN_CM))
+        \draw[fill=black] (-1,0) rectangle (0,1);
+
+        """.format(scale=SQUARE_SIZE_IN_CM))
 
     n = identifier
     for i in range(15):
@@ -38,21 +45,74 @@ def generate_identification_band(identifier):
 
     write(r"""\draw (15, .5) node [right] {{\tiny{identifier}}};
         \end{{tikzpicture}}
-        \hfill""".format(**locals()))
+        \hfill\hfil""".format(**locals()))
 
-    # Top right square.
-    write(r"""\begin{{tikzpicture}}[scale={scale}]
-        \draw[fill=black] (0,0) rectangle (1,1);
-        \end{{tikzpicture}}
-        """.format(scale=SQUARE_SIZE_IN_CM))
+    #~ # Top right square.
+    #~ write(r"""\begin{{tikzpicture}}[scale={scale}]
+
+        #~ \end{{tikzpicture}}
+        #~ """.format(scale=SQUARE_SIZE_IN_CM))
 
     # Header delimiter.
 
-    write(r"""
+    if full:
+        write(r"""
         \vspace{-.5em}
         \begin{scriptsize}\hfill\textsc{Ne rien écrire ci-dessus.}\hfill\hfill\hfill\textsc{Ne rien écrire ci-dessus.}\hfill\hfil\end{scriptsize}
         """)
     return '\n'.join(content)
+
+
+
+def generate_students_list(csv_path='', _n_student=None):
+    """Generate a list of all students, where student can check his name.
+
+    `csv_path` is the path of the CSV file who contains students names.
+    `_n_student` is used to prefilled the table (for debuging).
+    """
+    students = []
+    if not csv_path:
+        return '', []
+    try:
+        content = []
+        content.append(r'''
+            #ASK_ONLY
+            \vspace{-1em}
+            \begin{center}
+            \begin{tikzpicture}[scale=.25]
+            \draw [fill=black] (-2,0) rectangle (-1,1) (-1.5,0) node[below] {\tiny\rotatebox{-90}{\texttt{\textbf{Cochez le nom}}}};''')
+        # Read CSV file and generate list of students name.
+        with open(csv_path) as f:
+            for row in csv.reader(f):
+                name = ' '.join(item.strip() for item in row)
+                students.append(name)
+
+        # Generate the corresponding names table in LaTeX.
+        for i, name in enumerate(reversed(students)):
+            # Troncate long names.
+            if len(name) >= 15:
+                _name = name[:13].strip()
+                if " " not in name[12:13]:
+                    _name += "."
+                name = _name
+            a = 2*i
+            b = a + 1
+            c = a + 0.5
+            color = ('black' if _n_student == len(students) - i else 'white')
+            content.append(r'''\draw[fill={color}] ({a},0) rectangle ({b},1) ({c},0) node[below]
+                {{\tiny \rotatebox{{-90}}{{\texttt{{{name}}}}}}};'''.format(**locals()))
+        b += 1
+        content.append(r'''\draw[rounded corners] (-3,2) rectangle ({b}, -6.5);
+            \draw[] (-0.5,2) -- (-0.5,-6.5);
+            \end{{tikzpicture}}
+            \end{{center}}
+            #END
+            \vspace{{-1em}}
+            '''.format(**locals()))
+    except FileNotFoundError:
+        print("Warning: `%s` not found." % csv_path)
+        return '', []
+    return '\n'.join(content), students
 
 
 
@@ -126,7 +186,6 @@ def generate_table_for_answers(questions, answers, introduction='', options={}):
     # Generate the table where students will answer.
     scale = CELL_SIZE_IN_CM
     write(r"""
-        \simfill
         \vspace{{.5em}}
 
         {introduction}
@@ -184,6 +243,7 @@ def generate_tex(text):
     content = [r"""\documentclass[a4paper,10pt]{article}
         \usepackage[utf8]{inputenc}
         \usepackage[document]{ragged2e}
+        \usepackage{nopageno}
         \usepackage{tikz}
         \usepackage[left=1cm,right=1cm,top=1cm,bottom=1cm]{geometry}
         \parindent=0cm
@@ -219,12 +279,29 @@ def generate_tex(text):
     if m:
         csv_path = m.group(1).strip()
         code, students_list = generate_students_list(csv_path)
-        content.append('#ASK')
+        content.append('#ASK_ONLY')
         content.append(code)
         content.append('#END')
     else:
         print("Warning: no student list provided (or incorrect syntax), ignoring...")
 
+    content.append("#IF{'AUTOQCM__SCORE_FOR_THIS_STUDENT' in dir()}")
+    content.append(r"""
+        \begin{Large}\textsc{#{AUTOQCM__STUDENT_NAME}}\end{Large}
+
+        \hfill\begin{tikzpicture}
+        \node[draw,very thick,rectangle, rounded corners,red!70!black] (0,0) {
+        \begin{Large}
+        Score~: #{AUTOQCM__SCORE_FOR_THIS_STUDENT}/#{AUTOQCM__MAX_SCORE}
+        \end{Large}};
+        \end{tikzpicture}
+
+        Solution~:
+        \medskip
+        """)
+    content.append('#ELSE')
+    content.append(r'\simfill')
+    content.append('#END')
 
     content.append('<--Table for answers-->') # To be filled later with table for answers.
     # (Dimensions are not known for now.)
@@ -240,18 +317,21 @@ def generate_tex(text):
     mode_qcm = group_opened = question_opened = has_groups = has_qcm =False
     lastline = None
 
-    intro = []
+    content.append("#IF{'AUTOQCM__SCORE_FOR_THIS_STUDENT' not in dir()}")
+
+    intro = ['#ASK_ONLY']
 
     for _line_ in text.split('\n'):
         line = _line_.lstrip()
         if not mode_qcm:
             # -------------------- STARTING QCM ------------------------
             if line.startswith('<<') and not line.strip('< '):
+                # Close introduction.
+                intro.append('#END')
                 # Start of Multiple Choice Questions.
                 mode_qcm = has_qcm = True
                 # Shuffles QCM sections.
                 content.append('#NEW_QCM')
-
             elif has_qcm:
                 content.append(_line_)
             else:
@@ -392,6 +472,8 @@ def generate_tex(text):
         content.append('#END')
     i = content.index('<--Table for answers-->')
     content[i] = generate_table_for_answers(question_number, n_answers, introduction='\n'.join(intro))
+    # This '#END' refer to '#IF{'AUTOQCM__SCORE_FOR_THIS_STUDENT' in dir()}'.
+    content.append('#END')
     content.append(r"\end{document}")
     return '\n'.join(content), students_list, question_number, n_answers
 
