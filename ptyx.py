@@ -24,14 +24,14 @@
 
 from __future__ import division, unicode_literals, absolute_import, print_function
 
-__version__ = "4.1"
+__version__ = "4.2"
 # API version number changes only when backward compatibility is broken.
-__api__ = "4.1"
-__release_date__ = (9, 12, 2016)
+__api__ = "4.2"
+__release_date__ = (14, 12, 2016)
 
 
 
-import optparse, re, random, os, sys, codecs, csv, math
+import argparse, re, random, os, sys, codecs, csv, math
 #from math import ceil, floor, isnan, isinf
 
 
@@ -106,18 +106,10 @@ global_context['many'] = randfunc.many
 # If a document is compiled several times (to produce different versions of the same document),
 # NUM is the compilation number (starting from 0).
 global_context['NUM'] = 0
-
-
-
-
-
 global_context['latex'] = print_sympy_expr
 
 #if sympy is not None:
 #    sympy.Basic.__str__ = print_sympy_expr
-
-
-
 
 
 
@@ -261,114 +253,131 @@ def tree2strlist(tree, shuffle=False, answer=False):
 
 
 if __name__ == '__main__':
-
-    print('Ptyx ' + __version__ + ' ' + '/'.join(str(d) for d in __release_date__))
+    #~ print('Ptyx ' + __version__ + ' ' + '/'.join(str(d) for d in __release_date__))
 
     # Options parsing
-    parser = optparse.OptionParser(prog = "Ptyx",
-            usage = "usage: %prog [options] filename",
-            version = "%prog " + __version__)
-    parser.add_option("-n", "--number",
-            help = "Number of pdf files to generate.\n \
-                   Ex: ptyx -n 5 my_file.ptyx")
-    #~ parser.add_option("-o", "--output", help = "Name of the output file (without extension).")
-    parser.add_option("-f", "--format",
-            help = "Output format (default is "
-                   + '+'.join(param['format'])
-                   + ").\nEx: ptyx -f tex my_file.ptyx")
-    parser.add_option("-r", "--remove", action = "store_true",
-            help = "Remove any generated .log and .aux file after compilation.\n \
-                    Note that references in LaTeX code could be lost.")
-    parser.add_option("-R", "--remove-all", action = "store_true",
-            help = "Remove any generated .log and .aux file after compilation.\n \
+    parser = argparse.ArgumentParser(prog='pTyX',
+            description='Compile .ptyx files into .tex or .pdf files.',
+            usage="usage: %(prog)s [options] filename")
+
+    parser.add_argument("filenames", nargs='+')
+
+    parser.add_argument("-n", "--number", type=int,
+            help="Number of pdf files to generate. Default is %s.\n \
+                   Ex: ptyx -n 5 my_file.ptyx" % param['total']
+                   )
+    parser.add_argument("-f", "--formats", default='+'.join(param['formats']),
+            choices=['pdf', 'tex', 'pdf+tex', 'tex+pdf'],
+            help="Output format. Default is %(default)s.\n"
+                   "Ex: ptyx -f tex my_file.ptyx"
+                   )
+    parser.add_argument("-r", "--remove", action="store_true",
+            help="Remove any generated .log and .aux file after compilation.\n \
+                    Note that references in LaTeX code could be lost."
+                    )
+    parser.add_argument("-R", "--remove-all", action="store_true",
+            help="Remove any generated .log and .aux file after compilation.\n \
                     If --cat option or --compress option is used, remove also \
-                    all pdf files, except for the concatenated one.")
-    parser.add_option("-m", "--make-directory", action = "store_true",
-            help = "Create a new directory to store all generated files.")
-    parser.add_option("-a", "--auto-make-dir", action = "store_true",
-            help = "Switch to --make-directory mode, except if .ptyx file \
+                    all pdf files, except for the concatenated one."
+                    )
+    parser.add_argument("-m", "--make-directory", action="store_true",
+            help="Create a new directory to store all generated files."
+                    )
+    parser.add_argument("-a", "--auto-make-dir", action="store_true",
+            help="Switch to --make-directory mode, except if .ptyx file \
                    is already in a directory with the same name \
-                   (e.g. myfile123/myfile123.ptyx).")
-    parser.add_option("-b", "--debug", action="store_true",
-            help = "Debug mode.")
-    parser.add_option("-q", "--quiet", action="store_true",
-            help = "Suppress most of latex processor output.")
-    parser.add_option("-s", "--start", default=1,
-            help = "Number of the first generated file \
-                   (initial value of internal NUM counter). Default is 1.")
-    parser.add_option("-c", "--cat", action = "store_true",
-            help = "Cat all generated pdf files inside a single one. \
-                   The pdftk command must be installed.")
-    parser.add_option("-C", "--compress", action="store_true",
-            help = "Like --cat, but compress final pdf file using pdf2ps and ps2pdf.")
-    parser.add_option("--reorder-pages",
-            help = "Reorder pages for printing.\n\
+                   (e.g. myfile123/myfile123.ptyx)."
+                   )
+    parser.add_argument("-b", "--debug", action="store_true",
+            help="Debug mode."
+                    )
+    parser.add_argument("-q", "--quiet", action="store_true",
+            help="Suppress most of latex processor output."
+                    )
+    parser.add_argument("-s", "--start", default=1, type=int,
+            help="Number of the first generated file \
+                   (initial value of internal NUM counter). Default is %(default)s."
+                   )
+    parser.add_argument("-c", "--cat", action="store_true",
+            help="Cat all generated pdf files inside a single one. \
+                   The pdftk command must be installed."
+                   )
+    parser.add_argument("-C", "--compress", action="store_true",
+            help="Like --cat, but compress final pdf file using pdf2ps and ps2pdf."
+                    )
+    parser.add_argument("--reorder-pages", choices=['brochure', 'brochure-reversed'],
+            help="Reorder pages for printing.\n\
             Currently, only 'brochure' and 'brochure-reversed' mode are supported.\
-            The pdftk command must be installed.\
-            Ex: ptyx --reorder-pages=brochure-reversed -f pdf myfile.ptyx.")
-    parser.add_option("--names",
-            help = "Name of a CSV file containing a column of names \
+            The pdftk command must be installed.\n\
+            Ex: ptyx --reorder-pages=brochure-reversed -f pdf myfile.ptyx."
+            )
+    parser.add_argument("--names", metavar='CSV_FILE',
+            help="Name of a CSV file containing a column of names \
                    (and optionnaly a second column with fornames). \n \
                    The names will be used to generate the #NAME tag \
                    replacement value.\n \
                    Additionnaly, if `-n` option is not specified, \
-                   default value will be the number of names in the CSV file.")
-    parser.add_option("--generate-batch-for-windows-printing", action = "store_true",
-            help = "Generate a batch file for printing all pdf files using SumatraPDF.")
+                   default value will be the number of names in the CSV file."
+                   )
+    parser.add_argument("--generate-batch-for-windows-printing", action="store_true",
+            help="Generate a batch file for printing all pdf files using SumatraPDF."
+            )
+    parser.add_argument("--context", default='',
+            help="Manually customize context (ie. internal namespace).\n \
+                   Ex: ptyx --context \"a = 3; b = 2; t = 'hello'\""
+                   )
+    parser.add_argument("--version", action='version', version='%(prog)s ' +
+                        '%s (%s/%s/%s)' % ((__version__,) + __release_date__))
+
+    options = parser.parse_args()
+
 
     # First, parse all arguments (filenames, options...)
     # --------------------------------------------------
+
+    if options.remove_all:
+        options.remove = True
+
+    options.formats = options.formats.split('+')
+
+    if options.compress or options.cat:
+        # pdftk and ghostscript must be installed.
+        if 'pdf' not in options.formats:
+            raise RuntimeError("--cat or --compress option invalid unless pdf output is selected.")
+
+    if options.debug:
+        param['debug'] = True
+
+    if options.names:
+        with open(pth(options.names)) as f:
+            options.names = [' '.join(l) for l in csv.reader(f)]
+            print('Names extracted from CSV file:')
+            print(options.names)
+    else:
+        options.names = []
+
+    if options.number is None:
+        options.number = len(options.names) or param['total']
+
+    ctxt = options.context
+    options.context = {}
+    for keyval in ctxt.split(';'):
+        if keyval.strip():
+            key, val = keyval.split('=')
+            # TODO:
+            # - test if key is a valid variable name.
+            # - replace eval() by (basic) type detection and appropriate conversion (using int(), float(), etc.)
+            options.context[key.strip()] = eval(val)
+
+
+    # Time to act ! Let's compile all ptyx files...
+    # ---------------------------------------------
 
     # Limit seeds, to be able to retrieve seed manually if needed.
     seed_value = random.randint(0, 100000)
     random.seed(seed_value)
 
-    options, args = parser.parse_args()
-
-    options.remove = options.remove or options.remove_all
-
-    formats = options.format.split('+') if options.format else param['format']
-    if options.debug:
-        param['debug'] = True
-
-    start = int(options.start)
-
-    total = options.number
-
-    if options.names:
-        with open(pth(options.names)) as f:
-            names = [' '.join(l) for l in csv.reader(f)]
-            print('Names extracted from CSV file:')
-            print(names)
-        total = (int(total) if total else len(names))
-    else:
-        total = (int(total) if total else param['total'])
-        names = []
-
-    global_context['TOTAL'] = options.number = total
-
-    #~ output = options.output if options.output else 'newfile'
-
-    # On Unix-like OS, spaces in arguments are strangely managed by Python.
-    # For example, "my file.ptyx" would be split in "my" and "file.ptyx", even if written between ' or ".
-    arguments = []
-    full = True
-    for arg in args:
-        if full:
-            arguments.append(arg)
-        else:
-            arguments[-1] += " " + arg
-        full = arg.endswith(".ptyx") or arg.endswith('.tex')
-
-    if not arguments:
-        print("Warning: no input.\nType 'ptyx --help' for more info.")
-
-    make_tex = ('tex' in formats)
-
-    # Time to act ! Let's compile all ptyx files...
-    # ---------------------------------------------
-
-    for input_name in arguments:
+    for input_name in options.filenames:
         # Read pTyX file.
         input_name = pth(input_name)
         compiler.read_file(input_name)
@@ -390,7 +399,7 @@ if __name__ == '__main__':
         compiler.generate_syntax_tree()
 
         # Compile and generate output files (tex or pdf)
-        filenames, output_name = make_files(options, start, names, make_tex, formats)
+        filenames, output_name = make_files(input_name, **vars(options))
 
         # Keep track of the seed used.
         context = compiler.latex_generator.context
@@ -410,16 +419,20 @@ if __name__ == '__main__':
                                       % os.path.basename(f) for f in filenames))
 
         # Join different versions in a single pdf, and compress if asked to.
-        join_files(output_name, filenames, seed_file_name, formats, options)
+        opt = dict(vars(options))
+        opt['filenames'] = filenames
+        opt['seed_file_name'] = seed_file_name
+        join_files(output_name, **opt)
 
         # Do the same for the version with the answers.
 
         tags = compiler.state['syntax_tree'].tags
         if 'ANS' in tags or 'ANSWER' in tags:
-            filenames, output_name = make_files(options, start, names, make_tex, formats, correction=True)
+            filenames, output_name = make_files(input_name, correction=True, **vars(options))
 
             # Join different versions in a single pdf, and compress if asked to.
-            join_files(output_name, filenames, seed_file_name, formats, options)
+            opt['filenames'] = filenames
+            join_files(output_name, **opt)
 
             if options.generate_batch_for_windows_printing:
                 bat_file_name = os.path.join(os.path.dirname(output_name), 'print_corr.bat')

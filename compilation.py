@@ -41,15 +41,17 @@ def execute(string, quiet=False):
 
 
 
-def make_files(options, start, names, make_tex, formats, correction=False):
-    input_name = compiler.state['path']
+def make_files(input_name, correction=False, **options):
+    formats = options.get('formats', param['formats'])
+    names = options.get('names', [])
+
     # Choose output names
     os.chdir(os.path.split(input_name)[0])
     if input_name.endswith('.ptyx'):
         output_name = input_name[:-5]
     elif input_name.endswith('.tex'):
         output_name = input_name[:-4]
-        if make_tex:
+        if 'tex' in formats:
             output_name += '_'
         # the trailing _ avoids name conflicts with the .tex file generated
     else:
@@ -64,10 +66,10 @@ def make_files(options, start, names, make_tex, formats, correction=False):
         head += '-corr'
         tail += '-corr'
 
-    if options.auto_make_dir:
+    if options.get('auto_make_dir'):
         # Test if the .ptyx file is already in a directory with same name.
-        options.make_directory = (os.path.split(head)[1] != tail)
-    if options.make_directory:
+        options['make_directory'] = (os.path.split(head)[1] != tail)
+    if options.get('make_directory'):
         # Create a directory with the same name than the .ptyx file,
         # which will contain all generated files.
         if not os.path.isdir(tail):
@@ -76,143 +78,137 @@ def make_files(options, start, names, make_tex, formats, correction=False):
 
         print(output_name)
 
-
-
     filenames = []
-    for num in range(start, start + options.number):
+    start = options.get('start', 1)
+    n = options.get('number', param['total'])
+    for num in range(start, start + n):
         if names:
             name = names[num - 1]
             filename = '%s-%s' % (output_name, name)
         else:
             name = ''
-            filename = ('%s-%s' % (output_name, num) if options.number > 1
+            filename = ('%s-%s' % (output_name, num) if n > 1
                         else output_name)
         #~ filename = filename.replace(' ', '\ ')
         filenames.append(filename)
 
         # Output is redirected to a .log file
         sys.stdout = sys.stderr = CustomOutput((filename + '-python.log')
-                                              if not options.remove else '')
-        make_file(filename, make_tex_file=make_tex, \
-                    make_pdf_file=('pdf' in formats), options=options,
-                    WITH_ANSWERS=correction, NUM=num, NAME=name,
-                    )
+                                              if not options.get('remove') else '')
+        options.setdefault('context', {})
+        options['context'].update(WITH_ANSWERS=correction, NUM=num, NAME=name,
+                                  TOTAL=n)
+        make_file(filename, **options)
 
     return filenames, output_name
 
 
 
-def make_file(output_name, make_tex_file=False,
-                 make_pdf_file=True, options=None, **context):
-    remove = getattr(options, 'remove', False)
-    quiet = getattr(options, 'quiet', False)
+def _compile_latex_file(filename, dest=None, quiet=False):
+    # By default, pdflatex use current directory as destination folder.
+    # However, much of the time, we want destination folder to be the one
+    # where the tex file was found.
+    if dest is None:
+        dest = os.path.dirname(filename)
+    if quiet:
+        command = param['quiet_tex_command']
+    else:
+        command = param['tex_command']
+    command += ' -output-directory "%s" "%s"' % (dest, filename)
+    log = execute(command)
+    # Run command twice if references were found.
+    if 'Rerun to get cross-references right.' in log or \
+       'There were undefined references.' in log:
+        log = execute(command)
 
-    dir_name = os.path.split(output_name)[0]
-    extra = (('-output-directory "%s"' % dir_name) if dir_name else '')
+
+def make_file(output_name, **options):
+    context = options.get('context', {})
+    context.setdefault('NUM', 1)
+    context.setdefault('TOTAL', 1)
+
+    remove = options.get('remove')
+    quiet = options.get('quiet')
+    formats = options.get('formats', param['formats'])
     latex = compiler.generate_latex(**context)
 
-    def compile_latex_file(filename):
-        if quiet:
-            command = param['quiet_tex_command']
-        else:
-            command = param['tex_command']
-        command += ' %s "%s"' % (extra, filename)
-        log = execute(command)
-        # Run command twice if references were found.
-        if 'Rerun to get cross-references right.' in log or \
-           'There were undefined references.' in log:
-            log = execute(command)
-
-    if make_tex_file:
+    if 'tex' in formats:
         with open(output_name + '.tex', 'w') as texfile:
             texfile.write(latex)
-            if make_pdf_file:
+            if 'pdf' in formats:
                 texfile.flush()
-                compile_latex_file(texfile.name)
+                _compile_latex_file(texfile.name, quiet=quiet)
                 if remove:
                     for extension in ('aux', 'log', 'out'):
                         name = '%s.%s' % (output_name, extension)
                         if os.path.isfile(name):
                             os.remove(name)
     else:
-        texfile = None
-        try:
-            texfile = tempfile.NamedTemporaryFile(suffix='.tex')
-            texfile.write(latex.encode('utf8'))
-            if make_pdf_file:
-                tmp_name  = os.path.split(texfile.name)[1][:-4] # without .tex extension
-                tmp_names = {}
-                output_names = {}
-                for extension in ('pdf', 'log', 'aux', 'out'):
-                    tmp_names[extension] = '%s.%s' % (tmp_name, extension)
-                    output_names[extension] = '%s.%s' % (output_name, extension)
+        # FIXME: this portion of code doesn't seem to work anymore.
+        # Anyway, it would be much better to use a temporary directory,
+        # and then to move wanted file from there to working directory.
+        assert 'pdf' in formats
+
+        with tempfile.TemporaryDirectory() as tmp_path:
+            tmp_name = os.path.join(tmp_path, os.path.basename(output_name))
+            with open(tmp_name + '.tex', 'w') as texfile:
+                texfile.write(latex)
                 texfile.flush()
-                compile_latex_file(texfile.name)
-                os.rename(tmp_names['pdf'], output_names['pdf'])
-                for extension in ('log', 'aux', 'out'):
-                    if os.path.isfile(tmp_names[extension]):
-                        if remove:
-                            os.remove(tmp_names[extension])
-                        else:
-                            os.rename(tmp_names[extension], output_names[extension])
-        finally:
-            if texfile is not None:
-                texfile.close()
+                _compile_latex_file(texfile.name, quiet=quiet)
+            shutil.move(tmp_name + '.pdf', output_name + '.pdf')
 
 
-
-def join_files(output_name, filenames, seed_file_name, formats, options):
+def join_files(output_name, filenames, seed_file_name=None, **options):
     "Join different versions in a single pdf, then compress it if asked to."
-    if options.compress or (options.cat and options.number > 1):
+    number = len(filenames)
+    if options.get('compress') or (options.get('cat') and number > 1):
         # pdftk and ghostscript must be installed.
-        if not ('pdf' in formats):
-            print("Warning: --cat or --compress option meaningless if pdf output isn't selected.")
-        else:
-            filenames = [filename + '.pdf' for filename in filenames]
-            pdf_name = output_name + '.pdf'
-            if options.number > 1:
-                files = ' '.join('"%s"' % filename for filename in filenames)
-                print('Pdftk output:')
-                print(execute('pdftk %s output "%s"' % (files, pdf_name)))
-                if options.remove_all:
-                    for name in filenames:
-                        os.remove(name)
-            if options.compress:
-                temp_dir = tempfile.mkdtemp()
-                compressed_pdf_name = os.path.join(temp_dir, 'compresse.pdf')
-                command = \
-                    """command pdftops \
-                    -paper match \
-                    -nocrop \
-                    -noshrink \
-                    -nocenter \
-                    -level3 \
-                    -q \
-                    "%s" - \
-                    | command ps2pdf14 \
-                    -dEmbedAllFonts=true \
-                    -dUseFlateCompression=true \
-                    -dProcessColorModel=/DeviceCMYK \
-                    -dConvertCMYKImagesToRGB=false \
-                    -dOptimize=true \
-                    -dPDFSETTINGS=/prepress \
-                    - "%s" """ % (pdf_name, compressed_pdf_name)
-                os.system(command)
-                old_size = os.path.getsize(pdf_name)
-                new_size = os.path.getsize(compressed_pdf_name)
-                if new_size < old_size:
-                    shutil.copyfile(compressed_pdf_name, pdf_name)
-                    print('Compression ratio: {0:.2f}'.format(old_size/new_size))
-                else:
-                    print('Warning: compression failed.')
+        filenames = [filename + '.pdf' for filename in filenames]
+        pdf_name = output_name + '.pdf'
+        if number > 1:
+            files = ' '.join('"%s"' % filename for filename in filenames)
+            print('Pdftk output:')
+            print(execute('pdftk %s output "%s"' % (files, pdf_name)))
+            if options.get('remove_all'):
+                for name in filenames:
+                    os.remove(name)
+        if options.get('compress'):
+            temp_dir = tempfile.mkdtemp()
+            compressed_pdf_name = os.path.join(temp_dir, 'compresse.pdf')
+            command = \
+                """command pdftops \
+                -paper match \
+                -nocrop \
+                -noshrink \
+                -nocenter \
+                -level3 \
+                -q \
+                "%s" - \
+                | command ps2pdf14 \
+                -dEmbedAllFonts=true \
+                -dUseFlateCompression=true \
+                -dProcessColorModel=/DeviceCMYK \
+                -dConvertCMYKImagesToRGB=false \
+                -dOptimize=true \
+                -dPDFSETTINGS=/prepress \
+                - "%s" """ % (pdf_name, compressed_pdf_name)
+            os.system(command)
+            old_size = os.path.getsize(pdf_name)
+            new_size = os.path.getsize(compressed_pdf_name)
+            if new_size < old_size:
+                shutil.copyfile(compressed_pdf_name, pdf_name)
+                print('Compression ratio: {0:.2f}'.format(old_size/new_size))
+            else:
+                print('Warning: compression failed.')
+            if seed_file_name is not None:
                 temp_dir = tempfile.mkdtemp()
                 pdf_with_seed = os.path.join(temp_dir, 'with_seed.pdf')
                 execute('pdftk "%s" attach_files "%s" output "%s"' % (pdf_name, seed_file_name, pdf_with_seed))
                 shutil.copyfile(pdf_with_seed, pdf_name)
-    if options.reorder_pages:
+    if options.get('reorder_pages'):
         # Use pdftk to detect how many pages has the pdf document.
         n = int(execute('pdftk %s dump_data output | grep -i NumberOfPages:' % pdf_name).strip().split()[-1])
-        mode = options.reorder_pages
+        mode = options.get('reorder_pages')
         if mode == 'brochure':
             if n%4:
                 raise RuntimeError('Page number is %s, but must be a multiple of 4.' % n)
