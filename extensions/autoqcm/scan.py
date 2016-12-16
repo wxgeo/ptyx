@@ -598,7 +598,7 @@ if __name__ == '__main__':
         # Now, let's generate each pdf.
         pdfnames = []
         for identifier, answers, name, score in all_data:
-            output_name = '%s-%s-corr-score' % (filename[:-5], identifier)
+            output_name = '%s-%s-corr.score' % (filename[:-5], identifier)
             pdfnames.append(output_name)
             make_file(output_name, context={'NUM': identifier,
                                 'AUTOQCM__SCORE_FOR_THIS_STUDENT': score,
@@ -609,14 +609,18 @@ if __name__ == '__main__':
                                 formats=['pdf'],
                                 )
 
-        output_name = '%s-corr-score' % filename[:-5]
+        output_name = '%s-corr.SCORE' % filename[:-5]
         join_files(output_name, pdfnames, remove_all=True, compress=True)
-        #~ input('-pause-')
+
+        print('\nPREPARING TO PRINT SCORES...')
+        print("Insert test papers in printer (to print score and solutions on other side).")
+        for i, (identifier, answers, name, score) in enumerate(all_data):
+            print('Student:', name, '(subject number: %s)' % identifier)
+            input('-pause- (Press ENTER to process, CTRL^C to quit)')
+            subprocess.run(["lp", "-P %s" % (i + 1), "-o sides=one-sided",
+                            "%s.pdf" % output_name], stdout=subprocess.PIPE)
 
 
-
-
-        #TODO: if image format is multipage PDF, use `pdfimages -all` to extract images from it.
 
 #m = lire_image("carres.pbm")
 #print(detect_all_squares(m, size=15))
