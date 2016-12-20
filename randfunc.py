@@ -58,33 +58,51 @@ def set_seed(value):
     random.seed(value)
     _RANDOM_STATE = random.getstate()
 
+
 @sandboxed
 def randint(a=None, b=None, exclude=(), maximum=100000):
     if b is None:
         b = (9 if a is None else a)
         a = 2
-    count = 0
-    while count < maximum:
+    while a in exclude:
+        a += 1
+        if a > b:
+            raise ValueError("Can't statisfy constraints !")
+    while b in exclude:
+        b -= 1
+        if a > b:
+            raise ValueError("Can't statisfy constraints !")
+    while True:
         val = random.randint(a, b)
         if val not in exclude:
             break
-        count += 1
-    else:
-        raise RuntimeError("Can't satisfy constraints !")
     if param['sympy_is_default']:
         val = S(val)
     return val
 
+
+
 @sandboxed
 def srandint(a=None, b=None, exclude=(), maximum=100000):
-    count = 0
-    while count < maximum:
+    if b is None:
+        b = (9 if a is None else a)
+        a = 2
+    while a in exclude and -a in exclude:
+        a += 1
+        if a > b:
+            raise ValueError("Can't statisfy constraints !")
+    while b in exclude and -b in exclude:
+        b -= 1
+        if a > b:
+            raise ValueError("Can't statisfy constraints !")
+    while True:
         val = (-1)**random.randint(0, 1)*randint(a, b)
         if val not in exclude:
             return val
-        count += 1
     else:
         raise RuntimeError("Can't satisfy constraints !")
+
+
 
 @sandboxed
 def randsign():
