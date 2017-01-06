@@ -64,7 +64,7 @@ class AutoQCMTags(object):
         self.autoqcm_data['answers'][n] = self.autoqcm_correct_answers
 
     def _parse_SCORES_tag(self, node):
-        arg = node.args(0)
+        arg = node.arg(0)
         vals = sorted(arg.split(), key=float)
         self.autoqcm_data['correct'] = vals[-1]
         assert 1 <= len(vals) <= 3, 'One must provide between 1 and 3 scores '\

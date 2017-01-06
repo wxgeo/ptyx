@@ -418,12 +418,12 @@ def generate_tex(text):
                     content.append('#SHUFFLE')
                 answer_number += 1
                 assert question_opened
-                content.append('#ITEM')
+                content.append('#ITEM%')
                 iscorrect = (line[0] == '+')
-                content.append('#NEW_ANSWER{%s}' % iscorrect)
+                content.append('#NEW_ANSWER{%s}' % iscorrect + '%')
                 # Add counter for each answer.
                 #char = chr(96 + answer_number)
-                content.append('\\stepcounter{answerNumber}')
+                content.append('\\stepcounter{answerNumber}%')
                 # When the pdf with solutions will be generated, incorrect answers
                 # will be preceded by a white square, while correct ones will
                 # be preceded by a gray one.
@@ -431,7 +431,7 @@ def generate_tex(text):
                     command = '\\graysquared'
                 else:
                     command = '#QUESTION{\\graysquared}#ANSWER{\\whitesquared}'
-                content.append('%s{\\alph{answerNumber}}~~\\mbox{%s}\\qquad\\linebreak[3]' % (command, line[2:]))
+                content.append('%s{\\alph{answerNumber}}~~\\mbox{%s}\\qquad\\linebreak[3]' % (command, line[2:]) + '%')
 
 
             # -------------------- ENDING QCM --------------------------

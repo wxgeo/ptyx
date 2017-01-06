@@ -248,9 +248,18 @@ def scan_picture(filename, config):
     """
 
     def color2debug(from_=None, to_=None, color=(255, 0, 0), display=True, _d={}):
-        """Display a red (by default) rectangle for debuging.
+        """Display picture with a red (by default) rectangle for debuging.
 
-        _d is used to store values between two runs, if display=False.
+        `from_` represent one corner of the red rectangle.
+        `to_` represent opposite corner of the red rectangle.
+
+        Usage: color2debug((0,0), (200,10), color=(255, 0, 255))
+
+        If you need to display `n` rectangles, call `color2debug()` with
+        `display=False` for the first `n-1` rectangles, and then with
+        `display=True` for the last rectangle.
+
+        `_d` is used internally to store values between two runs, if display=False.
         """
         if not _d.get('rgb'):
             _d['rgb'] = pic.convert('RGB')
@@ -370,8 +379,14 @@ def scan_picture(filename, config):
 
     # Restrict search area to avoid detecting anything else, like students names list.
     imin = i1 - square_size
-    imax = i1 + 2*square_size
-    i3, j3 = find_black_square(m[imin:imax,maxj:minj], size=square_size, error=0.3, mode='c').__next__()
+    imax = i1 + int(3.5*square_size)
+    try:
+        i3, j3 = find_black_square(m[imin:imax,maxj:minj], size=square_size, error=0.3, mode='c').__next__()
+    except StopIteration:
+        print("ERROR: Can't find identification band, displaying search area in red.")
+        color2debug((imin, minj), (imax, maxj))
+        raise RuntimeError("Can't find identification band !")
+
     i3 += imin
     j3 += maxj
     #~ print("Identification band starts at (%s, %s)" % (i3, j3))
