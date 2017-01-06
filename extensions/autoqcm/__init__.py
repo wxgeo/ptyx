@@ -52,6 +52,7 @@ One may include some PTYX code of course.
     """
 
 from .generate import generate_tex, generate_identification_band
+from .. import extended_python
 
 
 class AutoQCMTags(object):
@@ -105,6 +106,7 @@ class AutoQCMTags(object):
         self.write(ans)
 
 def main(text, compiler):
+    text = extended_python.main(text, compiler)
     # For efficiency, update only for last tag.
     compiler.add_new_tag('NEW_QCM', (0, 0, None), AutoQCMTags._parse_NEW_QCM_tag, 'autoqcm', update=False)
     compiler.add_new_tag('NEW_QUESTION', (0, 0, None), AutoQCMTags._parse_NEW_QUESTION_tag, 'autoqcm', update=False)
