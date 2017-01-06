@@ -200,6 +200,21 @@ def randchoice(items, *others, **kw):
     return val
 
 @sandboxed
+def randpop(list_or_set):
+    """Randomely remove an item from list or set and return it."""
+    i = random.randint(0, len(list_or_set) - 1)
+    if isinstance(list_or_set, list):
+        return list_or_set.pop(i)
+    elif isinstance(list_or_set, set):
+        for j, v in enumerate(list_or_set):
+            if i == j:
+                list_or_set.remove(v)
+                return v
+    else:
+        raise NotImplementedError
+
+
+@sandboxed
 def srandchoice(*items, **kw):
     kw['signed'] = True
     return randchoice(*items, **kw)

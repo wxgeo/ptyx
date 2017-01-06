@@ -101,6 +101,7 @@ global_context['randfrac'] = randfunc.randfrac
 global_context['srandfrac'] = randfunc.srandfrac
 global_context['randchoice'] = randfunc.randchoice
 global_context['srandchoice'] = randfunc.srandchoice
+global_context['randpop'] = randfunc.randpop
 global_context['shuffle'] = randfunc.shuffle
 global_context['many'] = randfunc.many
 # If a document is compiled several times (to produce different versions of the same document),
