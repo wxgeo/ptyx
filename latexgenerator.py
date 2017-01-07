@@ -745,11 +745,10 @@ class LatexGenerator(object):
         self._parse_children(node.children)
 
     def _parse_SEED_tag(self, node):
-        value = int(node.arg(0))
-        # Keep track of seed value. This is used to generate a .seed file.
-        self.context['SEED'] = value
-        #if self.NUM == 0:
-        randfunc.set_seed(value + self.NUM)
+        # SEED tag is managed independently (it avoids user including it inadvertently inside
+        # a conditional block or a #ASK_ONLY/#END block, which may result in an (apparently)
+        # very strange behaviour of compiler !)
+        pass
 
     #~ def parse_PICK_tag(self, node):
         #~ assert len(node.children) == 1
@@ -1126,6 +1125,26 @@ class Compiler(object):
         self.state['plain_ptyx_code'] = code
         return code
 
+    def read_seed(self, code=None):
+        if code is not None:
+            self.state['raw_text'] = code
+        else:
+            code = self.state['raw_text']
+        pos = 0
+        while True:
+            i = code.find("#SEED{", pos)
+            if i == -1:
+                break
+            pos = code.find('}', i)
+            if pos == -1:
+                raise RuntimeError("#SEED tag has no closing bracket !")
+            value = int(code[i + 6:pos].strip())
+        else:
+            print('Warning: #SEED not found, using hash of ptyx file path (if any) as seed.')
+            value = hash(self.state.get('path'))
+        self.state['seed'] = value
+        return value
+
     def generate_syntax_tree(self, code=None):
         if code is not None:
             self.state['plain_ptyx_code'] = code
@@ -1142,6 +1161,7 @@ class Compiler(object):
         gen = self.latex_generator
         gen.clear()
         gen.context.update(context)
+        randfunc.set_seed(self.state['seed'] + gen.context['NUM'])
         try:
             gen.parse_node(tree)
         except Exception:
@@ -1196,6 +1216,7 @@ class Compiler(object):
         """
         self.call_extensions(code)
         self.generate_syntax_tree()
+        self.read_seed(code)
         latex = self.generate_latex(**context)
         self.close()
         return latex

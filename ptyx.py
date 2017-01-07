@@ -104,6 +104,7 @@ global_context['srandchoice'] = randfunc.srandchoice
 global_context['randpop'] = randfunc.randpop
 global_context['shuffle'] = randfunc.shuffle
 global_context['many'] = randfunc.many
+global_context['_print_state'] = randfunc._print_state
 # If a document is compiled several times (to produce different versions of the same document),
 # NUM is the compilation number (starting from 0).
 global_context['NUM'] = 0
@@ -374,10 +375,6 @@ if __name__ == '__main__':
     # Time to act ! Let's compile all ptyx files...
     # ---------------------------------------------
 
-    # Limit seeds, to be able to retrieve seed manually if needed.
-    seed_value = random.randint(0, 100000)
-    random.seed(seed_value)
-
     for input_name in options.filenames:
         # Read pTyX file.
         input_name = pth(input_name)
@@ -399,16 +396,13 @@ if __name__ == '__main__':
         # Generate syntax tree
         compiler.generate_syntax_tree()
 
+        # Read seed used for random numbers generation.
+        seed_value = compiler.read_seed()
         # Compile and generate output files (tex or pdf)
         filenames, output_name = make_files(input_name, **vars(options))
 
         # Keep track of the seed used.
-        context = compiler.latex_generator.context
-        if 'SEED' in context:
-            seed_value = context['SEED']
-        else:
-            print(('Warning: #SEED not found, using default seed value %s.\n'
-                               'A .seed file have been generated.') % seed_value)
+        seed_value = compiler.state['seed']
         seed_file_name = os.path.join(os.path.dirname(output_name), '.seed')
         with open(seed_file_name, 'w') as seed_file:
             seed_file.write(str(seed_value))
@@ -422,7 +416,7 @@ if __name__ == '__main__':
         # Join different versions in a single pdf, and compress if asked to.
         opt = dict(vars(options))
         opt['filenames'] = filenames
-        opt['seed_file_name'] = seed_file_name
+        #opt['seed_file_name'] = seed_file_name
         join_files(output_name, **opt)
 
         # Do the same for the version with the answers.

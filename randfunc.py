@@ -32,6 +32,12 @@ class Point(namedtuple('Point', ['x', 'y'])):
     def __rmul__(self, k):
         return Point(k*self.x, k*self.y)
 
+def _print_state():
+    "For debuging purpose."
+    print(29*'*')
+    print('randfunc._RANDOM_STATE value:')
+    print(hash(_RANDOM_STATE))
+    print(29*'*')
 
 def sandboxed(func):
     @functools.wraps(func)

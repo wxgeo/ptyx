@@ -604,6 +604,7 @@ if __name__ == '__main__':
         compiler.read_file(filename)
         compiler.call_extensions()
         compiler.generate_syntax_tree()
+        compiler.read_seed()
 
         # Since there is only one pass (we generate only the answers, not the blank test),
         # autoqcm_data['answers'] will not be filled automatically at the end of the first pass.
