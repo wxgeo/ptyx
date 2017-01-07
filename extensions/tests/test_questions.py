@@ -30,7 +30,6 @@ An example:
     === END ===
 """
 
-from __future__ import division, unicode_literals, absolute_import, print_function
 
 import sys
 from os.path import join, dirname, realpath

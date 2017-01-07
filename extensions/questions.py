@@ -86,9 +86,11 @@ An other simpler example, with no enumeration (only one question):
 from __future__ import division, unicode_literals, absolute_import, print_function
 
 from re import sub, DOTALL
+import extended_python
 
 
 def main(text, compiler):
+    text = extended_python.main(text, compiler)
     # ~~~~~~~~~~~~~~~~~~
     # ~~~~~~~~~~~~~~~~~~
     # Lonely question or some explications
