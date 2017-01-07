@@ -11,3 +11,7 @@ BAZAR/
 *.csv
 *.autoqcm.config
 *.seed
+tmp.py
+temp.py
+extensions/autoqcm/test_complet/
+	
