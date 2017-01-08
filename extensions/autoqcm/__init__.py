@@ -51,6 +51,8 @@ One may include some PTYX code of course.
 
     """
 
+from functools import partial
+
 from .generate import generate_tex, generate_identification_band
 from .. import extended_python
 
@@ -86,11 +88,51 @@ class AutoQCMTags(object):
     def _parse_NEW_QUESTION_tag(self, node):
         self.autoqcm_correct_answers.append([])
         self.autoqcm_answer_number = 0
+        self.auto_qcm_answers = []
+        # This is used to improve message error when an error occured.
+        self.current_question = l = []
+        def remember_last_question(code, l):
+            l.append(code)
+            return code
+        self._parse_children(node.children, function=partial(remember_last_question, l=l))
 
     def _parse_NEW_ANSWER_tag(self, node):
         if (node.arg(0) == 'True'):
             self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
         self.autoqcm_answer_number += 1
+
+    def _parse_PROPOSED_ANSWER(self, node):
+        def test_singularity(code, l):
+            _code_ = code.strip()
+            if _code_ in l:
+                msg= [
+                'ERROR: Same answer proposed twice in MCQ !',
+                'Answer "%s" appeared at least twice for the same question.' % _code_,
+                'Question was:',
+                repr(self.current_question[0]),
+                '',
+                'Nota: if this is really desired behaviour, insert',
+                'following lines in the header of the ptyx file:',
+                '#PYTHON',
+                'ALLOW_SAME_ANSWER_TWICE=True',
+                '#END',
+                ]
+                n = max(len(s) for s in msg)
+                stars = (n + 4)*'*'
+                print(stars)
+                for s in msg:
+                    print('* ' + s)
+                print(stars)
+                raise RuntimeError('Same answer proposed twice in MCQ '
+                                   '(see message above for more information) !')
+            else:
+                l.append(_code_)
+            return code
+        if self.context.get('ALLOW_SAME_ANSWER_TWICE'):
+            f = None
+        else:
+            f = partial(test_singularity, l=self.auto_qcm_answers)
+        self._parse_children(node.children, function=f)
 
     def _parse_AUTOQCM_HEADER_tag(self, node):
         n = self.context['NUM']
@@ -109,12 +151,13 @@ def main(text, compiler):
     text = extended_python.main(text, compiler)
     # For efficiency, update only for last tag.
     compiler.add_new_tag('NEW_QCM', (0, 0, None), AutoQCMTags._parse_NEW_QCM_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('NEW_QUESTION', (0, 0, None), AutoQCMTags._parse_NEW_QUESTION_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('NEW_QUESTION', (0, 0, ['@END']), AutoQCMTags._parse_NEW_QUESTION_tag, 'autoqcm', update=False)
     compiler.add_new_tag('NEW_ANSWER', (1, 0, None), AutoQCMTags._parse_NEW_ANSWER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('END_QCM', (0, 0, None), AutoQCMTags._parse_END_QCM_tag, 'autoqcm', update=False)
     compiler.add_new_tag('AUTOQCM_HEADER', (0, 0, None), AutoQCMTags._parse_AUTOQCM_HEADER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('SCORES', (1, 0, None), AutoQCMTags._parse_SCORES_tag, 'autoqcm', update=False)
     compiler.add_new_tag('GRAY_IF_CORRECT', (2, 0, None), AutoQCMTags._parse_GRAY_IF_CORRECT_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('PROPOSED_ANSWER', (0, 0, ['@END']), AutoQCMTags._parse_PROPOSED_ANSWER, 'autoqcm', update=False)
     compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), AutoQCMTags._parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
     code, students_list, n_questions, n_max_answers = generate_tex(text)
     compiler.latex_generator.autoqcm_data = {'answers': {},

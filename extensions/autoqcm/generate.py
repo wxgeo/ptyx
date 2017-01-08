@@ -400,9 +400,8 @@ def generate_tex(text):
                     # the last one.)
                     content.append('#ITEM')
                 content.append('\\item')
-                content.append('#NEW_QUESTION')
                 content.append('\\setcounter{answerNumber}{0}')
-                content.append(line[2:])
+                content.append('#NEW_QUESTION %s#END' % line[2:])
                 # Shuffle answers.
                 content.append('#SHUFFLE')
                 question_opened = True
@@ -431,7 +430,7 @@ def generate_tex(text):
                     command = '\\graysquared'
                 else:
                     command = '#QUESTION{\\graysquared}#ANSWER{\\whitesquared}'
-                content.append('%s{\\alph{answerNumber}}~~\\mbox{%s}\\qquad\\linebreak[3]' % (command, line[2:]) + '%')
+                content.append('%s{\\alph{answerNumber}}~~\\mbox{#PROPOSED_ANSWER %s#END}\\qquad\\linebreak[3]' % (command, line[2:]) + '%')
 
 
             # -------------------- ENDING QCM --------------------------
