@@ -240,39 +240,34 @@ def generate_table_for_answers(questions, answers, introduction='', options={}):
 
 def generate_tex(text):
     #TODO: add ability to customize this part ?
-    content = [r"""\documentclass[a4paper,10pt]{article}
-        \usepackage[utf8]{inputenc}
+    content = [r"""\documentclass[a4paper,10pt]{article}""",
+        "<--Customized header-->",
+        r"""\usepackage[utf8]{inputenc}
         \usepackage[document]{ragged2e}
         \usepackage{nopageno}
         \usepackage{tikz}
         \usepackage[left=1cm,right=1cm,top=1cm,bottom=1cm]{geometry}
         \parindent=0cm
-        \newcommand{\tikzscale}{.5}
         \usepackage{pifont}
         \usepackage{textcomp}
         \usepackage{enumitem} % To resume an enumeration.
-        % Extrait du paquet fourier.sty
-        \newcommand*{\TakeFourierOrnament}[1]{{%
-        \fontencoding{U}\fontfamily{futs}\selectfont\char#1}}
-        \newcommand*{\decofourleft}{\TakeFourierOrnament{91}}
-        \newcommand*{\decofourright}{\TakeFourierOrnament{92}}
         \newcommand*\graysquared[1]{\tikz[baseline=(char.base)]{
             \node[fill=gray,shape=rectangle,draw,inner sep=2pt] (char) {\color{white}\textbf{#1}};}}
         \newcommand*\whitesquared[1]{\tikz[baseline=(char.base)]{
             \node[fill=white,shape=rectangle,draw,inner sep=2pt] (char) {\color{black}\textbf{#1}};}}
-        \newcommand*\circled[1]{\tikz[baseline=(char.base)]{
+        \newcommand*\AutoQCMcircled[1]{\tikz[baseline=(char.base)]{
             \node[shape=circle,fill=blue!20!white,draw,inner sep=2pt] (char) {\textbf{#1}};}}
         \makeatletter
-        \newcommand{\simfill}{%
+        \newcommand{\AutoQCMsimfill}{%
         \leavevmode \cleaders \hb@xt@ .50em{\hss $\sim$\hss }\hfill \kern \z@
         }
         \makeatother
         \newcounter{answerNumber}
         \renewcommand{\thesubsection}{\Alph{subsection}}
-        \setenumerate[0]{label=\protect\circled{\arabic*}}
+        \setenumerate[0]{label=\protect\AutoQCMcircled{\arabic*}}
         \begin{document}"""]
 
-    content.append("#AUTOQCM_HEADER")
+    content.append("#AUTOQCM_BARCODE")
 
     # Extract from text the path of the csv file containing students names.
     m=re.match("[ ]*%[ ]*csv:(.*)", text, re.IGNORECASE)
@@ -300,7 +295,7 @@ def generate_tex(text):
         \medskip
         """)
     content.append('#ELSE')
-    content.append(r'\simfill')
+    content.append(r'\AutoQCMsimfill')
     content.append('#END')
 
     content.append('<--Table for answers-->') # To be filled later with table for answers.
@@ -314,16 +309,23 @@ def generate_tex(text):
     n_answers = 0
     answer_number = 0
     # Set all flags to False before parsing.
-    mode_qcm = group_opened = question_opened = has_groups = has_qcm =False
+    mode_qcm = group_opened = question_opened = has_groups = has_qcm = header_closed = False
+
     lastline = None
 
     content.append("#IF{'AUTOQCM__SCORE_FOR_THIS_STUDENT' not in dir()}")
 
     intro = ['#ASK_ONLY']
+    header=[]
 
     for _line_ in text.split('\n'):
         line = _line_.lstrip()
-        if not mode_qcm:
+        if not header_closed:
+            if re.search('#LOAD{[ ]*autoqcm[ ]*}', line):
+                header_closed = True
+            else:
+                header.append(_line_)
+        elif not mode_qcm:
             # -------------------- STARTING QCM ------------------------
             if line.startswith('<<') and not line.strip('< '):
                 # Close introduction.
@@ -471,6 +473,8 @@ def generate_tex(text):
         content.append('#END')
     i = content.index('<--Table for answers-->')
     content[i] = generate_table_for_answers(question_number, n_answers, introduction='\n'.join(intro))
+    i = content.index('<--Customized header-->')
+    content[i] = '\n'.join(header)
     # This '#END' refer to '#IF{'AUTOQCM__SCORE_FOR_THIS_STUDENT' in dir()}'.
     content.append('#END')
     content.append(r"\end{document}")

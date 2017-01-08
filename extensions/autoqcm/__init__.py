@@ -134,7 +134,7 @@ class AutoQCMTags(object):
             f = partial(test_singularity, l=self.auto_qcm_answers)
         self._parse_children(node.children, function=f)
 
-    def _parse_AUTOQCM_HEADER_tag(self, node):
+    def _parse_AUTOQCM_BARCODE_tag(self, node):
         n = self.context['NUM']
         full=('AUTOQCM__SCORE_FOR_THIS_STUDENT' not in self.context)
         self.write(generate_identification_band(identifier=n, full=full))
@@ -154,7 +154,7 @@ def main(text, compiler):
     compiler.add_new_tag('NEW_QUESTION', (0, 0, ['@END']), AutoQCMTags._parse_NEW_QUESTION_tag, 'autoqcm', update=False)
     compiler.add_new_tag('NEW_ANSWER', (1, 0, None), AutoQCMTags._parse_NEW_ANSWER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('END_QCM', (0, 0, None), AutoQCMTags._parse_END_QCM_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('AUTOQCM_HEADER', (0, 0, None), AutoQCMTags._parse_AUTOQCM_HEADER_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('AUTOQCM_BARCODE', (0, 0, None), AutoQCMTags._parse_AUTOQCM_BARCODE_tag, 'autoqcm', update=False)
     compiler.add_new_tag('SCORES', (1, 0, None), AutoQCMTags._parse_SCORES_tag, 'autoqcm', update=False)
     compiler.add_new_tag('GRAY_IF_CORRECT', (2, 0, None), AutoQCMTags._parse_GRAY_IF_CORRECT_tag, 'autoqcm', update=False)
     compiler.add_new_tag('PROPOSED_ANSWER', (0, 0, ['@END']), AutoQCMTags._parse_PROPOSED_ANSWER, 'autoqcm', update=False)
