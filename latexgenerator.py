@@ -497,6 +497,15 @@ class LatexGenerator(object):
         return method(node)
 
     def _parse_children(self, children, function=None, **options):
+        """Parse all children nodes.
+
+        Resulting LaTeX code will be appended to self.context['LATEX'].
+
+        If `function` is not None, apply `function` to resulting LaTeX
+        code before appending it to self.context['LATEX'].
+        (So, `function` signature must be: function(str, **options) -> str).
+        """
+
         if function is not None:
             # Store generated text in a temporary location, instead of self.context['LATEX'].
             # Function `function` will then be applied to this text,
@@ -651,10 +660,13 @@ class LatexGenerator(object):
     def _parse_PYTHON_tag(self, node):
         assert len(node.children) == 1
         python_code = node.children[0]
-        print("--------------------------------")
-        print("Executing following python code:")
-        print(python_code)
-        print("--------------------------------")
+        msg = ['', '%s %s Executing following python code:' % (chr(9474), chr(9998))]
+        msg.extend('%s %s' % (chr(9474), line) for line in python_code.split('\n'))
+        n = max(len(s) for s in msg)
+        msg.insert(1, chr(9581) + n*chr(9472))
+        msg.insert(3, chr(9500) + n*chr(9472))
+        msg.append(chr(9584) + n*chr(9472))
+        print('\n'.join(msg))
         assert isinstance(python_code, str)
         self._exec_python_code(python_code, self.context)
 
