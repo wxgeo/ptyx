@@ -35,6 +35,7 @@ from re import sub, DOTALL
 def parse_extended_python_code(code):
     py = []
     for line in code.split('\n'):
+        spaces = (len(line) - len(line.lstrip()))*' '
         line = line.strip()
         if line.startswith('let '):
             line = line[4:]
@@ -48,7 +49,7 @@ def parse_extended_python_code(code):
                         f = 'srandint'
                     else:
                         f = 'randint'
-                    args = ['randint', a.strip(), b.strip()]
+                    args = [f, 'a=%s' % a.strip(), 'b=%s' % b.strip()]
 
             else:
                 assert line, 'Syntax error: lonely `let`.'
@@ -59,7 +60,7 @@ def parse_extended_python_code(code):
                     args = ['randint']
                     names = line[:-1]
                 elif line.endswith('-'):
-                    args = ['randint', '-9', '-2']
+                    args = ['randint', 'a=-9', 'b=-2']
                     names = line[:-1]
                 else:
                     args = ['srandint']
@@ -69,8 +70,8 @@ def parse_extended_python_code(code):
 
             names = [n.strip() for n in names.split(',')]
 
-            line = '%s = many(%s, %s)' % (', '.join(names), len(names), ', '.join(args))
-        py.append(line)
+            line = '%s, = many(%s, %s)' % (', '.join(names), len(names), ', '.join(args))
+        py.append(spaces + line)
     return '\n'.join(py)
 
 
