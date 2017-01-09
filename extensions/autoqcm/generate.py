@@ -20,19 +20,17 @@ def generate_identification_band(identifier, full=True):
 
     # Two top squares to calibrate and identification band between them
 
+    write(r"\begin{tabularx}{\linewidth}{lMr}")
     if full:
-        # Top left and top right squares.
-        write(r"""\begin{{tikzpicture}}[scale={scale}]
+        # Top left square.
+        square = r"""\begin{{tikzpicture}}[scale={scale}]
             \draw[fill=black] (0,0) rectangle (1,1);
-            \draw[fill=black] (\linewidth/{scale}-28.45274,0) rectangle (\linewidth/{scale},1);
-            \end{{tikzpicture}}
-            \vspace{{-{scale}cm}}
-
-            """.format(scale=SQUARE_SIZE_IN_CM))
+            \end{{tikzpicture}}""".format(scale=SQUARE_SIZE_IN_CM)
+        write(square)
 
     # Identification band
-    write(r"""\hfill
-        \begin{{tikzpicture}}[scale={scale}]
+    write(r"""&
+        \begin{{tikzpicture}}[scale={scale},every node/.style={{inner sep=0,outer sep=0}}]
         \draw[fill=black] (-1,0) rectangle (0,1);
 
         """.format(scale=SQUARE_SIZE_IN_CM))
@@ -43,15 +41,18 @@ def generate_identification_band(identifier, full=True):
             """.format(color=("black" if n%2 else "white"), x1=i, x2=i+1))
         n = n//2
 
-    write(r"""\draw (15, .5) node [right] {{\tiny{identifier}}};
+    write(r"""\draw (15.5, .5) node [right] {{\tiny{identifier}}};
         \end{{tikzpicture}}
-        \hfill\hfil""".format(**locals()))
+        &""".format(**locals()))
 
-    #~ # Top right square.
-    #~ write(r"""\begin{{tikzpicture}}[scale={scale}]
+    if full:
+        # Top right square.
+        square = r"""\begin{{tikzpicture}}[scale={scale}]
+            \draw[fill=black] (0,0) rectangle (1,1);
+            \end{{tikzpicture}}""".format(scale=SQUARE_SIZE_IN_CM)
+        write(square)
 
-        #~ \end{{tikzpicture}}
-        #~ """.format(scale=SQUARE_SIZE_IN_CM))
+    write(r'\end{tabularx}')
 
     # Header delimiter.
 
@@ -248,6 +249,8 @@ def generate_tex(text):
         \usepackage{tikz}
         \usepackage[left=1cm,right=1cm,top=1cm,bottom=1cm]{geometry}
         \parindent=0cm
+        \usepackage{tabularx}
+        \newcolumntype{M}{>{\centering\arraybackslash} X}
         \usepackage{pifont}
         \usepackage{textcomp}
         \usepackage{enumitem} % To resume an enumeration.
