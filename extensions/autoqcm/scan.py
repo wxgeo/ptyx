@@ -379,7 +379,7 @@ def scan_picture(filename, config):
 
     # Restrict search area to avoid detecting anything else, like students names list.
     imin = i1 - square_size
-    imax = i1 + int(3.5*square_size)
+    imax = i1 + int(2*square_size)
     try:
         i3, j3 = find_black_square(m[imin:imax,maxj:minj], size=square_size, error=0.3, mode='c').__next__()
     except StopIteration:
@@ -616,6 +616,8 @@ if __name__ == '__main__':
         for identifier, answers, name, score in all_data:
             output_name = '%s-%s-corr.score' % (filename[:-5], identifier)
             pdfnames.append(output_name)
+            print('Generating pdf file for student %s (subject %s, score %s)...'
+                                                    % (name, identifier, score))
             make_file(output_name, context={'NUM': identifier,
                                 'AUTOQCM__SCORE_FOR_THIS_STUDENT': score,
                                 'AUTOQCM__MAX_SCORE': len(answers),
@@ -623,6 +625,7 @@ if __name__ == '__main__':
                                 'WITH_ANSWERS': True},
                                 remove=True,
                                 formats=['pdf'],
+                                quiet=True,
                                 )
 
         output_name = '%s-corr.SCORE' % filename[:-5]
@@ -631,7 +634,7 @@ if __name__ == '__main__':
         print('\nPREPARING TO PRINT SCORES...')
         print("Insert test papers in printer (to print score and solutions on other side).")
         for i, (identifier, answers, name, score) in enumerate(all_data):
-            print('Student:', name, '(subject number: %s)' % identifier)
+            print('Student:', name, '(subject number: %s, score %s)' % (identifier, score))
             input('-pause- (Press ENTER to process, CTRL^C to quit)')
             subprocess.run(["lp", "-P %s" % (i + 1), "-o sides=one-sided",
                             "%s.pdf" % output_name], stdout=subprocess.PIPE)

@@ -1173,7 +1173,8 @@ class Compiler(object):
         gen = self.latex_generator
         gen.clear()
         gen.context.update(context)
-        randfunc.set_seed(self.state['seed'] + gen.context['NUM'])
+        seed = self.state['seed'] + gen.context['NUM']
+        randfunc.set_seed(seed)
         try:
             gen.parse_node(tree)
         except Exception:
@@ -1228,7 +1229,7 @@ class Compiler(object):
         """
         self.call_extensions(code)
         self.generate_syntax_tree()
-        self.read_seed(code)
+        self.read_seed()
         latex = self.generate_latex(**context)
         self.close()
         return latex
