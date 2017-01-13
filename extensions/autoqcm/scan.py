@@ -36,7 +36,10 @@ from numpy import array, nonzero, transpose
 from pylab import imread
 from PIL import Image
 
-from parameters import SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM
+from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM,
+                         MARGIN_RIGHT_IN_CM, MARGIN_TOP_IN_CM,
+                         MARGIN_BOTTOM_IN_CM, PAPER_FORMAT, PAPER_FORMATS,
+                        )
 # File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
 script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 sys.path.append(joinpath(script_path, '../..'))
@@ -194,8 +197,8 @@ def test_square_color(m, i, j, size, proportion=0.5, gray_level=.75):
 
     (i, j) is top left corner of the square, where i is line number
     and j is column number.
-    level is the minimal proportion of black pixels the square must have
-    to be considered black (gray_level is the level below which a pixel
+    `proportion` is the minimal proportion of black pixels the square must have
+    to be considered black (`gray_level` is the level below which a pixel
     is considered black).
     """
     square = m[i:i+size, j:j+size] < gray_level
@@ -247,11 +250,13 @@ def scan_picture(filename, config):
     Return an integer and a list of lists of booleans.
     """
 
-    def color2debug(from_=None, to_=None, color=(255, 0, 0), display=True, _d={}):
+    def color2debug(from_=None, to_=None, color=(255, 0, 0), display=True, fill=False, _d={}):
         """Display picture with a red (by default) rectangle for debuging.
 
         `from_` represent one corner of the red rectangle.
         `to_` represent opposite corner of the red rectangle.
+        `color` is given as a RGB tuple ([0-255], [0-255], [0-255]).
+        `fill` (True|False) indicates if the rectangle should be filled.
 
         Usage: color2debug((0,0), (200,10), color=(255, 0, 255))
 
@@ -268,11 +273,21 @@ def scan_picture(filename, config):
             if to_ is None:
                 to_ = from_
             pix = rgb.load()
-            imin, imax = min(from_[0], to_[0]), max(from_[0], to_[0])
-            jmin, jmax = min(from_[1], to_[1]), max(from_[1], to_[1])
-            for i in range(imin, imax + 1):
+            imin, imax = int(min(from_[0], to_[0])), int(max(from_[0], to_[0]))
+            jmin, jmax = int(min(from_[1], to_[1])), int(max(from_[1], to_[1]))
+            if fill:
+                for i in range(imin, imax + 1):
+                    for j in range(jmin, jmax + 1):
+                        pix[j, i] = color
+            else:
+                # left and right sides of rectangle
+                for i in range(imin, imax + 1):
+                    for j in (jmin, jmax):
+                        pix[j, i] = color
+                # top and bottom sides of rectangle
                 for j in range(jmin, jmax + 1):
-                    pix[j, i] = color
+                    for i in (imin, imax):
+                        pix[j, i] = color
         if display:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 path = joinpath(tmpdirname, 'test.png')
@@ -400,11 +415,9 @@ def scan_picture(filename, config):
     for k in range(15):
         j = int(round(j3 + (k + 1)*f_square_size))
         #~ if k%2:
-            #~ color2debug((i3, j), (i3 + square_size, j), display=False)
-            #~ color2debug((i3, j), (i3, j + square_size), display=False)
+            #~ color2debug((i3, j), (i3 + square_size, j + square_size), display=False)
         #~ else:
-            #~ color2debug((i3, j), (i3 + square_size, j), color=(0,0,255), display=False)
-            #~ color2debug((i3, j), (i3, j + square_size), color=(0,0,255), display=False)
+            #~ color2debug((i3, j), (i3 + square_size, j + square_size), color=(0,0,255), display=False)
         if test_square_color(m, i3, j, square_size, proportion=0.5, gray_level=0.5):
             identifier += 2**k
             #~ print((k, (i3, j)), " -> black")
@@ -429,13 +442,14 @@ def scan_picture(filename, config):
     if n_students:
         search_area = m[vpos:vpos + 4*square_size,:]
         i, j0 = find_black_square(search_area, size=square_size, error=0.3, mode='c').__next__()
-        #~ color2debug((vpos + i, j0), (vpos + i + square_size, j0), color=(0,255,0), display=False)
-        #~ color2debug((vpos + i, j0), (vpos + i, j0 + square_size), color=(0,255,0))
+        #~ color2debug((vpos + i, j0), (vpos + i + square_size, j0 + square_size), color=(0,255,0))
 
         l = []
         for k in range(1, n_students + 1):
             j = int(round(j0 + 2*k*f_square_size))
             l.append(test_square_color(search_area, i, j, square_size))
+            #~ if k > 15:
+                #~ color2debug((vpos + i, j), (vpos + i + square_size, j + square_size))
 
         n = l.count(True)
         if n == 0:
@@ -525,6 +539,8 @@ if __name__ == '__main__':
     parser.add_argument('path', help=("Path to a directory which must contain "
                         "a .autoqcm.config file and a .scan.pdf file "
                         "(alternatively, this path may point to any file in this folder)."))
+    parser.add_argument("-p", "--page", metavar="P", type=int,
+                                        help="Read only page P of pdf file.")
     args = parser.parse_args()
 
 
@@ -571,7 +587,11 @@ if __name__ == '__main__':
             #tmp_path = '/home/nicolas/.tmp/scan'
             print(scanpdf, tmp_path)
             print('Extracting all images from pdf, please wait...')
-            result = subprocess.run(["pdfimages", "-all", scanpdf, joinpath(tmp_path, 'pic')], stdout=subprocess.PIPE)
+            cmd = ["pdfimages", "-all", scanpdf, joinpath(tmp_path, 'pic')]
+            if args.page is not None:
+                p = str(args.page)
+                cmd = cmd[:1] + ['-f', p, '-l', p] + cmd[1:]
+            result = subprocess.run(cmd, stdout=subprocess.PIPE)
             scores = {}
             all_data = []
             for pic in sorted(listdir(tmp_path)):

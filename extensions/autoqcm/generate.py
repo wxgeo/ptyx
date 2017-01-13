@@ -2,11 +2,16 @@ from string import ascii_letters
 import csv
 import re
 
-from .parameters import SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM
+from .parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM,
+                         MARGIN_RIGHT_IN_CM, PAPER_FORMAT, PAPER_FORMATS,
+                         MARGIN_BOTTOM_IN_CM, MARGIN_TOP_IN_CM
+                        )
 
 
 
-def generate_identification_band(identifier, full=True):
+
+
+def generate_identification_band(identifier, full=True, squares_number=15):
     """Generate top banner of the page to be scanned later.
 
     `identifier` is the integer which identifies the sheet.
@@ -18,41 +23,45 @@ def generate_identification_band(identifier, full=True):
     content = []
     write = content.append
 
-    # Two top squares to calibrate and identification band between them
+    s = SQUARE_SIZE_IN_CM
+    if PAPER_FORMAT not in PAPER_FORMATS:
+        raise ValueError('%s is not a valid paper format. \
+                          Presently available formats are %s.'
+                          % (PAPER_FORMAT, PAPER_FORMAT.keys()))
+    # `w` is the page width left after removing borders (in cm).
+    w = PAPER_FORMATS[PAPER_FORMAT][0] - MARGIN_LEFT_IN_CM - MARGIN_RIGHT_IN_CM
+    # `l` is the length of the codebar (in cm).
+    # (Add 2 to square_number since there is a first square always black for
+    # detecting codebar, and a plain number written after code bar which is about
+    # the same size as a square).
+    l = (squares_number + 2)*s
+    # The two top squares (at top left and top right corners) will be used
+    # for calibration when scanning paper, since printer or scanner may rescale
+    # or rotate content a bit.
+    # The codebar, placed midway between them, will be used to read test number.
+    write(r"\begin{tikzpicture}[every node/.style={inner sep=0,outer sep=0}]")
 
-    write(r"\begin{tabularx}{\linewidth}{lMr}")
     if full:
         # Top left square.
-        square = r"""\begin{{tikzpicture}}[scale={scale}]
-            \draw[fill=black] (0,0) rectangle (1,1);
-            \end{{tikzpicture}}""".format(scale=SQUARE_SIZE_IN_CM)
-        write(square)
+        write(r"""\draw[fill=black] (0,0) rectangle ({s},{s});
+            """.format(s=s))
 
     # Identification band
-    write(r"""&
-        \begin{{tikzpicture}}[scale={scale},every node/.style={{inner sep=0,outer sep=0}}]
-        \draw[fill=black] (-1,0) rectangle (0,1);
-
-        """.format(scale=SQUARE_SIZE_IN_CM))
-
+    x = (w - l)/2
+    write(r"\draw[fill=black] (%s,0) rectangle (%s,%s);" % (x, x+s, s))
     n = identifier
-    for i in range(15):
-        write(r"""\draw[fill={color}] ({x1},0) rectangle ({x2},1);
-            """.format(color=("black" if n%2 else "white"), x1=i, x2=i+1))
+    for i in range(squares_number):
+        x += s
+        color=("black" if n%2 else "white")
+        write(r"\draw[fill=%s] (%s,0) rectangle (%s,%s);" % (color, x, x+s, s))
         n = n//2
-
-    write(r"""\draw (15.5, .5) node [right] {{\tiny{identifier}}};
-        \end{{tikzpicture}}
-        &""".format(**locals()))
+    write(r"\draw (%s,%s) node [right] {\tiny{%s}};" % (x + 1.5*s, s/2, identifier))
 
     if full:
         # Top right square.
-        square = r"""\begin{{tikzpicture}}[scale={scale}]
-            \draw[fill=black] (0,0) rectangle (1,1);
-            \end{{tikzpicture}}""".format(scale=SQUARE_SIZE_IN_CM)
-        write(square)
+        write(r"\draw[fill=black] (%s,0) rectangle (%s,%s);" % (w-s, w, s))
 
-    write(r'\end{tabularx}')
+    write("\end{tikzpicture}")
 
     # Header delimiter.
 
@@ -63,57 +72,6 @@ def generate_identification_band(identifier, full=True):
         """)
     return '\n'.join(content)
 
-
-
-def generate_students_list(csv_path='', _n_student=None):
-    """Generate a list of all students, where student can check his name.
-
-    `csv_path` is the path of the CSV file who contains students names.
-    `_n_student` is used to prefilled the table (for debuging).
-    """
-    students = []
-    if not csv_path:
-        return '', []
-    try:
-        content = []
-        content.append(r'''
-            #ASK_ONLY
-            \vspace{-1em}
-            \begin{center}
-            \begin{tikzpicture}[scale=.25]
-            \draw [fill=black] (-2,0) rectangle (-1,1) (-1.5,0) node[below] {\tiny\rotatebox{-90}{\texttt{\textbf{Cochez le nom}}}};''')
-        # Read CSV file and generate list of students name.
-        with open(csv_path) as f:
-            for row in csv.reader(f):
-                name = ' '.join(item.strip() for item in row)
-                students.append(name)
-
-        # Generate the corresponding names table in LaTeX.
-        for i, name in enumerate(reversed(students)):
-            # Troncate long names.
-            if len(name) >= 15:
-                _name = name[:13].strip()
-                if " " not in name[12:13]:
-                    _name += "."
-                name = _name
-            a = 2*i
-            b = a + 1
-            c = a + 0.5
-            color = ('black' if _n_student == len(students) - i else 'white')
-            content.append(r'''\draw[fill={color}] ({a},0) rectangle ({b},1) ({c},0) node[below]
-                {{\tiny \rotatebox{{-90}}{{\texttt{{{name}}}}}}};'''.format(**locals()))
-        b += 1
-        content.append(r'''\draw[rounded corners] (-3,2) rectangle ({b}, -6.5);
-            \draw[] (-0.5,2) -- (-0.5,-6.5);
-            \end{{tikzpicture}}
-            \end{{center}}
-            #END
-            \vspace{{-1em}}
-            '''.format(**locals()))
-    except FileNotFoundError:
-        print("Warning: `%s` not found." % csv_path)
-        return '', []
-    return '\n'.join(content), students
 
 
 
@@ -241,34 +199,34 @@ def generate_table_for_answers(questions, answers, introduction='', options={}):
 
 def generate_tex(text):
     #TODO: add ability to customize this part ?
-    content = [r"""\documentclass[a4paper,10pt]{article}""",
+    paper_format = '%spaper' % PAPER_FORMAT.lower()
+    content = [r"\documentclass[%s,10pt]{article}" % paper_format,
         "<--Customized header-->",
-        r"""\usepackage[utf8]{inputenc}
-        \usepackage[document]{ragged2e}
-        \usepackage{nopageno}
-        \usepackage{tikz}
-        \usepackage[left=1cm,right=1cm,top=1cm,bottom=1cm]{geometry}
+        r"""\usepackage[utf8]{{inputenc}}
+        \usepackage[document]{{ragged2e}}
+        \usepackage{{nopageno}}
+        \usepackage{{tikz}}
+        \usepackage[left={left}cm,right={right}cm,top={top}cm,bottom={bottom}cm]{{geometry}}
         \parindent=0cm
-        \usepackage{tabularx}
-        \newcolumntype{M}{>{\centering\arraybackslash} X}
-        \usepackage{pifont}
-        \usepackage{textcomp}
-        \usepackage{enumitem} % To resume an enumeration.
-        \newcommand*\graysquared[1]{\tikz[baseline=(char.base)]{
-            \node[fill=gray,shape=rectangle,draw,inner sep=2pt] (char) {\color{white}\textbf{#1}};}}
-        \newcommand*\whitesquared[1]{\tikz[baseline=(char.base)]{
-            \node[fill=white,shape=rectangle,draw,inner sep=2pt] (char) {\color{black}\textbf{#1}};}}
-        \newcommand*\AutoQCMcircled[1]{\tikz[baseline=(char.base)]{
-            \node[shape=circle,fill=blue!20!white,draw,inner sep=2pt] (char) {\textbf{#1}};}}
+        \usepackage{{pifont}}
+        \usepackage{{textcomp}}
+        \usepackage{{enumitem}} % To resume an enumeration.
+        \newcommand*\graysquared[1]{{\tikz[baseline=(char.base)]{{
+            \node[fill=gray,shape=rectangle,draw,inner sep=2pt] (char) {{\color{{white}}\textbf{{#1}}}};}}}}
+        \newcommand*\whitesquared[1]{{\tikz[baseline=(char.base)]{{
+            \node[fill=white,shape=rectangle,draw,inner sep=2pt] (char) {{\color{{black}}\textbf{{#1}}}};}}}}
+        \newcommand*\AutoQCMcircled[1]{{\tikz[baseline=(char.base)]{{
+            \node[shape=circle,fill=blue!20!white,draw,inner sep=2pt] (char) {{\textbf{{#1}}}};}}}}
         \makeatletter
-        \newcommand{\AutoQCMsimfill}{%
-        \leavevmode \cleaders \hb@xt@ .50em{\hss $\sim$\hss }\hfill \kern \z@
-        }
+        \newcommand{{\AutoQCMsimfill}}{{%
+        \leavevmode \cleaders \hb@xt@ .50em{{\hss $\sim$\hss }}\hfill \kern \z@
+        }}
         \makeatother
-        \newcounter{answerNumber}
-        \renewcommand{\thesubsection}{\Alph{subsection}}
-        \setenumerate[0]{label=\protect\AutoQCMcircled{\arabic*}}
-        \begin{document}"""]
+        \newcounter{{answerNumber}}
+        \renewcommand{{\thesubsection}}{{\Alph{{subsection}}}}
+        \setenumerate[0]{{label=\protect\AutoQCMcircled{{\arabic*}}}}
+        \begin{{document}}""".format(left=MARGIN_LEFT_IN_CM, right=MARGIN_RIGHT_IN_CM,
+                               top=MARGIN_TOP_IN_CM, bottom=MARGIN_BOTTOM_IN_CM)]
 
     content.append("#AUTOQCM_BARCODE")
 
