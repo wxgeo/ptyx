@@ -260,3 +260,7 @@ def many(n=2, func=srandint, unique=True, **kw):
         kw['exclude'].append(val)
         l.append(val)
     return l
+
+
+def distinct(*vals):
+    return len(set(vals)) == len(vals)

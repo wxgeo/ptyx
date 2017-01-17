@@ -104,6 +104,7 @@ global_context['srandchoice'] = randfunc.srandchoice
 global_context['randpop'] = randfunc.randpop
 global_context['shuffle'] = randfunc.shuffle
 global_context['many'] = randfunc.many
+global_context['distinct'] = randfunc.distinct
 global_context['_print_state'] = randfunc._print_state
 # If a document is compiled several times (to produce different versions of the same document),
 # NUM is the compilation number (starting from 0).
