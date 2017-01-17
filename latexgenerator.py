@@ -661,7 +661,10 @@ class LatexGenerator(object):
         assert len(node.children) == 1
         python_code = node.children[0]
         msg = ['', '%s %s Executing following python code:' % (chr(9474), chr(9998))]
-        msg.extend('%s %s' % (chr(9474), line) for line in python_code.split('\n'))
+        lines = python_code.split('\n')
+        zfill = len(str(len(lines)))
+        msg.extend('%s %s %s %s' % (chr(9474), str(i).zfill(zfill), chr(9474), line)
+                                    for i, line in enumerate(lines))
         n = max(len(s) for s in msg)
         msg.insert(1, chr(9581) + n*chr(9472))
         msg.insert(3, chr(9500) + n*chr(9472))
