@@ -365,12 +365,12 @@ def generate_tex(text):
                 content.append('\\item')
                 content.append('\\setcounter{answerNumber}{0}')
                 content.append('#NEW_QUESTION %s#END' % line[2:])
-                # Shuffle answers.
-                content.append('#SHUFFLE')
                 question_opened = True
 
             elif line.startswith('- ') or line.startswith('+ '):
                 if answer_number == 0:
+                    # Shuffle answers.
+                    content.append('#SHUFFLE')
                     #content.append('\n\n')
                     content.append('\n\n\\sloppy')
                 elif lastline == '':
