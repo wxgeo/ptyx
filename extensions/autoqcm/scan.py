@@ -192,7 +192,7 @@ def detect_all_squares(matrix, size=50, error=0.30):
 
 
 
-def test_square_color(m, i, j, size, proportion=0.5, gray_level=.75):
+def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75):
     """Return True if square is black, False else.
 
     (i, j) is top left corner of the square, where i is line number
