@@ -6,7 +6,7 @@ from .parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM,
                          MARGIN_RIGHT_IN_CM, PAPER_FORMAT, PAPER_FORMATS,
                          MARGIN_BOTTOM_IN_CM, MARGIN_TOP_IN_CM
                         )
-
+from utilities import find_closing_bracket
 
 
 
@@ -125,7 +125,7 @@ def generate_students_list(csv_path='', _n_student=None):
 
 
 
-def generate_table_for_answers(questions, answers, introduction='', options={}):
+def generate_table_for_answers(questions, answers, flip=False, options={}):
     """Generate the table where students select correct answers.
 
     `questions` is either a list (or any iterable) of questions numbers,
@@ -136,6 +136,9 @@ def generate_table_for_answers(questions, answers, introduction='', options={}):
     or an integer n≤26 (answers identifiers will be automatically generated then:
     a, b, c, ...).
 
+    If `flip` is True, rows and columns will be inverted. This may gain some place
+    if there are more answers per question than questions.
+
     `options` is a dict whom keys are tuples (column, line) and values are tikz options
     to be passed to corresponding cell in the table for answers.
     """
@@ -143,14 +146,13 @@ def generate_table_for_answers(questions, answers, introduction='', options={}):
     write = content.append
 
     # Generate the table where students will answer.
-    scale = CELL_SIZE_IN_CM
+    tkzoptions = ['scale=%s' % CELL_SIZE_IN_CM]
+    if flip:
+        tkzoptions.extend(['x={(0cm,-1cm)}', 'y={(-1cm,0cm)}'])
+
     write(r"""
-        \vspace{{.5em}}
-
-        {introduction}
-
-        \begin{{tikzpicture}}[scale={scale}]
-        \draw[thin,fill=black] (-1,0) rectangle (0,1);""".format(**locals()))
+        \begin{tikzpicture}[%s]
+        \draw[thin,fill=black] (-1,0) rectangle (0,1);""" % (','.join(tkzoptions)))
 
     if isinstance(questions, int):
         questions = range(1, questions + 1)
@@ -200,8 +202,12 @@ def generate_table_for_answers(questions, answers, introduction='', options={}):
 def generate_tex(text):
     #TODO: add ability to customize this part ?
     paper_format = '%spaper' % PAPER_FORMAT.lower()
-    content = [r"\documentclass[%s,10pt]{article}" % paper_format,
-        "<--Customized header-->",
+    content = [r"\documentclass[%s,10pt]{article}" % paper_format]
+
+    # Every LaTeX package loaded by user will be inserted here.
+    customized_header_position = len(content)
+
+    content.append(
         r"""\usepackage[utf8]{{inputenc}}
         \usepackage[document]{{ragged2e}}
         \usepackage{{nopageno}}
@@ -226,7 +232,7 @@ def generate_tex(text):
         \renewcommand{{\thesubsection}}{{\Alph{{subsection}}}}
         \setenumerate[0]{{label=\protect\AutoQCMcircled{{\arabic*}}}}
         \begin{{document}}""".format(left=MARGIN_LEFT_IN_CM, right=MARGIN_RIGHT_IN_CM,
-                               top=MARGIN_TOP_IN_CM, bottom=MARGIN_BOTTOM_IN_CM)]
+                               top=MARGIN_TOP_IN_CM, bottom=MARGIN_BOTTOM_IN_CM))
 
     content.append("#AUTOQCM_BARCODE")
 
@@ -259,8 +265,10 @@ def generate_tex(text):
     content.append(r'\AutoQCMsimfill')
     content.append('#END')
 
-    content.append('<--Table for answers-->') # To be filled later with table for answers.
-    # (Dimensions are not known for now.)
+    default_table_for_answers_position = len(content)
+    # The table students use to answer MCQ will be generated and inserted here
+    # after scanning the whole MCQ, since its dimensions are unknown for now.
+    # (User can customize its position by using #TABLE_FOR_ANSWERS tag).
 
     # Number of questions
     question_number = 0
@@ -291,6 +299,8 @@ def generate_tex(text):
             if line.startswith('<<') and not line.strip('< '):
                 # Close introduction.
                 intro.append('#END')
+                #XXX: Make some special formating for introduction ?
+                content.extend(intro)
                 # Start of Multiple Choice Questions.
                 mode_qcm = has_qcm = True
                 # Shuffles QCM sections.
@@ -432,14 +442,43 @@ def generate_tex(text):
         content.append('#END')
     if group_opened:
         content.append('#END')
-    i = content.index('<--Table for answers-->')
-    content[i] = generate_table_for_answers(question_number, n_answers, introduction='\n'.join(intro))
-    i = content.index('<--Customized header-->')
-    content[i] = '\n'.join(header)
+
+    content.insert(customized_header_position, '\n'.join(header))
     # This '#END' refer to '#IF{'AUTOQCM__SCORE_FOR_THIS_STUDENT' in dir()}'.
     content.append('#END')
     content.append(r"\end{document}")
-    return '\n'.join(content), students_list, question_number, n_answers
+    new_text = '\n'.join(content)
+
+    i = new_text.find('#TABLE_FOR_ANSWERS')
+    flip = False
+    if i == -1:
+        content.insert(default_table_for_answers_position,
+                       generate_table_for_answers(question_number, n_answers))
+        new_text = '\n'.join(content)
+    else:
+        j = i + len('#TABLE_FOR_ANSWERS')
+        kw = {'questions': question_number, 'answers': n_answers}
+        args = []
+        #XXX: Accept spaces before `[`.
+        if new_text[j] == '[':
+            j += 1
+            k = find_closing_bracket(new_text, j, brackets='[]')
+            options = new_text[j:k].split(',')
+            for o in options:
+                if '=' in o:
+                    key, val = o.split('=')
+                    kw[key.strip()] = eval(val)
+                else:
+                    args.append(eval(o))
+            j = k + 1
+        new_text = (new_text[:i] + generate_table_for_answers(*args, **kw)
+                    + new_text[j:])
+        # User may overwrite default data.
+        flip = kw.get('flip', flip)
+        question_number = kw.get('questions', question_number)
+        n_answers = kw.get('answers', question_number)
+
+    return new_text, students_list, question_number, n_answers, flip
 
 
 

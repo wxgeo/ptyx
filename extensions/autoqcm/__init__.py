@@ -53,7 +53,8 @@ One may include some PTYX code of course.
 
 from functools import partial
 
-from .generate import generate_tex, generate_identification_band
+from .generate import (generate_tex, generate_identification_band,
+                       generate_table_for_answers)
 from .. import extended_python
 
 
@@ -139,6 +140,12 @@ class AutoQCMTags(object):
         full=('AUTOQCM__SCORE_FOR_THIS_STUDENT' not in self.context)
         self.write(generate_identification_band(identifier=n, full=full))
 
+    def _parse_TABLE_FOR_ANSWERS_tag(self, node):
+        args, kw = self._parse_options(node)
+        n = self.autoqcm_data['n_questions']
+        n_answers = self.autoqcm_data['n_max_answers']
+        self.write(generate_table_for_answers(n, n_answers, *args, **kw))
+
     def _parse_DEBUG_AUTOQCM_tag(self, node):
         ans = self.autoqcm_correct_answers
         print('---------------------------------------------------------------')
@@ -155,11 +162,12 @@ def main(text, compiler):
     compiler.add_new_tag('NEW_ANSWER', (1, 0, None), AutoQCMTags._parse_NEW_ANSWER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('END_QCM', (0, 0, None), AutoQCMTags._parse_END_QCM_tag, 'autoqcm', update=False)
     compiler.add_new_tag('AUTOQCM_BARCODE', (0, 0, None), AutoQCMTags._parse_AUTOQCM_BARCODE_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('TABLE_FOR_ANSWERS', (0, 0, None), AutoQCMTags._parse_TABLE_FOR_ANSWERS_tag, 'autoqcm', update=False)
     compiler.add_new_tag('SCORES', (1, 0, None), AutoQCMTags._parse_SCORES_tag, 'autoqcm', update=False)
     compiler.add_new_tag('GRAY_IF_CORRECT', (2, 0, None), AutoQCMTags._parse_GRAY_IF_CORRECT_tag, 'autoqcm', update=False)
     compiler.add_new_tag('PROPOSED_ANSWER', (0, 0, ['@END']), AutoQCMTags._parse_PROPOSED_ANSWER, 'autoqcm', update=False)
     compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), AutoQCMTags._parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
-    code, students_list, n_questions, n_max_answers = generate_tex(text)
+    code, students_list, n_questions, n_max_answers, flip = generate_tex(text)
     compiler.latex_generator.autoqcm_data = {'answers': {},
             'students': students_list, 'n_questions': n_questions,
             'n_max_answers': n_max_answers,
@@ -167,6 +175,7 @@ def main(text, compiler):
             'incorrect': -1/n_max_answers,
             'skipped': 0,
             'mode': 'some',
+            'flip': flip,
             }
     assert isinstance(code, str)
     return code
@@ -181,6 +190,7 @@ def close(compiler):
     l.append('SKIPPED: %s' % g.autoqcm_data['skipped'])
     l.append('QUESTIONS: %s' % g.autoqcm_data['n_questions'])
     l.append('ANSWERS (MAX): %s' % g.autoqcm_data['n_max_answers'])
+    l.append('FLIP: %s' % g.autoqcm_data['flip'])
     for n, correct_answers in answers:
         l.append('*** ANSWERS (TEST %s) ***' % n)
         for i, nums in enumerate(correct_answers):
