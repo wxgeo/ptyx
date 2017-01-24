@@ -444,7 +444,7 @@ def generate_tex(text):
         content.append('#END')
 
     content.insert(customized_header_position, '\n'.join(header))
-    # This '#END' refer to '#IF{'AUTOQCM__SCORE_FOR_THIS_STUDENT' in dir()}'.
+    # This '#END' refers to '#IF{'AUTOQCM__SCORE_FOR_THIS_STUDENT' in dir()}'.
     content.append('#END')
     content.append(r"\end{document}")
     new_text = '\n'.join(content)
