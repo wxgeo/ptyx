@@ -78,14 +78,6 @@ class AutoQCMTags(object):
             if len(vals) >= 3:
                 self.autoqcm_data['skipped'] = vals[1]
 
-    def _parse_GRAY_IF_CORRECT_tag(self, node):
-        n = self.context['NUM']
-        if n in self.autoqcm_data['answers']:
-            col = int(node.arg(0))
-            line = int(node.arg(1))
-            if line in self.autoqcm_data['answers'][n][col]:
-                self.write('fill=gray,')
-
     def _parse_NEW_QUESTION_tag(self, node):
         self.autoqcm_correct_answers.append([])
         self.autoqcm_answer_number = 0
@@ -142,9 +134,20 @@ class AutoQCMTags(object):
 
     def _parse_TABLE_FOR_ANSWERS_tag(self, node):
         args, kw = self._parse_options(node)
-        n = self.autoqcm_data['n_questions']
-        n_answers = self.autoqcm_data['n_max_answers']
-        self.write(generate_table_for_answers(n, n_answers, *args, **kw))
+        data = self.autoqcm_data
+        n_questions = data['n_questions']
+        n_answers = data['n_max_answers']
+        n = self.context['NUM']
+        if self.context.get('WITH_ANSWERS'):
+            kw['correct_answers'] = data['answers'][n]
+        self.write(generate_table_for_answers(n_questions, n_answers, *args, **kw))
+        # orientation must be stored for scan later.
+        data['flip'] = kw.get('flip', False)
+        #XXX: If flip is not the same for all tests, only last flip value
+        # will be stored, which may lead to errors (though it's highly unlikely
+        # that user would adapt flip value depending on subject number).
+
+
 
     def _parse_DEBUG_AUTOQCM_tag(self, node):
         ans = self.autoqcm_correct_answers
@@ -155,6 +158,31 @@ class AutoQCMTags(object):
         self.write(ans)
 
 def main(text, compiler):
+    # Generation algorithm is the following:
+    # 1. Parse AutoQCM code, to convert it to plain pTyX code.
+    #    Doing this, we now know the number of questions, the number
+    #    of answers per question and the students names.
+    #    However, we can't know for know the number of the correct answer for
+    #    each question, since questions numbers and answers numbers too will
+    #    change during shuffling, when compiling pTyX code (and keeping track of
+    #    them through shuffling is not so easy).
+    # 2. Generate syntax tree, and then compile pTyX code many times to generate
+    #    one test for each student. For each compilation, keep track of correct
+    #    answers.
+    #    All those data are stored in `latex_generator.autoqcm_data['answers']`.
+    #    `latex_generator.autoqcm_data['answers']` is a dict
+    #    with the following structure:
+    #    {1:  [          <-- test n°1 (test id is stored in NUM)
+    #         [0,3,5],   <-- 1st question: list of correct answers
+    #         [2],       <-- 2nd question: list of correct answers
+    #         [1,5],     ...
+    #         ],
+    #     2:  [          <-- test n°2
+    #         [2,3,4],   <-- 1st question: list of correct answers
+    #         [0],       <-- 2nd question: list of correct answers
+    #         [1,2],     ...
+    #         ],
+    #    }
     text = extended_python.main(text, compiler)
     # For efficiency, update only for last tag.
     compiler.add_new_tag('NEW_QCM', (0, 0, None), AutoQCMTags._parse_NEW_QCM_tag, 'autoqcm', update=False)
@@ -164,18 +192,16 @@ def main(text, compiler):
     compiler.add_new_tag('AUTOQCM_BARCODE', (0, 0, None), AutoQCMTags._parse_AUTOQCM_BARCODE_tag, 'autoqcm', update=False)
     compiler.add_new_tag('TABLE_FOR_ANSWERS', (0, 0, None), AutoQCMTags._parse_TABLE_FOR_ANSWERS_tag, 'autoqcm', update=False)
     compiler.add_new_tag('SCORES', (1, 0, None), AutoQCMTags._parse_SCORES_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('GRAY_IF_CORRECT', (2, 0, None), AutoQCMTags._parse_GRAY_IF_CORRECT_tag, 'autoqcm', update=False)
     compiler.add_new_tag('PROPOSED_ANSWER', (0, 0, ['@END']), AutoQCMTags._parse_PROPOSED_ANSWER, 'autoqcm', update=False)
     compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), AutoQCMTags._parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
-    code, students_list, n_questions, n_max_answers, flip = generate_tex(text)
+    code, students_list, n_questions, n_max_answers = generate_tex(text)
     compiler.latex_generator.autoqcm_data = {'answers': {},
             'students': students_list, 'n_questions': n_questions,
             'n_max_answers': n_max_answers,
             'correct': 1,
-            'incorrect': -1/n_max_answers,
+            'incorrect': 0,
             'skipped': 0,
             'mode': 'some',
-            'flip': flip,
             }
     assert isinstance(code, str)
     return code
@@ -191,6 +217,7 @@ def close(compiler):
     l.append('QUESTIONS: %s' % g.autoqcm_data['n_questions'])
     l.append('ANSWERS (MAX): %s' % g.autoqcm_data['n_max_answers'])
     l.append('FLIP: %s' % g.autoqcm_data['flip'])
+    l.append('SEED: %s' % compiler.state['seed'])
     for n, correct_answers in answers:
         l.append('*** ANSWERS (TEST %s) ***' % n)
         for i, nums in enumerate(correct_answers):

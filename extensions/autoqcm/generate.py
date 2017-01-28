@@ -1,8 +1,12 @@
 from string import ascii_letters
 import csv
 import re
+import sys
+from os.path import join as joinpath, expanduser, abspath, dirname
 
-from .parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM,
+script_path = dirname(abspath(sys._getframe().f_code.co_filename))
+sys.path.insert(0, script_path)
+from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM,
                          MARGIN_RIGHT_IN_CM, PAPER_FORMAT, PAPER_FORMATS,
                          MARGIN_BOTTOM_IN_CM, MARGIN_TOP_IN_CM
                         )
@@ -125,7 +129,7 @@ def generate_students_list(csv_path='', _n_student=None):
 
 
 
-def generate_table_for_answers(questions, answers, flip=False, options={}):
+def generate_table_for_answers(questions, answers, correct_answers=(), flip=False, options={}):
     """Generate the table where students select correct answers.
 
     `questions` is either a list (or any iterable) of questions numbers,
@@ -136,10 +140,16 @@ def generate_table_for_answers(questions, answers, flip=False, options={}):
     or an integer n≤26 (answers identifiers will be automatically generated then:
     a, b, c, ...).
 
+    `correct_answers` is a list of correct answers for each questions (so,
+    it's a list of lists of integers).
+    For example, `[[0, 2], [3], []]` means that the correct answers for question 1
+    were the answers number 1 and 3 (`[0, 2]`), while the only correct answer for question 2
+    was number 4 (`[3]`) and question 3 had no correct answer at all (`[]`).
+
     If `flip` is True, rows and columns will be inverted. This may gain some place
     if there are more answers per question than questions.
 
-    `options` is a dict whom keys are tuples (column, line) and values are tikz options
+    `options` is a dict whom keys are tuples (line, column) and values are tikz options
     to be passed to corresponding cell in the table for answers.
     """
     content = []
@@ -169,16 +179,21 @@ def generate_table_for_answers(questions, answers, flip=False, options={}):
     if isinstance(answers, int):
         answers = ascii_letters[:answers]
 
+    i = -1
     for i, name in enumerate(answers):
         y1 = -i
         y2 = y1 - 1
         y3 = .5*(y1 + y2)
         write(r"""
             \draw[ultra thin] (-1,{y1}) rectangle (0,{y2}) (-0.5,{y3}) node {{{name}}};""".format(**locals()))
-        for x1 in range(n_questions):
-            opt = options.get((x1, i), "")
-            x2=x1 + 1
-            write(r"""\draw [ultra thin,#GRAY_IF_CORRECT{{{x1}}}{{{i}}}{opt}] ({x1},{y1}) rectangle ({x2},{y2});""".format(**locals()))
+        for j in range(n_questions):
+            opt = options.get((i, j), "")
+            x1 = j
+            x2 = x1 + 1
+            if j < len(correct_answers):
+                if i in correct_answers[j]:
+                    opt = 'fill=gray,' + opt
+            write(r"""\draw [ultra thin,{opt}] ({x1},{y1}) rectangle ({x2},{y2});""".format(**locals()))
 
     n_answers = i + 1
 
@@ -197,42 +212,83 @@ def generate_table_for_answers(questions, answers, flip=False, options={}):
 
 
 
+def generate_latex_header():
+    paper_format = '%spaper' % PAPER_FORMAT.lower()
+    # LaTeX header is in two part, so as user may insert some customization here.
+    return [r"\documentclass[%s,10pt]{article}" % paper_format,
+    r"""\usepackage[utf8]{{inputenc}}
+    \usepackage[document]{{ragged2e}}
+    \usepackage{{nopageno}}
+    \usepackage{{tikz}}
+    \usepackage[left={left}cm,right={right}cm,top={top}cm,bottom={bottom}cm]{{geometry}}
+    \parindent=0cm
+    \usepackage{{pifont}}
+    \usepackage{{textcomp}}
+    \usepackage{{enumitem}} % To resume an enumeration.
+    \newcommand*\graysquared[1]{{\tikz[baseline=(char.base)]{{
+        \node[fill=gray,shape=rectangle,draw,inner sep=2pt] (char) {{\color{{white}}\textbf{{#1}}}};}}}}
+    \newcommand*\whitesquared[1]{{\tikz[baseline=(char.base)]{{
+        \node[fill=white,shape=rectangle,draw,inner sep=2pt] (char) {{\color{{black}}\textbf{{#1}}}};}}}}
+    \newcommand*\AutoQCMcircled[1]{{\tikz[baseline=(char.base)]{{
+        \node[shape=circle,fill=blue!20!white,draw,inner sep=2pt] (char) {{\textbf{{#1}}}};}}}}
+    \makeatletter
+    \newcommand{{\AutoQCMsimfill}}{{%
+    \leavevmode \cleaders \hb@xt@ .50em{{\hss $\sim$\hss }}\hfill \kern \z@
+    }}
+    \makeatother
+    \newcounter{{answerNumber}}
+    \renewcommand{{\thesubsection}}{{\Alph{{subsection}}}}
+    \setenumerate[0]{{label=\protect\AutoQCMcircled{{\arabic*}}}}
+    \begin{{document}}""".format(left=MARGIN_LEFT_IN_CM, right=MARGIN_RIGHT_IN_CM,
+                           top=MARGIN_TOP_IN_CM, bottom=MARGIN_BOTTOM_IN_CM)]
+
+
+
+def generate_answers_and_score(config, name, identifier, score, max_score):
+    "Generate plain LaTeX code corresponding to score and correct answers."
+    t = generate_table_for_answers(config['questions'], config['answers (max)'],
+             correct_answers=config['answers'][identifier], flip=config['flip'])
+    left = MARGIN_LEFT_IN_CM
+    right = MARGIN_RIGHT_IN_CM
+    top = MARGIN_TOP_IN_CM
+    bottom = MARGIN_BOTTOM_IN_CM
+    return (r"""
+    \documentclass[{paper_format},10pt]{article}
+    \usepackage[utf8]{inputenc}
+    \usepackage[document]{ragged2e}
+    \usepackage{nopageno}
+    \usepackage{tikz}
+    \usepackage[left=%(left)scm,right=%(right)scm,top=%(top)scm,bottom=%(bottom)scm]{geometry}
+    \parindent=0cm
+    \usepackage{textcomp}
+
+    \begin{document}
+    \begin{Large}\textsc{%(name)s}\end{Large}
+    \hfill\begin{tikzpicture}
+    \node[draw,very thick,rectangle, rounded corners,red!70!black] (0,0) {
+    \begin{Large}
+    Score~: %(score)s/%(max_score)s
+    \end{Large}};
+    \end{tikzpicture}
+
+    \bigskip
+
+    Solution~:
+    \medskip
+
+    %(t)s
+
+    \end{document}
+    """ % locals())
 
 
 def generate_tex(text):
-    #TODO: add ability to customize this part ?
-    paper_format = '%spaper' % PAPER_FORMAT.lower()
-    content = [r"\documentclass[%s,10pt]{article}" % paper_format]
+    #TODO: improve ability to customize this part ?
 
-    # Every LaTeX package loaded by user will be inserted here.
-    customized_header_position = len(content)
-
-    content.append(
-        r"""\usepackage[utf8]{{inputenc}}
-        \usepackage[document]{{ragged2e}}
-        \usepackage{{nopageno}}
-        \usepackage{{tikz}}
-        \usepackage[left={left}cm,right={right}cm,top={top}cm,bottom={bottom}cm]{{geometry}}
-        \parindent=0cm
-        \usepackage{{pifont}}
-        \usepackage{{textcomp}}
-        \usepackage{{enumitem}} % To resume an enumeration.
-        \newcommand*\graysquared[1]{{\tikz[baseline=(char.base)]{{
-            \node[fill=gray,shape=rectangle,draw,inner sep=2pt] (char) {{\color{{white}}\textbf{{#1}}}};}}}}
-        \newcommand*\whitesquared[1]{{\tikz[baseline=(char.base)]{{
-            \node[fill=white,shape=rectangle,draw,inner sep=2pt] (char) {{\color{{black}}\textbf{{#1}}}};}}}}
-        \newcommand*\AutoQCMcircled[1]{{\tikz[baseline=(char.base)]{{
-            \node[shape=circle,fill=blue!20!white,draw,inner sep=2pt] (char) {{\textbf{{#1}}}};}}}}
-        \makeatletter
-        \newcommand{{\AutoQCMsimfill}}{{%
-        \leavevmode \cleaders \hb@xt@ .50em{{\hss $\sim$\hss }}\hfill \kern \z@
-        }}
-        \makeatother
-        \newcounter{{answerNumber}}
-        \renewcommand{{\thesubsection}}{{\Alph{{subsection}}}}
-        \setenumerate[0]{{label=\protect\AutoQCMcircled{{\arabic*}}}}
-        \begin{{document}}""".format(left=MARGIN_LEFT_IN_CM, right=MARGIN_RIGHT_IN_CM,
-                               top=MARGIN_TOP_IN_CM, bottom=MARGIN_BOTTOM_IN_CM))
+    # Every LaTeX package loaded by user will be inserted here
+    # (after first line of the header).
+    customized_header_position = 1
+    content = generate_latex_header()
 
     content.append("#AUTOQCM_BARCODE")
 
@@ -245,30 +301,15 @@ def generate_tex(text):
         content.append(code)
         content.append('#END')
     else:
+        students_list = []
         print("Warning: no student list provided (or incorrect syntax), ignoring...")
 
-    content.append("#IF{'AUTOQCM__SCORE_FOR_THIS_STUDENT' in dir()}")
-    content.append(r"""
-        \begin{Large}\textsc{#{AUTOQCM__STUDENT_NAME}}\end{Large}
-
-        \hfill\begin{tikzpicture}
-        \node[draw,very thick,rectangle, rounded corners,red!70!black] (0,0) {
-        \begin{Large}
-        Score~: #{AUTOQCM__SCORE_FOR_THIS_STUDENT}/#{AUTOQCM__MAX_SCORE}
-        \end{Large}};
-        \end{tikzpicture}
-
-        Solution~:
-        \medskip
-        """)
-    content.append('#ELSE')
     content.append(r'\AutoQCMsimfill')
-    content.append('#END')
 
-    default_table_for_answers_position = len(content)
-    # The table students use to answer MCQ will be generated and inserted here
-    # after scanning the whole MCQ, since its dimensions are unknown for now.
+    # The table that students use to answer MCQ will be generated and inserted here by default.
     # (User can customize its position by using #TABLE_FOR_ANSWERS tag).
+    if '#TABLE_FOR_ANSWERS' not in text:
+        content.append('#TABLE_FOR_ANSWERS')
 
     # Number of questions
     question_number = 0
@@ -281,8 +322,6 @@ def generate_tex(text):
     mode_qcm = group_opened = question_opened = has_groups = has_qcm = header_closed = False
 
     lastline = None
-
-    content.append("#IF{'AUTOQCM__SCORE_FOR_THIS_STUDENT' not in dir()}")
 
     intro = ['#ASK_ONLY']
     header=[]
@@ -444,41 +483,10 @@ def generate_tex(text):
         content.append('#END')
 
     content.insert(customized_header_position, '\n'.join(header))
-    # This '#END' refers to '#IF{'AUTOQCM__SCORE_FOR_THIS_STUDENT' in dir()}'.
-    content.append('#END')
     content.append(r"\end{document}")
     new_text = '\n'.join(content)
 
-    i = new_text.find('#TABLE_FOR_ANSWERS')
-    flip = False
-    if i == -1:
-        content.insert(default_table_for_answers_position,
-                       generate_table_for_answers(question_number, n_answers))
-        new_text = '\n'.join(content)
-    else:
-        j = i + len('#TABLE_FOR_ANSWERS')
-        kw = {'questions': question_number, 'answers': n_answers}
-        args = []
-        #XXX: Accept spaces before `[`.
-        if new_text[j] == '[':
-            j += 1
-            k = find_closing_bracket(new_text, j, brackets='[]')
-            options = new_text[j:k].split(',')
-            for o in options:
-                if '=' in o:
-                    key, val = o.split('=')
-                    kw[key.strip()] = eval(val)
-                else:
-                    args.append(eval(o))
-            j = k + 1
-        new_text = (new_text[:i] + generate_table_for_answers(*args, **kw)
-                    + new_text[j:])
-        # User may overwrite default data.
-        flip = kw.get('flip', flip)
-        question_number = kw.get('questions', question_number)
-        n_answers = kw.get('answers', question_number)
-
-    return new_text, students_list, question_number, n_answers, flip
+    return new_text, students_list, question_number, n_answers
 
 
 

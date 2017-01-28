@@ -36,15 +36,16 @@ from numpy import array, nonzero, transpose
 from pylab import imread
 from PIL import Image
 
+# File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
+script_path = dirname(abspath(sys._getframe().f_code.co_filename))
+sys.path.insert(0, joinpath(script_path, '../..'))
+
+from generate import generate_answers_and_score
 from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM,
                          MARGIN_RIGHT_IN_CM, MARGIN_TOP_IN_CM,
                          MARGIN_BOTTOM_IN_CM, PAPER_FORMAT, PAPER_FORMATS,
                         )
-# File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
-script_path = dirname(abspath(sys._getframe().f_code.co_filename))
-sys.path.append(joinpath(script_path, '../..'))
 from compilation import compiler, make_file, join_files
-
 
 
 def convert_png_to_gray(name):
@@ -204,42 +205,6 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75):
     square = m[i:i+size, j:j+size] < gray_level
     return square.sum() > proportion*size**2
 
-
-def read_config(pth):
-    cfg = {'answers': {}, 'students': []}
-    parameters_types = {'mode': str, 'correct': float, 'incorrect': float,
-                  'skipped': float, 'questions': int, 'answers (max)': int,
-                  'flip': bool}
-    ans = cfg['answers']
-    with open(pth) as f:
-        section = 'parameters'
-        for line in f:
-            try:
-                if line.startswith('*** ANSWERS (TEST '):
-                    num = int(line[18:-6])
-                    ans[num] = []
-                    section = 'answers'
-                elif line.startswith('*** STUDENTS LIST ***'):
-                    section = 'students'
-                    students = cfg['students']
-                else:
-                    if section == 'parameters':
-                        key, val =  line.split(':')
-                        key = key.strip().lower()
-                        val = parameters_types[key](val.strip())
-                        cfg[key] = val
-                    elif section == 'answers':
-                        q, correct_ans = line.split(' -> ')
-                        ans[num].append([int(n) - 1 for n in correct_ans.split(',')])
-                        assert len(ans[num]) == int(q), ('Incorrect question number: %s' % q)
-                    else:
-                        assert section == 'students'
-                        students.append(line.strip())
-
-            except Exception:
-                print("Error while parsing this line: " + repr(line))
-                raise
-    return cfg
 
 
 
@@ -551,6 +516,43 @@ def scan_picture(filename, config):
 
 
 
+def read_config(pth):
+    cfg = {'answers': {}, 'students': []}
+    parameters_types = {'mode': str, 'correct': float, 'incorrect': float,
+                  'skipped': float, 'questions': int, 'answers (max)': int,
+                  'flip': bool, 'seed': int}
+    ans = cfg['answers']
+    with open(pth) as f:
+        section = 'parameters'
+        for line in f:
+            try:
+                if line.startswith('*** ANSWERS (TEST '):
+                    num = int(line[18:-6])
+                    ans[num] = []
+                    section = 'answers'
+                elif line.startswith('*** STUDENTS LIST ***'):
+                    section = 'students'
+                    students = cfg['students']
+                else:
+                    if section == 'parameters':
+                        key, val =  line.split(':')
+                        key = key.strip().lower()
+                        val = parameters_types[key](val.strip())
+                        cfg[key] = val
+                    elif section == 'answers':
+                        q, correct_ans = line.split(' -> ')
+                        ans[num].append([int(n) - 1 for n in correct_ans.split(',')])
+                        assert len(ans[num]) == int(q), ('Incorrect question number: %s' % q)
+                    else:
+                        assert section == 'students'
+                        students.append(line.strip())
+
+            except Exception:
+                print("Error while parsing this line: " + repr(line))
+                raise
+    return cfg
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Extract information from numerised tests.")
@@ -600,6 +602,9 @@ if __name__ == '__main__':
         config = read_config(configfile)
         #~ print(config)
 
+        # Maximal score = (number of questions)x(score when answer is correct)
+        max_score = len(iter(config['answers'].values()).__next__())*config['correct']
+
         # Extract all images from pdf.
         with tempfile.TemporaryDirectory() as tmp_path:
             #tmp_path = '/home/nicolas/.tmp/scan'
@@ -622,7 +627,7 @@ if __name__ == '__main__':
                 if name in scores:
                     raise RuntimeError('2 tests for same student (%s) !' % name)
                 scores[name] = score
-                print("Score: %s/%s" % (data[3], len(data[1])*config['correct']))
+                print("Score: %s/%s" % (data[3], max_score))
 
 
         # Generate CSV file with results.
@@ -636,31 +641,15 @@ if __name__ == '__main__':
 
 
         # Generate pdf files, with the score and the table of correct answers for each test.
-
-        # First, generate the syntax tree once.
-        filename = search_by_extension(directory, '.ptyx')
-        compiler.read_file(filename)
-        compiler.call_extensions()
-        compiler.generate_syntax_tree()
-        compiler.read_seed()
-
-        # Since there is only one pass (we generate only the answers, not the blank test),
-        # autoqcm_data['answers'] will not be filled automatically at the end of the first pass.
-        # So, we have to provide it manually (but fortunately, it has been saved in config).
-        compiler.latex_generator.autoqcm_data['answers'] = config['answers']
-
-        # Now, let's generate each pdf.
         pdfnames = []
+        filename = search_by_extension(directory, '.ptyx')
         for identifier, answers, name, score in all_data:
             output_name = '%s-%s-corr.score' % (filename[:-5], identifier)
             pdfnames.append(output_name)
             print('Generating pdf file for student %s (subject %s, score %s)...'
                                                     % (name, identifier, score))
-            make_file(output_name, context={'NUM': identifier,
-                                'AUTOQCM__SCORE_FOR_THIS_STUDENT': score,
-                                'AUTOQCM__MAX_SCORE': len(answers)*config['correct'],
-                                'AUTOQCM__STUDENT_NAME': name,
-                                'WITH_ANSWERS': True},
+            latex = generate_answers_and_score(config, name, identifier, score, max_score)
+            make_file(output_name, plain_latex=latex,
                                 remove=True,
                                 formats=['pdf'],
                                 quiet=True,
