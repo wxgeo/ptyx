@@ -123,14 +123,18 @@ def _compile_latex_file(filename, dest=None, quiet=False):
 
 
 def make_file(output_name, **options):
-    context = options.get('context', {})
-    context.setdefault('NUM', 1)
-    context.setdefault('TOTAL', 1)
-
     remove = options.get('remove')
     quiet = options.get('quiet')
     formats = options.get('formats', param['formats'])
-    latex = compiler.generate_latex(**context)
+
+    # make_file() can be used to compile plain LaTeX too.
+    latex = options.get('plain_latex')
+    if latex is None:
+        context = options.get('context', {})
+        context.setdefault('NUM', 1)
+        context.setdefault('TOTAL', 1)
+
+        latex = compiler.generate_latex(**context)
 
     if 'tex' in formats:
         with open(output_name + '.tex', 'w') as texfile:
@@ -144,9 +148,10 @@ def make_file(output_name, **options):
                         if os.path.isfile(name):
                             os.remove(name)
     else:
-        # FIXME: this portion of code doesn't seem to work anymore.
-        # Anyway, it would be much better to use a temporary directory,
-        # and then to move wanted file from there to working directory.
+        # FIXME:
+        # - Don't work with pgfplot !!!
+        # - Difficult to debug.
+        # - Seems to be problem with references too.
         assert 'pdf' in formats
 
         with tempfile.TemporaryDirectory() as tmp_path:
