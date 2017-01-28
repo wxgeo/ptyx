@@ -1011,7 +1011,7 @@ class LatexGenerator(object):
             # So, '#{a=5}' and '#{a=5;}' will both affect 5 to a,
             # but the second will not display '5' on final document.
 
-        if sympy_code:
+        if sympy_code and not flags.get('str'):
             latex = print_sympy_expr(result, **flags)
         else:
             latex = str(result)
@@ -1132,10 +1132,11 @@ class Compiler(object):
             # but if needed extensions can also save some data this way using #COMMENT tag).
             # If input file was /path/to/file/myfile.ptyx,
             # plain pTyX code is saved in /path/to/file/.myfile.ptyx.plain-ptyx
-            path = self.state['path']
-            filename = join(dirname(path), '.%s.plain-ptyx' % basename(path))
-            with open(filename, 'w') as f:
-                f.write(code)
+            path = self.state.get('path')
+            if path is not None:
+                filename = join(dirname(path), '.%s.plain-ptyx' % basename(path))
+                with open(filename, 'w') as f:
+                    f.write(code)
         self.state['extensions_loaded'] = extensions
         self.state['plain_ptyx_code'] = code
         return code
@@ -1145,18 +1146,15 @@ class Compiler(object):
             self.state['raw_text'] = code
         else:
             code = self.state['raw_text']
-        pos = 0
-        while True:
-            i = code.find("#SEED{", pos)
-            if i == -1:
-                break
+        i = code.find("#SEED{")
+        if i == -1:
+            print('Warning: #SEED not found, using hash of ptyx file path (if any) as seed.')
+            value = hash(self.state.get('path'))
+        else:
             pos = code.find('}', i)
             if pos == -1:
                 raise RuntimeError("#SEED tag has no closing bracket !")
             value = int(code[i + 6:pos].strip())
-        else:
-            print('Warning: #SEED not found, using hash of ptyx file path (if any) as seed.')
-            value = hash(self.state.get('path'))
         self.state['seed'] = value
         return value
 
