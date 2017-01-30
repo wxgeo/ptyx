@@ -165,6 +165,7 @@ def generate_table_for_answers(questions, answers, correct_answers=(), flip=Fals
         \draw[thin,fill=black] (-1,0) rectangle (0,1);""" % (','.join(tkzoptions)))
 
     if isinstance(questions, int):
+        assert questions > 0
         questions = range(1, questions + 1)
 
     # Not all iterables have a .__len__() method, so calculate it.
@@ -177,6 +178,7 @@ def generate_table_for_answers(questions, answers, correct_answers=(), flip=Fals
         n_questions += 1
 
     if isinstance(answers, int):
+        assert answers > 0
         answers = ascii_letters[:answers]
 
     i = -1
@@ -486,7 +488,7 @@ def generate_tex(text):
     content.append(r"\end{document}")
     new_text = '\n'.join(content)
 
-    return new_text, students_list, question_number, n_answers
+    return new_text, students_list#, question_number, n_answers
 
 
 

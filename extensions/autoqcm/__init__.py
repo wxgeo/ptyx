@@ -56,16 +56,74 @@ from functools import partial
 from .generate import (generate_tex, generate_identification_band,
                        generate_table_for_answers)
 from .. import extended_python
+import randfunc
+from utilities import print_sympy_expr
+
+
+def test_singularity_and_append(code, l):
+    _code_ = code.strip()
+    if _code_ in l:
+        msg= [
+        'ERROR: Same answer proposed twice in MCQ !',
+        'Answer "%s" appeared at least twice for the same question.' % _code_,
+        'Question was:',
+        repr(self.current_question[0]),
+        '',
+        'Nota: if this is really desired behaviour, insert',
+        'following lines in the header of the ptyx file:',
+        '#PYTHON',
+        'ALLOW_SAME_ANSWER_TWICE=True',
+        '#END',
+        ]
+        n = max(len(s) for s in msg)
+        stars = (n + 4)*'*'
+        print(stars)
+        for s in msg:
+            print('* ' + s)
+        print(stars)
+        raise RuntimeError('Same answer proposed twice in MCQ '
+                           '(see message above for more information) !')
+    else:
+        l.append(_code_)
+    return code
 
 
 class AutoQCMTags(object):
     def _parse_NEW_QCM_tag(self, node):
         self.autoqcm_correct_answers = []
+        self.n_questions = 0
+        self.n_max_answers = 0
 
     def _parse_END_QCM_tag(self, node):
-        # TODO: Store QCM with NUM value.
-        n = self.context['NUM']
-        self.autoqcm_data['answers'][n] = self.autoqcm_correct_answers
+        data = self.autoqcm_data
+        context = self.context
+        n = context['NUM']
+        data['answers'][n] = self.autoqcm_correct_answers
+        # Those are supposed to have same value for each test,
+        # so we don't save test number:
+        data['n_questions'] = len(self.autoqcm_correct_answers)
+        data['n_max_answers'] = self.n_max_answers
+
+        # Now, we know the number of questions and of answers per question for
+        # the whole MCQ, so we can generate the table for the answers.
+        args, kw = data['table_for_answers_options']
+        kw['answers'] = int(kw.get('answers', data['n_max_answers']))
+        kw['questions'] = int(kw.get('questions', data['n_questions']))
+        if context.get('WITH_ANSWERS'):
+            kw['correct_answers'] = data['answers'][n]
+        latex = generate_table_for_answers(*args, **kw)
+        # orientation must be stored for scan later.
+        data['flip'] = bool(kw.get('flip', False))
+        #XXX: If flip is not the same for all tests, only last flip value
+        # will be stored, which may lead to errors (though it's highly unlikely
+        # that user would adapt flip value depending on subject number).
+
+        # Search backward for #TABLE_FOR_ANSWERS to replace it with
+        # corresponding LaTeX code.
+        for textlist in self.backups + [self.context['LATEX']]:
+            for i, elt in enumerate(reversed(textlist)):
+                if elt == '#TABLE_FOR_ANSWERS':
+                    textlist[len(textlist) - i - 1] = latex
 
     def _parse_SCORES_tag(self, node):
         arg = node.arg(0)
@@ -93,38 +151,15 @@ class AutoQCMTags(object):
         if (node.arg(0) == 'True'):
             self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
         self.autoqcm_answer_number += 1
+        if self.autoqcm_answer_number > self.n_max_answers:
+            self.n_max_answers = self.autoqcm_answer_number
 
-    def _parse_PROPOSED_ANSWER(self, node):
-        def test_singularity(code, l):
-            _code_ = code.strip()
-            if _code_ in l:
-                msg= [
-                'ERROR: Same answer proposed twice in MCQ !',
-                'Answer "%s" appeared at least twice for the same question.' % _code_,
-                'Question was:',
-                repr(self.current_question[0]),
-                '',
-                'Nota: if this is really desired behaviour, insert',
-                'following lines in the header of the ptyx file:',
-                '#PYTHON',
-                'ALLOW_SAME_ANSWER_TWICE=True',
-                '#END',
-                ]
-                n = max(len(s) for s in msg)
-                stars = (n + 4)*'*'
-                print(stars)
-                for s in msg:
-                    print('* ' + s)
-                print(stars)
-                raise RuntimeError('Same answer proposed twice in MCQ '
-                                   '(see message above for more information) !')
-            else:
-                l.append(_code_)
-            return code
+
+    def _parse_PROPOSED_ANSWER_tag(self, node):
         if self.context.get('ALLOW_SAME_ANSWER_TWICE'):
             f = None
         else:
-            f = partial(test_singularity, l=self.auto_qcm_answers)
+            f = partial(test_singularity_and_append, l=self.auto_qcm_answers)
         self._parse_children(node.children, function=f)
 
     def _parse_AUTOQCM_BARCODE_tag(self, node):
@@ -133,21 +168,55 @@ class AutoQCMTags(object):
         self.write(generate_identification_band(identifier=n, full=full))
 
     def _parse_TABLE_FOR_ANSWERS_tag(self, node):
-        args, kw = self._parse_options(node)
-        data = self.autoqcm_data
-        n_questions = data['n_questions']
-        n_answers = data['n_max_answers']
-        n = self.context['NUM']
-        if self.context.get('WITH_ANSWERS'):
-            kw['correct_answers'] = data['answers'][n]
-        self.write(generate_table_for_answers(n_questions, n_answers, *args, **kw))
-        # orientation must be stored for scan later.
-        data['flip'] = kw.get('flip', False)
-        #XXX: If flip is not the same for all tests, only last flip value
-        # will be stored, which may lead to errors (though it's highly unlikely
-        # that user would adapt flip value depending on subject number).
+        self.autoqcm_data['table_for_answers_options'] = self._parse_options(node)
+        # Don't parse it now, since we don't know the number of questions
+        # and of answers par question for now.
+        # Write the tag name as a bookmark... it will be replaced by latex
+        # code eventually when closing MCQ (see: _parse_END_QCM_tag).
+        self.write('#TABLE_FOR_ANSWERS')
 
+    def _parse_L_ANSWERS_tag(self, node):
+        """#L_ANSWERS{list}{correct_answer} generate answers from a python list.
 
+        Example:
+        #L_ANSWERS{l}{l[0]}
+        Note that if list or correct_answer are not strings, they will be
+        converted automatically to math mode latex code (1/2 -> '$\frac{1}{2}$').
+        """
+        raw_l = self.context[node.arg(0).strip()]
+        def conv(v):
+            if isinstance(v, str):
+                return v
+            return '$%s$' % print_sympy_expr(v)
+        correct_answer = conv(eval(node.arg(1).strip(), self.context))
+
+        # Test that first argument seems correct
+        # (it must be a list of unique answers including the correct one).
+        if not isinstance(raw_l, (list, tuple)):
+            raise RuntimeError('#L_ANSWERS: first argument must be a list of answers.')
+        l = []
+        for v in raw_l:
+            test_singularity_and_append(conv(v), l)
+        if correct_answer not in l:
+            raise RuntimeError('#L_ANSWERS: correct answer is not in proposed answers list !')
+
+        # Shuffle and generate LaTeX.
+        randfunc.shuffle(l)
+        self.write('\n\n\\sloppy')
+        for ans in l:
+            is_correct = (ans == correct_answer)
+            if is_correct:
+                self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
+            self.autoqcm_answer_number += 1
+            if self.autoqcm_answer_number > self.n_max_answers:
+                self.n_max_answers = self.autoqcm_answer_number
+            self.write(r'\stepcounter{answerNumber}')
+            if self.context.get('WITH_ANSWERS') and not is_correct:
+                self.write(r'\whitesquared')
+            else:
+                self.write(r'\graysquared')
+            self.write(r'{\alph{answerNumber}}~~\mbox{%s}\qquad\linebreak[3]' % ans)
+            self.write('%\n')
 
     def _parse_DEBUG_AUTOQCM_tag(self, node):
         ans = self.autoqcm_correct_answers
@@ -156,6 +225,7 @@ class AutoQCMTags(object):
         print(ans)
         print('---------------------------------------------------------------')
         self.write(ans)
+
 
 def main(text, compiler):
     # Generation algorithm is the following:
@@ -192,12 +262,12 @@ def main(text, compiler):
     compiler.add_new_tag('AUTOQCM_BARCODE', (0, 0, None), AutoQCMTags._parse_AUTOQCM_BARCODE_tag, 'autoqcm', update=False)
     compiler.add_new_tag('TABLE_FOR_ANSWERS', (0, 0, None), AutoQCMTags._parse_TABLE_FOR_ANSWERS_tag, 'autoqcm', update=False)
     compiler.add_new_tag('SCORES', (1, 0, None), AutoQCMTags._parse_SCORES_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('PROPOSED_ANSWER', (0, 0, ['@END']), AutoQCMTags._parse_PROPOSED_ANSWER, 'autoqcm', update=False)
+    compiler.add_new_tag('PROPOSED_ANSWER', (0, 0, ['@END']), AutoQCMTags._parse_PROPOSED_ANSWER_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('L_ANSWERS', (2, 0, None), AutoQCMTags._parse_L_ANSWERS_tag, 'autoqcm', update=False)
     compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), AutoQCMTags._parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
-    code, students_list, n_questions, n_max_answers = generate_tex(text)
+    code, students_list = generate_tex(text)
     compiler.latex_generator.autoqcm_data = {'answers': {},
-            'students': students_list, 'n_questions': n_questions,
-            'n_max_answers': n_max_answers,
+            'students': students_list,
             'correct': 1,
             'incorrect': 0,
             'skipped': 0,
@@ -205,6 +275,7 @@ def main(text, compiler):
             }
     assert isinstance(code, str)
     return code
+
 
 def close(compiler):
     g = compiler.latex_generator

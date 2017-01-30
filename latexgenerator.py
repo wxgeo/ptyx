@@ -126,10 +126,12 @@ class Node(object):
 class SyntaxTreeGenerator(object):
     # For each tag, indicate:
     #   1. The number of interpreted arguments (arguments that contain code).
-    #      Those arguments will be interpreted as python code.
+    #      Those arguments will not be parsed.
+    #      (This is used most of the time for python code).
     #   2. The number of raw arguments.
-    #      Those arguments contain raw text.
-    #   3. If the tag opens a block, a list of all the tags closing the block.
+    #      Those arguments contain raw text, which need parsing.
+    #   3. If the tag opens a block, a list of all the tags closing the block,
+    #      else `None`.
     #
     # Notice that by default, the tag closing the block will not be consumed.
     # This means that the same tag will be parsed again to open or close another block.
@@ -760,9 +762,10 @@ class LatexGenerator(object):
         self._parse_children(node.children)
 
     def _parse_SEED_tag(self, node):
-        # SEED tag is managed independently (it avoids user including it inadvertently inside
-        # a conditional block or a #ASK_ONLY/#END block, which may result in an (apparently)
-        # very strange behaviour of compiler !)
+        # SEED tag is a special tag which is managed independently, at first pass
+        # (it avoids user including it inadvertently inside
+        # a conditional block or a #ASK_ONLY/#END block, which may result in
+        # what seems to be a very strange behaviour of the compiler !)
         pass
 
     #~ def parse_PICK_tag(self, node):
