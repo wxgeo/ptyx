@@ -7,23 +7,18 @@ An example:
 
 
     ...........................
-    a, b in 2..5
-    a, b +
-    c, d, e, f +-
-    a, b *
-    a, b /
-    a +
-    b -
-    a +-1
-    c,d in -5..
-    @ a, b +
+    let a, b in 2..5
+    let a, b +
+    let c, d, e, f +-
+    let a, b *
+    let a, b /
+    let a +
+    let b -
+    let a +-1
+    let c,d in -5..
     let a, b +
     let c, d -
-    let u in -3..-1,
-    h, y -
-    let a, b
-    a, b, c
-
+    let u in -3..-1
     ...........................
     """
 
@@ -39,8 +34,8 @@ def parse_extended_python_code(code):
         line = line.strip()
         if line.startswith('let '):
             line = line[4:]
-            if 'in' in line:
-                names, val = line.split('in')
+            if ' in ' in line:
+                names, val = line.split(' in ')
                 # parse val
                 if '..' in val:
                     a, b = val.split('..')
@@ -52,7 +47,8 @@ def parse_extended_python_code(code):
                     args = [f, 'a=%s' % a.strip(), 'b=%s' % b.strip()]
 
             else:
-                assert line, 'Syntax error: lonely `let`.'
+                if not line:
+                    raise SyntaxError('lonely `let`.')
                 if line.endswith('+-') or line.endswith('-+'):
                     args = ['srandint']
                     names = line[:-2]
@@ -64,7 +60,12 @@ def parse_extended_python_code(code):
                     names = line[:-1]
                 else:
                     args = ['srandint']
-                    names = line
+                    names = line.rstrip('*')
+
+            i = line.find(' with ')
+            if i != -1:
+                condition = line[i + 6:]
+
 
             #TODO: define nrandint
 

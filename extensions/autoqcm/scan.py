@@ -193,7 +193,7 @@ def detect_all_squares(matrix, size=50, error=0.30):
 
 
 
-def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75):
+def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=False):
     """Return True if square is black, False else.
 
     (i, j) is top left corner of the square, where i is line number
@@ -203,6 +203,9 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75):
     is considered black).
     """
     square = m[i:i+size, j:j+size] < gray_level
+    if _debug:
+        print("proportion of black pixels detected: %s (minimum required was %s)"
+                                        % (square.sum()/size**2, proportion))
     return square.sum() > proportion*size**2
 
 
@@ -470,7 +473,14 @@ def scan_picture(filename, config):
             else:
                 i = i0 + di
                 j = j0 + dj
-            answers[-1].append(test_square_color(search_area, i, j, cell_size))
+
+            # Remove borders of the square when testing,
+            # since it may induce false positives.
+            answers[-1].append(test_square_color(search_area, i + 5, j + 5, cell_size - 7))
+            #~ if test_square_color(search_area, i, j, cell_size):
+                #~ test_square_color(search_area, i + 5, j + 5, cell_size - 7, _debug=True)
+                #~ color2debug((vpos + i, j), (vpos + i + cell_size, j + cell_size),display=False)
+                #~ color2debug((vpos + i + 5, j + 5), (vpos + i + cell_size - 2, j + cell_size - 1),color=(0, 153, 0))
 
     #~ print("Answers:\n%s" % '\n'.join(str(a) for a in answers))
     print("Result of grid scanning:")
