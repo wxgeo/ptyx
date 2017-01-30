@@ -391,18 +391,16 @@ def generate_tex(text):
             elif line.startswith('* ') or line.startswith('> '):
                 # This is a new question.
                 question_number += 1
-                # First, count number of answers for last question,
-                # and update maximum number of answers per question.
-                n_answers = max(n_answers, answer_number)
-                answer_number = 0
                 # Close last question before opening a new one.
-                if question_opened:
+                # (Only close if there were manually entered answers).
+                if question_opened and answer_number > 0:
                     # Remove any previous blank lines.
                     # This avoid blank lines beeing inserted between
                     # two consecutive answers when shuffling answers.
                     while content[-1].strip() == '':
                         content.pop()
-                    content.append('#END')
+                    content.append('#END') # end shuffle tag for last answers
+                answer_number = 0
                 # Maybe this is the first question of the group.
                 if not group_opened:
                     group_opened = True
@@ -478,7 +476,6 @@ def generate_tex(text):
                 content.append(_line_)
         lastline = line
 
-    n_answers = max(n_answers, answer_number)
     if question_opened:
         content.append('#END')
     if group_opened:
@@ -488,7 +485,7 @@ def generate_tex(text):
     content.append(r"\end{document}")
     new_text = '\n'.join(content)
 
-    return new_text, students_list#, question_number, n_answers
+    return new_text, students_list
 
 
 
