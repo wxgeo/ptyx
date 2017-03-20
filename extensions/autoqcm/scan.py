@@ -206,7 +206,10 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=Fals
     if _debug:
         print("proportion of black pixels detected: %s (minimum required was %s)"
                                         % (square.sum()/size**2, proportion))
-    return square.sum() > proportion*size**2
+    # Test also the core of the square, since borders may induce false
+    # positives if proportion is kept low (like default value).
+    core = square[2:-2,2:-2]
+    return square.sum() > proportion*size**2 and core.sum() > proportion*(size - 4)**2
 
 
 
@@ -309,7 +312,23 @@ def scan_picture(filename, config):
         # page) to calibrate. Since square size is not known precisely,
         # keep a high error rate for now.
         maxi = maxj = int(round(2*(1 + SQUARE_SIZE_IN_CM)*dpi/2.54))
-        i1, j1 = find_black_square(m[:maxi,:maxj], size=square_size, error=0.5).__next__()
+        maxj0 = maxj
+        # First, search the top left black square.
+        while True:
+            #~ color2debug((0, 0), (maxi, maxj), color=(0,255,0), display=True)
+            try:
+                i1, j1 = find_black_square(m[:maxi,:maxj], size=square_size, error=0.5).__next__()
+                break
+            except StopIteration:
+                # Top square not found.
+                # Expand search area, mostly vertically (expanding to much
+                # horizontally may induce false positives, because of the QR code).
+                print('Adjusting search area...')
+                maxi += square_size
+                if maxj < maxj0 + 4*square_size:
+                    maxj += maxj + square_size//2
+
+        # Search now for the top right black square.
         minj = int(round((20 - 2*(1 + SQUARE_SIZE_IN_CM))*dpi/2.54))
         i2, j2 = find_black_square(m[:maxi,minj:], size=square_size, error=0.5).__next__()
         j2 += minj
@@ -429,6 +448,7 @@ def scan_picture(filename, config):
             j = int(round(j0 + 2*k*f_square_size))
             l.append(test_square_color(search_area, i, j, square_size))
             #~ if k > 15:
+                #~ print(l)
                 #~ color2debug((vpos + i, j), (vpos + i + square_size, j + square_size))
 
         n = l.count(True)
@@ -436,6 +456,9 @@ def scan_picture(filename, config):
             print("Warning: no student name !")
         elif n > 1:
             print("Warning: several students names !")
+            for i, b in enumerate(l):
+                if b:
+                    print(' - ', students[n_students - i - 1])
         else:
             student_number = n_students - l.index(True) - 1
             student_name = students[student_number]
