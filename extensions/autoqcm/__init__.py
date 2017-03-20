@@ -60,14 +60,14 @@ import randfunc
 from utilities import print_sympy_expr
 
 
-def test_singularity_and_append(code, l):
+def test_singularity_and_append(code, l, question):
     _code_ = code.strip()
     if _code_ in l:
         msg= [
         'ERROR: Same answer proposed twice in MCQ !',
         'Answer "%s" appeared at least twice for the same question.' % _code_,
         'Question was:',
-        repr(self.current_question[0]),
+        repr(question),
         '',
         'Nota: if this is really desired behaviour, insert',
         'following lines in the header of the ptyx file:',
@@ -159,7 +159,8 @@ class AutoQCMTags(object):
         if self.context.get('ALLOW_SAME_ANSWER_TWICE'):
             f = None
         else:
-            f = partial(test_singularity_and_append, l=self.auto_qcm_answers)
+            f = partial(test_singularity_and_append, l=self.auto_qcm_answers,
+                                            question=self.current_question[0])
         self._parse_children(node.children, function=f)
 
     def _parse_AUTOQCM_BARCODE_tag(self, node):
@@ -196,7 +197,7 @@ class AutoQCMTags(object):
             raise RuntimeError('#L_ANSWERS: first argument must be a list of answers.')
         l = []
         for v in raw_l:
-            test_singularity_and_append(conv(v), l)
+            test_singularity_and_append(conv(v), l, self.current_question[0])
         if correct_answer not in l:
             raise RuntimeError('#L_ANSWERS: correct answer is not in proposed answers list !')
 
