@@ -72,7 +72,7 @@ def find_black_square(matrix, size=50, error=0.30, gray_level=.4, mode='l'):
     The n*m matrix must contain only floats between 0 (white) and 1 (black).
 
     Optional parameters:
-        - `error` is the ratio of white pixels allowed is the black square.
+        - `error` is the ratio of white pixels allowed in the black square.
         - `gray_level` is the level above which a pixel is considered to be white.
            If it is set to 0, only black pixels will be considered black ; if it
            is close to 1 (max value), almost all pixels are considered black
@@ -212,6 +212,18 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=Fals
     return square.sum() > proportion*size**2 and core.sum() > proportion*(size - 4)**2
 
 
+def find_lonely_square(m, size, error):
+    "Find a black square surrounded by a white area."
+    s = size
+    for i, j in find_black_square(m, s, error=0.4):
+        # Test if all surrounding squares are white.
+        # (If not, it could be a false positive, caused by a stain
+        # or by some student writing.)
+        if not any(test_square_color(m, i_, j_, s, proportion=0.5, gray_level=0.5)
+                    for i_, j_ in [(i - s, j - s), (i - s, j), (i - s, j + s),
+                                   (i, j - s), (i, j + s),
+                                   (i + s, j - s), (i + s, j), (i + s, j + s)]):
+            return i, j
 
 
 
@@ -317,7 +329,9 @@ def scan_picture(filename, config):
         while True:
             #~ color2debug((0, 0), (maxi, maxj), color=(0,255,0), display=True)
             try:
-                i1, j1 = find_black_square(m[:maxi,:maxj], size=square_size, error=0.5).__next__()
+                #~ i1, j1 = find_black_square(m[:maxi,:maxj], size=square_size, error=0.5).__next__()
+                i1, j1 = find_lonely_square(m[:maxi,:maxj], size=square_size, error=0.5)
+                #~ color2debug((i1, j1), (i1 + square_size, j1 + square_size), color=(255,255,0), display=True)
                 break
             except StopIteration:
                 # Top square not found.
@@ -330,7 +344,7 @@ def scan_picture(filename, config):
 
         # Search now for the top right black square.
         minj = int(round((20 - 2*(1 + SQUARE_SIZE_IN_CM))*dpi/2.54))
-        i2, j2 = find_black_square(m[:maxi,minj:], size=square_size, error=0.5).__next__()
+        i2, j2 = find_lonely_square(m[:maxi,minj:], size=square_size, error=0.5)
         j2 += minj
 
         #~ print("Top left square at (%s,%s)." % (i1, j1))
@@ -650,9 +664,9 @@ if __name__ == '__main__':
             result = subprocess.run(cmd, stdout=subprocess.PIPE)
             scores = {}
             all_data = []
-            for pic in sorted(listdir(tmp_path)):
+            for i, pic in enumerate(sorted(listdir(tmp_path))):
                 print('-------------------------------------------------------')
-                #~ print(pic)
+                print('Page', i + 1)
                 # Extract data from image
                 data = scan_picture(joinpath(tmp_path, pic), config)
                 all_data.append(data)
