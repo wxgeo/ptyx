@@ -85,44 +85,16 @@ An other simpler example, with no enumeration (only one question):
 
 from __future__ import division, unicode_literals, absolute_import, print_function
 
-from re import sub, DOTALL
+from re import sub, DOTALL, match
 from . import extended_python
+
+
+
+
 
 
 def main(text, compiler):
     text = extended_python.main(text, compiler)
-    # ~~~~~~~~~~~~~~~~~~
-    # ~~~~~~~~~~~~~~~~~~
-    # Lonely question or some explications
-    # (won't be displayed in the version with answers)
-    # ~~~~~~~~~~~~~~~~~~
-    # ~~~~~~~~~~~~~~~~~~
-    text = sub("\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n",
-               "\n#ASK_ONLY\n\g<content>\n#END\n", text, flags=DOTALL)
-    # ~~~~~~~~~~~~~~~~~~
-    # Lonely question or some explications
-    # (will also be displayed in the version with answers)
-    # ~~~~~~~~~~~~~~~~~~
-    text = sub("\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n",
-               "\n#ASK\n\g<content>\n#END\n", text, flags=DOTALL)
-    # ............
-    # Python code
-    # ............
-    text = sub("\n[ \t]*\\.{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\.{3,}[ \t]*\n",
-               "\n#PYTHON\n\g<content>\n#END\n", text, flags=DOTALL)
-    #~ # ------------------
-    #~ # Answer
-    #~ # ------------------
-    #~ def apply_ans_tag(m):
-        #~ content = m.group('content')
-        #~ if '___' in content or '===' in content or '~~~' in content:
-            #~ return m.group()
-        #~ else:
-            #~ print('<<<toto', content, 'toto>>>')
-            #~ return "\n#ANS\n%s\n#END\n" % content
-
-    #~ text = sub("\n[ \t]*\\-{4,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\-{4,}[ \t]*\n",
-               #~ apply_ans_tag, text, flags=DOTALL)
 
     # <<<text for question (optional):::inline answer>>>
     def inline_answer(m):
@@ -135,25 +107,91 @@ def main(text, compiler):
         return '#ANSWER{%s}' % content
     text = sub('<{3,}(?P<content>.*?)>{3,}', inline_answer, text)
 
-    text = sub('\n[ \t]*[*]+[ \t]*EXERCISE[ \t]*[*]+', '\n\section{}\n#ASK', text)
-    # ==== QUESTIONS ====
-    text = sub('\n[ \t]*=+[ \t]*((QUESTIONS)|[?]+)[ \t]*=+[ \t]*(?=\n)',
-               '\n\\\\begin{enumerate}\n#ENUM\n\\\\item\n#ASK ', text)
-    # ==== SHUFFLE ====
-    text = sub('\n[ \t]*=+[ \t]*((SHUFFLE)|[?]!|![?])[ \t]*=+[ \t]*(?=\n)',
-               '\n\\\\begin{enumerate}\n#SHUFFLE\n#ITEM\n\\\\item\n#ASK ', text)
-    # ===============
-    text = sub('\n[ \t]*((=+[ \t]*END[ \t]*=+)|(={3,}))[ \t]*(?=\n)',
-               '\n#END\n#END\n\\\\end{enumerate}', text)
-    # _______________
-    text = sub('\n[ \t]*_{3,}[ \t]*(?=\n)', '\n#END\n#ITEM\n\\\\item\n#ASK ', text)
-    # ---------------
-    text = sub('\n[ \t]*-{3,}[ \t]*(?=\n)', '\n#END\n#ANS', text)
+    # ~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~
+    # Lonely question or some explications
+    # (won't be displayed in the version with answers)
+    # ~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~
+    text = sub("\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n",
+               "\n#ASK_ONLY\n\g<content>\n#END\n", text, flags=DOTALL)
 
-    # Create blank dotted lines for answers:
-    # a line containing only "-" will be converted to a dotted line.
-    def f(m):
-        return '\n#ASK_ONLY\n%s\n#END\n' % m.group(0).replace('-', '\n\dotfill')
-    text = sub('\n([ \t]*-[ \t]*\n)+', f, text)
+    lines = []
+    stack = ['ROOT']
 
-    return text
+    def close_any_ANS_ASK_blocks(stack, lines):
+        while stack[-1] in ('ASK', 'ANS', 'ASK_ONLY'):
+            print(stack)
+            stack.pop()
+            lines.append('#END')
+
+    for line in text.split('\n'):
+        l = line.strip()
+        n = len(l)
+        if n == 0:
+            lines.append(line) # line, not l (to keep spaces) !
+        elif l == '-':
+            # Blank line for answer.
+            lines.append('')
+            lines.append(r'\dotfill')
+        elif l == n*'_':
+            # New question.
+            close_any_ANS_ASK_blocks(stack, lines)
+            lines.append('#ITEM')
+            lines.append(r'\item')
+            lines.append('#ASK')
+            stack.append('ASK')
+        elif l == n*'-':
+            # New answer.
+            close_any_ANS_ASK_blocks(stack, lines)
+            lines.append('#ANS')
+            stack.append('ANS')
+        elif l == n*'.':
+            # A block of python code.
+            if stack[-1] == 'PYTHON':
+                stack.pop()
+                lines.append('#END')
+            else:
+                stack.append('PYTHON')
+                lines.append('#PYTHON')
+        elif l == n*'~':
+            # A block of text, either a lonely question, an explanation or question+answer.
+            if stack[-1] in ('ASK', 'ANS'):
+                lines.append('#END')
+                stack.pop()
+            else:
+                lines.append('#ASK')
+                stack.append('ASK')
+        elif match('=+[ \t]*((SHUFFLE)|[?]!|![?])[ \t]*=+', l):
+            # Open a group of randomly shuffled questions.
+            close_any_ANS_ASK_blocks(stack, lines)
+            stack.append('SHUFFLE')
+            lines.append(r'\begin{enumerate}')
+            lines.append(r'#SHUFFLE')
+            lines.append(r'#ITEM')
+            lines.append(r'\item')
+            lines.append(r'#ASK')
+            stack.append('ASK')
+        elif match('=+[ \t]*((QUESTIONS)|[?]+)[ \t]*=+', l):
+            # Open a group of questions.
+            close_any_ANS_ASK_blocks(stack, lines)
+            stack.append('QUESTIONS')
+            lines.append(r'\begin{enumerate}')
+            lines.append(r'#ENUM')
+            lines.append(r'#ITEM')
+            lines.append(r'\item')
+            lines.append(r'#ASK')
+            stack.append('ASK')
+        elif l == n*'=':
+            # End a group of questions.
+            close_any_ANS_ASK_blocks(stack, lines)
+            assert stack[-1] in ('QUESTIONS', 'SHUFFLE'), stack[-1]
+            lines.append('#END')
+            lines.append(r'\end{enumerate}')
+        elif match('[ \t]*[*]+[ \t]*EXERCISE[ \t]*[*]+', l):
+            lines.append(r'\section{}')
+            lines.append('#ASK')
+            stack.append('ASK')
+        else:
+            lines.append(line) # line, not l (to keep spaces) !
+    return '\n'.join(lines)
