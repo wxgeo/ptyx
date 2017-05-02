@@ -375,29 +375,46 @@ class SyntaxTreeGenerator(object):
                 node = node.add_child(Node(tag))
                 # Detect command optional argument.
                 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                # XXX: tolerate \n and spaces before bracket.
-                if text[position] == '[':
-                    position += 1
-                    end = find_closing_bracket(text, position, brackets='[]')
-                    node.options = text[position:end]
-                    position = end + 1
+                try:
+                    # - Tolerate spaces before bracket.
+                    tmp_pos = position
+                    while text[tmp_pos] == ' ':
+                        tmp_pos += 1
+                        if text[tmp_pos] == '[':
+                            position = tmp_pos
+                    # - Handle optional argument.
+                    if text[position] == '[':
+                        position += 1
+                        end = find_closing_bracket(text, position, brackets='[]')
+                        node.options = text[position:end]
+                        position = end + 1
+                except IndexError:
+                    # Don't raise error, since argument is optional.
+                    pass
                 # Detect command arguments.
                 # ~~~~~~~~~~~~~~~~~~~~~~~~~
                 # Each argument become a node with its number as name.
                 code_args_number, raw_args_number, closing_tags = self.tags[node.name]
                 for i in range(code_args_number + raw_args_number):
-                    if text[position] == '{':
-                        position += 1
-                        # Detect inner strings for arguments containing code,
-                        # but not for arguments containing raw text.
-                        end = find_closing_bracket(text, position, brackets='{}',
-                                            detect_strings=(i<code_args_number))
-                        new_pos = end + 1
-                    else:
-                        end = position
-                        while end < len(text) and text[end].isalnum():
-                            end += 1
-                        new_pos = end
+                    try:
+                        # - Tolerate spaces before bracket.
+                        while text[position] == ' ':
+                            position += 1
+                        # - Handle argument.
+                        if text[position] == '{':
+                            position += 1
+                            # Detect inner strings for arguments containing code,
+                            # but not for arguments containing raw text.
+                            end = find_closing_bracket(text, position, brackets='{}',
+                                                detect_strings=(i<code_args_number))
+                            new_pos = end + 1
+                        else:
+                            end = position
+                            while end < len(text) and text[end].isalnum():
+                                end += 1
+                            new_pos = end
+                    except IndexError:
+                        raise RuntimeError("Missing argument for tag %s !" % tag)
                     # Each argument of a command is a node itself.
                     # Nodes corresponding to arguments have no name,
                     # but are numbered instead.
@@ -687,7 +704,9 @@ class LatexGenerator(object):
         from wxgeometrie.mathlib.parsers import traduire_formule
         fonctions = [key for key, val in self.context.items() if isinstance(val, (type(sympy.sqrt), type(sympy.cos)))]
         def eval_and_store(txt, name):
-            self.context[name] = self._eval_python_expr(traduire_formule(txt, fonctions=fonctions))
+            formule = traduire_formule(txt, fonctions=fonctions)
+            print('Formule interpretation:', txt, ' → ', formule)
+            self.context[name] = self._eval_python_expr(formule)
             return txt
         self._parse_children(node.children[0].children, function=eval_and_store, name=name)
 
