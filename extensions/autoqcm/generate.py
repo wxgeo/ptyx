@@ -94,7 +94,7 @@ def generate_students_list(csv_path='', _n_student=None):
             \vspace{-1em}
             \begin{center}
             \begin{tikzpicture}[scale=.25]
-            \draw [fill=black] (-2,0) rectangle (-1,1) (-1.5,0) node[below] {\tiny\rotatebox{-90}{\texttt{\textbf{Cochez le nom}}}};''')
+            \draw [fill=black] (-2,0) rectangle (-1,1) (-1.5,0) node[below] {\tiny\rotatebox{-90}{\texttt{\textbf{Noircir la case}}}};''')
         # Read CSV file and generate list of students name.
         with open(csv_path) as f:
             for row in csv.reader(f):
@@ -388,7 +388,7 @@ def generate_tex(text):
                 # (So that some text can be added before writing
                 # \begin{enumerate}.)
 
-            elif line.startswith('* ') or line.startswith('> '):
+            elif line.startswith('* ') or line.startswith('> ') or line.strip() == 'OR':
                 # This is a new question.
                 question_number += 1
                 # Close last question before opening a new one.
@@ -413,11 +413,19 @@ def generate_tex(text):
                     content.append('#ITEM')
                 content.append('\\item')
                 content.append('\\setcounter{answerNumber}{0}')
-                content.append('#NEW_QUESTION %s#END' % line[2:])
+                content.append('#NEW_QUESTION')
+                content.append(line[2:])
                 question_opened = True
+
+            elif line.startswith('#L_ANSWERS{'):
+                    # End question.
+                    content.append('#END')
+                    content.append(_line_)
 
             elif line.startswith('- ') or line.startswith('+ '):
                 if answer_number == 0:
+                    # End question.
+                    content.append('#END')
                     # Shuffle answers.
                     content.append('#SHUFFLE')
                     #content.append('\n\n')
