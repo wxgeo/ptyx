@@ -606,7 +606,11 @@ if __name__ == '__main__':
     parser.add_argument('path', help=("Path to a directory which must contain "
                         "a .autoqcm.config file and a .scan.pdf file "
                         "(alternatively, this path may point to any file in this folder)."))
-    parser.add_argument("-p", "--page", metavar="P", type=int,
+    group = parser.add_mutually_exclusive_group()
+    # Following options can't be used simultaneously.
+    group.add_argument("-p", "--page", metavar="P", type=int,
+                                        help="Read only page P of pdf file.")
+    group.add_argument("-s", "--skip-pages", metavar="P", type=int, nargs='+', default=[],
                                         help="Read only page P of pdf file.")
     args = parser.parse_args()
 
@@ -665,6 +669,8 @@ if __name__ == '__main__':
             scores = {}
             all_data = []
             for i, pic in enumerate(sorted(listdir(tmp_path))):
+                if i + 1 in args.skip_pages:
+                    continue
                 print('-------------------------------------------------------')
                 print('Page', i + 1)
                 # Extract data from image
