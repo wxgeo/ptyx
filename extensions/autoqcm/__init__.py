@@ -89,10 +89,11 @@ def test_singularity_and_append(code, l, question):
 
 
 class AutoQCMTags(object):
-    def _parse_NEW_QCM_tag(self, node):
+    def _parse_QCM_tag(self, node):
         self.autoqcm_correct_answers = []
         self.n_questions = 0
         self.n_max_answers = 0
+        self._parse_children(node.children)
 
     def _parse_END_QCM_tag(self, node):
         data = self.autoqcm_data
@@ -147,21 +148,6 @@ class AutoQCMTags(object):
             return code
         self._parse_children(node.children, function=partial(remember_last_question, l=l))
 
-    def _parse_NEW_ANSWER_tag(self, node):
-        if (node.arg(0) == 'True'):
-            self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
-        self.autoqcm_answer_number += 1
-        if self.autoqcm_answer_number > self.n_max_answers:
-            self.n_max_answers = self.autoqcm_answer_number
-
-
-    def _parse_PROPOSED_ANSWER_tag(self, node):
-        if self.context.get('ALLOW_SAME_ANSWER_TWICE'):
-            f = None
-        else:
-            f = partial(test_singularity_and_append, l=self.auto_qcm_answers,
-                                            question=self.current_question[0])
-        self._parse_children(node.children, function=f)
 
     def _parse_AUTOQCM_BARCODE_tag(self, node):
         n = self.context['NUM']
@@ -175,6 +161,36 @@ class AutoQCMTags(object):
         # Write the tag name as a bookmark... it will be replaced by latex
         # code eventually when closing MCQ (see: _parse_END_QCM_tag).
         self.write('#TABLE_FOR_ANSWERS')
+
+
+    def _parse_PROPOSED_ANSWER_tag(self, node):
+        if self.context.get('ALLOW_SAME_ANSWER_TWICE'):
+            f = None
+        else:
+            f = partial(test_singularity_and_append, l=self.auto_qcm_answers,
+                                            question=self.current_question[0])
+        self.write(r'\mbox{')
+        self._parse_children(node.children, function=f)
+        self.write(r'}\qquad\linebreak[3]%' '\n')
+
+    def _parse_NEW_ANSWER_tag(self, node):
+        is_correct = (node.arg(0) == 'True')
+        # Add counter for each answer.
+        self.write(r'\stepcounter{answerNumber}')
+        # When the pdf with solutions will be generated, incorrect answers
+        # will be preceded by a white square, while correct ones will
+        # be preceded by a gray one.
+        if self.context.get('WITH_ANSWERS') and not is_correct:
+            self.write(r'\whitesquared')
+        else:
+            self.write(r'\graysquared')
+        self.write(r'{\alph{answerNumber}}~~')
+        if is_correct:
+            self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
+        self.autoqcm_answer_number += 1
+        if self.autoqcm_answer_number > self.n_max_answers:
+            self.n_max_answers = self.autoqcm_answer_number
+
 
     def _parse_L_ANSWERS_tag(self, node):
         """#L_ANSWERS{list}{correct_answer} generate answers from a python list.
@@ -256,8 +272,8 @@ def main(text, compiler):
     #    }
     text = extended_python.main(text, compiler)
     # For efficiency, update only for last tag.
-    compiler.add_new_tag('NEW_QCM', (0, 0, None), AutoQCMTags._parse_NEW_QCM_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('NEW_QUESTION', (0, 0, ['@END']), AutoQCMTags._parse_NEW_QUESTION_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('QCM', (0, 0, ['END_QCM']), AutoQCMTags._parse_QCM_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('NEW_QUESTION', (0, 0, ['@END', '@END_QUESTION']), AutoQCMTags._parse_NEW_QUESTION_tag, 'autoqcm', update=False)
     compiler.add_new_tag('NEW_ANSWER', (1, 0, None), AutoQCMTags._parse_NEW_ANSWER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('END_QCM', (0, 0, None), AutoQCMTags._parse_END_QCM_tag, 'autoqcm', update=False)
     compiler.add_new_tag('AUTOQCM_BARCODE', (0, 0, None), AutoQCMTags._parse_AUTOQCM_BARCODE_tag, 'autoqcm', update=False)

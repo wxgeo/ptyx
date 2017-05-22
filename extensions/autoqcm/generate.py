@@ -2,7 +2,7 @@ from string import ascii_letters
 import csv
 import re
 import sys
-from os.path import join as joinpath, expanduser, abspath, dirname
+from os.path import join as abspath, dirname
 
 script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 sys.path.insert(0, script_path)
@@ -10,7 +10,6 @@ from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM,
                          MARGIN_RIGHT_IN_CM, PAPER_FORMAT, PAPER_FORMATS,
                          MARGIN_BOTTOM_IN_CM, MARGIN_TOP_IN_CM
                         )
-from utilities import find_closing_bracket
 
 
 
@@ -284,216 +283,212 @@ def generate_answers_and_score(config, name, identifier, score, max_score):
     """ % locals())
 
 
+
+
+
+
+
 def generate_tex(text):
+
     #TODO: improve ability to customize this part ?
 
     # Every LaTeX package loaded by user will be inserted here
     # (after first line of the header).
     customized_header_position = 1
-    content = generate_latex_header()
+    code = generate_latex_header()
 
-    content.append("#AUTOQCM_BARCODE")
+    code.append("#AUTOQCM_BARCODE")
 
     # Extract from text the path of the csv file containing students names.
     m=re.match("[ ]*%[ ]*csv:(.*)", text, re.IGNORECASE)
     if m:
         csv_path = m.group(1).strip()
-        code, students_list = generate_students_list(csv_path)
-        content.append('#ASK_ONLY')
-        content.append(code)
-        content.append('#END')
+        _code, students_list = generate_students_list(csv_path)
+        code.append('#ASK_ONLY')
+        code.append(_code)
+        code.append('#END')
     else:
         students_list = []
         print("Warning: no student list provided (or incorrect syntax), ignoring...")
 
-    content.append(r'\AutoQCMsimfill')
+    code.append(r'\AutoQCMsimfill')
 
     # The table that students use to answer MCQ will be generated and inserted here by default.
     # (User can customize its position by using #TABLE_FOR_ANSWERS tag).
     if '#TABLE_FOR_ANSWERS' not in text:
-        content.append('#TABLE_FOR_ANSWERS')
+        code.append('#TABLE_FOR_ANSWERS')
 
-    # Number of questions
-    question_number = 0
-    # Number of answers per question
-    # If the number of answers is not the same for all questions,
-    # then the max will be returned.
-    n_answers = 0
-    answer_number = 0
-    # Set all flags to False before parsing.
-    mode_qcm = group_opened = question_opened = has_groups = has_qcm = header_closed = False
 
-    lastline = None
-
-    intro = ['#ASK_ONLY']
+    intro = []
     header=[]
+    stack = ['ROOT']
+    levels = ('ROOT', 'QCM', 'SECTION', 'QUESTION_BLOCK', 'ANSWERS')
+
+    def begin(level, **kw):
+
+        # Keep track of previous level: this is useful to know if a question block
+        # is the first of a section, for example.
+        previous_level = stack[-1]
+        # First, close any opened level until founding a parent.
+        i = levels.index(level)
+        return_to(*levels[:i])
+
+        if level == 'QCM':
+            code.append('#QCM')
+            code.append('#SHUFFLE % (sections)')
+
+        elif level == 'SECTION':
+            code.append('#ITEM % shuffle sections')
+            if 'title' in kw:
+                code.append(r'\section{%s}' % kw['title'])
+
+        elif level == 'QUESTION_BLOCK':
+            if previous_level in ('SECTION', 'QCM'):
+                # This is the first question block.
+                # NB: \begin{enumerate} must not be written just after the begining
+                # of the section, since there may be some explanations between
+                # the section title and the first question.
+                code.append('\\begin{enumerate}[resume]')
+                code.append('#SHUFFLE % (questions)')
+            #~ # Open a section to add a \\begin{enumerate} only once.
+            #~ if stack[-1] != 'SECTION':
+                #~ begin('SECTION')
+            # Question blocks are shuffled. As an exception, a block starting
+            # with '>' must not be separated from previous block.
+            if kw.get('shuffle', True):
+                code.append('#ITEM % shuffle questions') # shuffle blocks.
+            code.append('\\item')
+            code.append('\\setcounter{answerNumber}{0}')
+            code.append('#PICK')
+
+        elif level == 'ANSWERS':
+            # First, end question.
+            code.append('#END')
+            # Shuffle answers.
+            code.append('#SHUFFLE % (answers)')
+            code.append('\n\n\\sloppy')
+
+        else:
+            raise RuntimeError('Unknown level: %s' % level)
+
+        #~ elif tag == 'NEW_QUESTION':
+            #~ stack.append(
+            #~ code.append('#NEW_QUESTION')
+            #~ answer_number = 0
+
+        stack.append(level)
+
+        #~ if tag == 'QUESTION_BLOCK':
+            #~ begin('NEW_QUESTION')
+
+    def return_to(*targets):
+        while stack[-1] not in targets:
+            level = stack.pop()
+
+            # Specify how to close each level.
+            if level == 'QCM':
+                code.append('#END_SHUFFLE % (QCM)')
+                code.append('#END_QCM')
+
+            elif level == 'SECTION':
+                code.append('#END_SHUFFLE % (section)')
+                code.append(r'\end{enumerate}')
+
+            elif level == 'QUESTION_BLOCK':
+                code.append('#END_PICK % (question)')
+
+            elif level == 'ANSWERS':
+                # Remove  blank lines which may be placed between two answers
+                # when shuffling.
+                while code[-1].strip() == '':
+                    code.pop()
+                code.append('#END_SHUFFLE % (answers)')
+
+    previous_line = None
 
     for _line_ in text.split('\n'):
-        line = _line_.lstrip()
-        if not header_closed:
-            if re.search('#LOAD{[ ]*autoqcm[ ]*}', line):
-                header_closed = True
+        line = _line_.strip()
+        n = len(line)
+
+        if n >= 3 and all(c == '<' for c in line):
+            # <<<<<<<<<<<<
+            # start MCQ
+            code.extend(intro)
+            code.append('#END % (introduction)')
+            begin('QCM')
+
+        elif stack[-1] == 'ROOT':
+            if intro:
+                intro.append(_line_)
+            elif re.search('#LOAD{[ ]*autoqcm[ ]*}', line):
+                intro = ['#ASK_ONLY % (introduction)']
             else:
                 header.append(_line_)
-        elif not mode_qcm:
-            # -------------------- STARTING QCM ------------------------
-            if line.startswith('<<') and not line.strip('< '):
-                # Close introduction.
-                intro.append('#END')
-                #XXX: Make some special formating for introduction ?
-                content.extend(intro)
-                # Start of Multiple Choice Questions.
-                mode_qcm = has_qcm = True
-                # Shuffles QCM sections.
-                content.append('#NEW_QCM')
-            elif has_qcm:
-                content.append(_line_)
-            else:
-                # Some indications for students before QCM.
-                intro.append(_line_)
-        else:
-            # -------------------- PARSING QCM -------------------------
-            if line.startswith('='):
-                # Starts a group of questions.
-                # By default, questions inside a group are shuffled,
-                # and groups are printed in random order.
 
-                if not has_groups:
-                    # This is the first group encountered.
-                    # Shuffle groups.
-                    content.append('#SHUFFLE')
-                has_groups = True
 
-                # First, close previous group (if any).
-                if group_opened:
-                    if question_opened:
-                        # Remove any previous blank lines.
-                        # This avoid blank lines beeing inserted between
-                        # two consecutive answers when shuffling answers.
-                        while content[-1].strip() == '':
-                            content.pop()
-                        content.append('#END')
-                        question_opened = False
-                    # End last group of questions.
-                    content.append('#END')
-                    group_opened = False
-                    content.append('\\end{enumerate}')
+        elif n >= 3 and line.startswith('=') and line.endswith('='):
+            # === title ===
+            # Start a new section.
+            begin('SECTION', title=line.strip('= '))
 
-                # Then, display title.
-                title = line.strip('= ')
-                content.append('#ITEM')
-                content.append('\subsection{%s}' % title)
+        elif any(line.startswith(s) for s in ('* ', '> ', 'OR ')):
+            # * question
+            # Start a question block, with possibly several versions of a question.
 
-                # Everything else will happen at first question, not now.
-                # (So that some text can be added before writing
-                # \begin{enumerate}.)
-
-            elif line.startswith('* ') or line.startswith('> ') or line.strip() == 'OR':
+            # If line starts with 'OR', this is not a new block, only another
+            # version of current question block.
+            if line[:2] != 'OR':
                 # This is a new question.
-                question_number += 1
-                # Close last question before opening a new one.
-                # (Only close if there were manually entered answers).
-                if question_opened and answer_number > 0:
-                    # Remove any previous blank lines.
-                    # This avoid blank lines beeing inserted between
-                    # two consecutive answers when shuffling answers.
-                    while content[-1].strip() == '':
-                        content.pop()
-                    content.append('#END') # end shuffle tag for last answers
-                answer_number = 0
-                # Maybe this is the first question of the group.
-                if not group_opened:
-                    group_opened = True
-                    content.append('\\begin{enumerate}[resume]')
-                    # Shuffle questions.
-                    content.append('#SHUFFLE')
-                if line[0] == '*':
-                    # (If line starts with '>', question must follow
-                    # the last one.)
-                    content.append('#ITEM')
-                content.append('\\item')
-                content.append('\\setcounter{answerNumber}{0}')
-                content.append('#NEW_QUESTION')
-                content.append(line[2:])
-                question_opened = True
+                begin('QUESTION_BLOCK', shuffle=(line[0]=='*'))
+            code.append('#ITEM % pick a version') # pick a block.
 
-            elif line.startswith('#L_ANSWERS{'):
-                    # End question.
-                    content.append('#END')
-                    content.append(_line_)
+            code.append('#NEW_QUESTION')
+            code.append(line[2:])
 
-            elif line.startswith('- ') or line.startswith('+ '):
-                if answer_number == 0:
-                    # End question.
-                    content.append('#END')
-                    # Shuffle answers.
-                    content.append('#SHUFFLE')
-                    #content.append('\n\n')
-                    content.append('\n\n\\sloppy')
-                elif lastline == '':
-                    # A blank line may be used to separate answers groups.
-                    # (It should not appear in final pdf, so overwrite it).
-                    content[-1] = '#END'
-                    content.append('#SHUFFLE')
-                answer_number += 1
-                assert question_opened
-                content.append('#ITEM%')
-                iscorrect = (line[0] == '+')
-                content.append('#NEW_ANSWER{%s}' % iscorrect + '%')
-                # Add counter for each answer.
-                #char = chr(96 + answer_number)
-                content.append('\\stepcounter{answerNumber}%')
-                # When the pdf with solutions will be generated, incorrect answers
-                # will be preceded by a white square, while correct ones will
-                # be preceded by a gray one.
-                if iscorrect:
-                    command = '\\graysquared'
-                else:
-                    command = '#QUESTION{\\graysquared}#ANSWER{\\whitesquared}'
-                content.append('%s{\\alph{answerNumber}}~~\\mbox{#PROPOSED_ANSWER %s#END}\\qquad\\linebreak[3]' % (command, line[2:]) + '%')
+        elif line.startswith('#L_ANSWERS{'):
+            # End question.
+            # (Usually, questions are closed when seeing answers, ie. lines
+            # introduced by '-' or '+').
+            code.append('#END')
+            code.append(line)
 
+        elif line.startswith('- ') or line.startswith('+ '):
+            # - incorrect answer
+            # + correct answer
 
-            # -------------------- ENDING QCM --------------------------
-            elif line.startswith('>>') and not line.strip('> '):
-                # End of Multiple Choice Questions.
-                mode_qcm = False
-                # Ending last group...
-                if group_opened:
-                    if question_opened:
-                        # Remove any previous blank lines.
-                        # This avoid blank lines beeing inserted between
-                        # two consecutive answers when shuffling answers.
-                        while content[-1].strip() == '':
-                            content.pop()
-                        content.append('#END')
-                        #content.append('\\fussy')
-                        question_opened = False
-                    # End last group of questions.
-                        content.append('#END')
-                    group_opened = False
-                    content.append('\\end{enumerate}')
-                # Ending QCM sections shuffling...
-                if has_groups:
-                    content.append('#END')
-                has_groups = False
-                content.append('#END_QCM')
-                # ... bye bye !
-            # ----------------------------------------------------------
+            assert stack[-1] in ('ANSWERS', 'QUESTION_BLOCK')
 
-            else:
-                content.append(_line_)
-        lastline = line
+            if stack[-1] == 'QUESTION_BLOCK':
+                # This is the first answer of a new answer block.
+                begin('ANSWERS')
 
-    if question_opened:
-        content.append('#END')
-    if group_opened:
-        content.append('#END')
+            elif previous_line == '':
+                # A blank line may be used to separate answers groups.
+                # (It should not appear in final pdf, so overwrite it).
+                # (NB: This must not be done for the first answer !)
+                code[-1] = '#END'
+                code.append('#SHUFFLE % (answers)')
 
-    content.insert(customized_header_position, '\n'.join(header))
-    content.append(r"\end{document}")
-    new_text = '\n'.join(content)
+            code.append('#ITEM % shuffling answers')
+            iscorrect = (line[0] == '+')
+            code.append('#NEW_ANSWER{%s}' % iscorrect)
 
-    return new_text, students_list
+            code.append('#PROPOSED_ANSWER %s#END' % line[2:])
+
+        elif n >= 3 and all(c == '>' for c in line):
+            # >>>>>>>>>>>>>>>>>>>>
+            # End MCQ
+            return_to('ROOT')
+
+        else:
+            code.append(_line_)
+
+        previous_line = line
+
+    i = customized_header_position
+    code = code[:i] + header + code[i:] + [r'\end{document}']
+
+    return '\n'.join(code), students_list
 
 
 
