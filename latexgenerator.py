@@ -153,11 +153,11 @@ class SyntaxTreeGenerator(object):
             'ASSERT':       (1, 0, None),
             'CALC':         (1, 0, None),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
-            'CASE':         (1, 0, ['CASE', 'ELSE', 'END']),
+            'CASE':         (1, 0, ['CASE', 'ELSE', 'END', 'END_CASE']),
             'COMMENT':      (0, 0, ['@END']),
             # CONDITIONAL_BLOCK isn't a real tag, but is used to enclose
             # a #CASE{...}...#CASE{...}...#END block, or an #IF{...}...#ELIF{...}...#END block.
-            'CONDITIONAL_BLOCK':    (0, 0, ['@END']),
+            'CONDITIONAL_BLOCK':    (0, 0, ['@END', '@END_IF']),
             'DEBUG':        (0, 0, None),
             'EVAL':         (1, 0, None),
             # ENUM indicates the start of an enumeration.
@@ -165,29 +165,35 @@ class SyntaxTreeGenerator(object):
             'ENUM':         (0, 0, ['@END']),
             'GEO':          (0, 0, ['@END']),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
-            'IF':           (1, 0, ['ELIF', 'ELSE', 'END']),
+            'IF':           (1, 0, ['ELIF', 'ELSE', 'END', 'END_IF']),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
-            'ELIF':         (1, 0, ['ELIF', 'ELSE', 'END']),
+            'ELIF':         (1, 0, ['ELIF', 'ELSE', 'END', 'END_IF']),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
-            'ELSE':         (0, 0, ['END']),
+            'ELSE':         (0, 0, ['END', 'END_IF']),
             'END':          (0, 0, None),
+            'END_CASE':     (0, 0, None),
+            'END_IF':       (0, 0, None),
+            'END_MACRO':    (0, 0, None),
+            'END_PICK':     (0, 0, None),
+            'END_SHUFFLE':  (0, 0, None),
             'IMPORT':       (1, 0, None),
             'LOAD':         (1, 0, None),
             'FREEZE_RANDOM_STATE': (0, 0, []),
             'GCALC':        (0, 0, ['@END']),
             'IFNUM':        (1, 1, None),
             'MACRO':        (0, 1, None),
-            'NEW_MACRO':    (0, 1, ['@END']),
-            'PICK':         (1, 0, None),
+            'NEW_MACRO':    (0, 1, ['@END', '@END_MACRO']),
+            'PICK':         (0, 0, ['@END', '@END_PICK']),
             'PYTHON':       (0, 0, ['@END']),
             'QUESTION':     (0, 1, None),
-            'RAND':         (1, 0, None),
+            #~ 'RAND':         (1, 0, None),
+            #~ 'SELECT':       (1, 0, None),
             # ROOT isn't a real tag, and is never closed.
             'ROOT':         (0, 0, []),
             'SEED':         (1, 0, None),
-            'SHUFFLE':      (0, 0, ['@END']),
+            'SHUFFLE':      (0, 0, ['@END', '@END_SHUFFLE']),
             # Do *NOT* consume #END tag, which must be used to end #SHUFFLE block.
-            'ITEM':         (0, 0, ['ITEM', 'END']),
+            'ITEM':         (0, 0, ['ITEM', 'END', 'END_SHUFFLE', 'END_PICK']),
             'SIGN':         (0, 0, None),
             'SYMPY':        (0, 0, ['@END']),
             'TABSIGN':      (0, 0, ['@END']),
@@ -201,6 +207,12 @@ class SyntaxTreeGenerator(object):
             '?':            (0, 0, None),
             '#':            (0, 0, None),
             }
+
+    # TODO: all tags starting with END_TAG should automatically close TAG.
+    # (This should be a syntax feature).
+    # (Btw, NEW_MACRO -> MACRO, and MACRO -> CALL)
+    closing_tags_list = ('END', 'END_CASE', 'END_PICK', 'END_SHUFFLE', 'END_MACRO', 'END_IF')
+
     # Tags sorted by length (longer first).
     # This is used for matching tests.
     sorted_tags = sorted(tags, key=len,reverse=True)
@@ -295,7 +307,8 @@ class SyntaxTreeGenerator(object):
             # Add text found before this tag to the syntax tree.
             # --------------------------------------------------
 
-            remove_trailing_newline = (self.tags[tag][2] is not None or tag == 'END')
+            remove_trailing_newline = (self.tags[tag][2] is not None
+                                       or tag in self.closing_tags_list)
             if remove_trailing_newline:
                 # Remove new line and spaces *before* #IF, #ELSE, ... tags.
                 # This is more convenient, since two successive \n
@@ -367,9 +380,9 @@ class SyntaxTreeGenerator(object):
 
             # General case
             # ------------
-            # Exclude #END, since it's not a true tag.
-            # (It's only purpose is to close a block, #END doesn't correspond to any command).
-            elif tag != 'END':
+            # Exclude #END and all closing tags, since they(re not true tags.
+            # (Their only purpose is to close a block, #END doesn't correspond to any command).
+            elif tag not in self.closing_tags_list:
                 # Create and enter new node.
                 # ~~~~~~~~~~~~~~~~~~~~~~~~~~
                 node = node.add_child(Node(tag))
@@ -636,8 +649,8 @@ class LatexGenerator(object):
         if not self.context.get('WITH_ANSWERS'):
             self._parse_children(node.children[0].children)
 
-    def _parse_END_ANY_ASK_OR_ANS_tag(self, node):
-        pass
+    #~ def _parse_END_ANY_ASK_OR_ANS_tag(self, node):
+        #~ pass
 
     def _parse_IF_tag(self, node):
         test = eval(node.arg(0), self.context)
@@ -736,7 +749,7 @@ class LatexGenerator(object):
                 self.flags['str'] = True
             else:
                 raise ValueError('Unknown flag: ' + repr(arg))
-        # XXX: support options round, float, (sympy, python,) pick and rand
+        # XXX: support options round, float, (sympy, python,) select and rand
         code = node.arg(0)
         assert isinstance(code, str), type(code)
         txt = self._eval_and_format_python_expr(code)
@@ -787,19 +800,33 @@ class LatexGenerator(object):
         # what seems to be a very strange behaviour of the compiler !)
         pass
 
-    #~ def parse_PICK_tag(self, node):
-        #~ assert len(node.children) == 1
-        #~ varname, values = node.children[0].split('=')
-        #~ values = values.split(',')
-        #~ self.context[varname.strip] = values[self.NUM%len(values)]
-
     def _parse_PICK_tag(self, node):
-        self.flags['pick'] = True
-        self._parse_EVAL_tag(node)
+        # Choose only one between all the #ITEM sections inside a #PICK block.
+        # Note that they may be some text or nodes before first #ITEM,
+        # if so they should be left unmodified at their original position.
+        if node.children:
+            for i, child in enumerate(node.children):
+                if isinstance(child, Node) and child.name == 'ITEM':
+                    break
+            items = node.children[i:]
+            assert all(isinstance(item, Node) and item.name == 'ITEM' for item in items)
+            item = randfunc.randchoice(items)
+            self._parse_children(node.children[:i] + [item])
+            #~ print('\n------------')
+            #~ print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
+            #~ print('state hash is %s' % hash(random.getstate()))
+            #~ print('------------\n')
 
-    def _parse_RAND_tag(self, node):
-        self.flags['rand'] = True
-        self._parse_EVAL_tag(node)
+
+
+
+    #~ def _parse_SELECT_tag(self, node):
+        #~ self.flags['select'] = True
+        #~ self._parse_EVAL_tag(node)
+
+    #~ def _parse_RAND_tag(self, node):
+        #~ self.flags['rand'] = True
+        #~ self._parse_EVAL_tag(node)
 
     def _parse_ROOT_tag(self, node):
         self._parse_children(node.children)
@@ -1080,9 +1107,9 @@ class LatexGenerator(object):
         flags = self.flags
         context = self.context
         if  hasattr(result, '__iter__'):
-            if flags.get('rand', False):
+            if flags.get('rand'):
                 result = random.choice(result)
-            elif flags.get('pick', False):
+            elif flags.get('select'):
                 result = result[self.NUM%len(result)]
 
         if 'round' in flags:
