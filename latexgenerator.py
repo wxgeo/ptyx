@@ -407,7 +407,10 @@ class SyntaxTreeGenerator(object):
                 # Detect command arguments.
                 # ~~~~~~~~~~~~~~~~~~~~~~~~~
                 # Each argument become a node with its number as name.
-                code_args_number, raw_args_number, closing_tags = self.tags[node.name]
+                try:
+                    code_args_number, raw_args_number, closing_tags = self.tags[node.name]
+                except ValueError:
+                    raise RuntimeError('Tag %s is not correctly defined.' % node.name)
                 for i in range(code_args_number + raw_args_number):
                     try:
                         # - Tolerate spaces before bracket.
