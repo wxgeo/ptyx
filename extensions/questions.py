@@ -156,13 +156,18 @@ def main(text, compiler):
                 lines.append('#PYTHON')
         elif l == n*'~':
             # A block of text, either a lonely question, an explanation or question+answer.
+            # ~~~~~~~~~~~~~~~~~
+            # lonely question
+            # ---------------
+            # corresponding answer
+            # ~~~~~~~~~~~~~~~~~
             if stack[-1] in ('ASK', 'ANS'):
                 lines.append('#END')
                 stack.pop()
             else:
                 lines.append('#ASK')
                 stack.append('ASK')
-        elif match('=+[ \t]*((SHUFFLE)|[?]!|![?])[ \t]*=+', l):
+        elif match('=+[ \t]*((SHUFFLE)|[?]*(!+[?]*)+)[ \t]*=+', l):
             # Open a group of randomly shuffled questions.
             close_any_ANS_ASK_blocks(stack, lines)
             stack.append('SHUFFLE')
@@ -183,11 +188,26 @@ def main(text, compiler):
             lines.append(r'#ASK')
             stack.append('ASK')
         elif l == n*'=':
-            # End a group of questions.
-            close_any_ANS_ASK_blocks(stack, lines)
-            assert stack[-1] in ('QUESTIONS', 'SHUFFLE'), stack[-1]
-            lines.append('#END')
-            lines.append(r'\end{enumerate}')
+            if 'QUESTIONS' in stack or 'SHUFFLE' in stack:
+                # End a group of questions.
+                close_any_ANS_ASK_blocks(stack, lines)
+                assert stack[-1] in ('QUESTIONS', 'SHUFFLE'), stack[-1]
+                lines.append('#END')
+                lines.append(r'\end{enumerate}')
+                stack.pop()
+            else:
+                # A block of text, either a lonely question, an explanation or question+answer.
+                # ===============
+                # lonely question
+                # ---------------
+                # corresponding answer
+                # ===============
+                if stack[-1] in ('ASK', 'ANS'):
+                    lines.append('#END')
+                    stack.pop()
+                else:
+                    lines.append('#ASK')
+                    stack.append('ASK')
         elif match('[ \t]*[*]+[ \t]*EXERCISE[ \t]*[*]+', l):
             lines.append(r'\section{}')
             lines.append('#ASK')
