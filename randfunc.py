@@ -247,6 +247,21 @@ def srandchoice(*items, **kw):
 def shuffle(l, _random=None):
     random.shuffle(l, _random)
 
+@sandboxed
+def randfloat(a, b, d=5, exclude=[]):
+    k = 10**d
+    exclude = {int(round(v*k)) for v in exclude}
+    while True:
+        n = randint(int(round(a*k)) + 1, int(round(b*k)) - 1)
+        if n not in exclude:
+            return float(n/k)
+
+
+@sandboxed
+def srandfloat(a, b, d=5, exclude=[]):
+    return float(randsign())*randfloat(a, b, d, exclude)
+
+
 
 def many(n=2, func=srandint, unique=True, **kw):
     """Return several numbers at once.
@@ -264,3 +279,4 @@ def many(n=2, func=srandint, unique=True, **kw):
 
 def distinct(*vals):
     return len(set(vals)) == len(vals)
+
