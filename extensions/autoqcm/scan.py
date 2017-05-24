@@ -228,6 +228,11 @@ def find_lonely_square(m, size, error):
 
 
 
+
+
+
+
+
 def scan_picture(filename, config):
     """Scan picture and return page identifier and list of answers for each question.
 
@@ -677,6 +682,13 @@ if __name__ == '__main__':
                 data = scan_picture(joinpath(tmp_path, pic), config)
                 all_data.append(data)
                 name, score = data[2:]
+                if name == "Unknown student!":
+                    print('----------------')
+                    print(name)
+                    print('----------------')
+                    print('Please read manually the name and enter it below:')
+                    subprocess.run(["display", joinpath(tmp_path, pic)])
+                    name = input('Student name:')
                 if name in scores:
                     raise RuntimeError('2 tests for same student (%s) !' % name)
                 scores[name] = score
