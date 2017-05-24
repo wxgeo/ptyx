@@ -405,6 +405,7 @@ def generate_tex(text):
                 code.append('#END_SHUFFLE % (answers)')
 
     previous_line = None
+    before_QCM = True
 
     for _line_ in text.split('\n'):
         line = _line_.strip()
@@ -416,8 +417,9 @@ def generate_tex(text):
             code.extend(intro)
             code.append('#END % (introduction)')
             begin('QCM')
+            before_QCM = False
 
-        elif stack[-1] == 'ROOT':
+        elif before_QCM:
             if intro:
                 intro.append(_line_)
             elif re.search('#LOAD{[ ]*autoqcm[ ]*}', line):
@@ -449,7 +451,7 @@ def generate_tex(text):
             # End question.
             # (Usually, questions are closed when seeing answers, ie. lines
             # introduced by '-' or '+').
-            code.append('#END')
+            code.append('#END % (question after l_answers)')
             code.append(line)
 
         elif line.startswith('- ') or line.startswith('+ '):
