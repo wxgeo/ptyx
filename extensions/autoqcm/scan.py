@@ -617,6 +617,8 @@ if __name__ == '__main__':
                                         help="Read only page P of pdf file.")
     group.add_argument("-s", "--skip-pages", metavar="P", type=int, nargs='+', default=[],
                                         help="Read only page P of pdf file.")
+    parser.add_argument("-n", "--names", metavar="CSV_FILENAME", type=str,
+                                        help="Read names from file CSV_FILENAME.")
     args = parser.parse_args()
 
 
@@ -661,6 +663,11 @@ if __name__ == '__main__':
         # Maximal score = (number of questions)x(score when answer is correct)
         max_score = len(iter(config['answers'].values()).__next__())*config['correct']
 
+        if args.names is not None:
+            with open(args.names, newline='') as csvfile:
+                names = [' '.join(row) for row in csv.reader(csvfile) if row and row[0]]
+
+        names_manually_modified = False
         # Extract all images from pdf.
         with tempfile.TemporaryDirectory() as tmp_path:
             #tmp_path = '/home/nicolas/.tmp/scan'
@@ -679,20 +686,40 @@ if __name__ == '__main__':
                 print('-------------------------------------------------------')
                 print('Page', i + 1)
                 # Extract data from image
-                data = scan_picture(joinpath(tmp_path, pic), config)
+                data = list(scan_picture(joinpath(tmp_path, pic), config))
                 all_data.append(data)
                 name, score = data[2:]
-                if name == "Unknown student!":
-                    print('----------------')
-                    print(name)
-                    print('----------------')
-                    print('Please read manually the name and enter it below:')
-                    subprocess.run(["display", joinpath(tmp_path, pic)])
-                    name = input('Student name:')
-                if name in scores:
-                    raise RuntimeError('2 tests for same student (%s) !' % name)
+                if args.names is None:
+                    if name == "Unknown student!":
+                        print('----------------')
+                        print(name)
+                        print('----------------')
+                        print('Please read manually the name and enter it below:')
+                        subprocess.run(["display", "-resize", "1920x1080", joinpath(tmp_path, pic)])
+                        name = input('Student name:')
+                        names_manually_modified = True
+                    if name in scores:
+                        raise RuntimeError('2 tests for same student (%s) !' % name)
+                else:
+                    if not names:
+                        raise RuntimeError('Not enough names in `%s` !' % args.names)
+                    name = names.pop(0)
+                data[2] = name
                 scores[name] = score
                 print("Score: %s/%s" % (data[3], max_score))
+
+        if args.names is not None and names:
+            # Names list should be empty !
+            raise RuntimeError('Too many names in `%s` !' % args.names)
+
+        if names_manually_modified:
+            # Generate CSV file with names.
+            # (names will be in the same order than scanned files)
+            csvname = scanpdf[:-9] + '.names.csv'
+            with open(csvname, 'w', newline='') as csvfile:
+                writerow = csv.writer(csvfile).writerow
+                for data in all_data:
+                    writerow(data[2:3])
 
 
         # Generate CSV file with results.
