@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 # --------------------------------------
-#                  PTYX
+#                  pTyX
 #              main script
 # --------------------------------------
-#    PTYX
+#    pTyX
 #    Python LaTeX preprocessor
 #    Copyright (C) 2009-2016  Nicolas Pourcelot
 #
