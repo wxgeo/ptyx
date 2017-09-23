@@ -1,5 +1,7 @@
 *.pyc
+*.synctex.gz
 *~
+*.backup
 *.bak
 *.log
 *.aux
