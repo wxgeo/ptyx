@@ -330,8 +330,7 @@ def generate_tex(text):
         # is the first of a section, for example.
         previous_level = stack[-1]
         # First, close any opened level until founding a parent.
-        i = levels.index(level)
-        return_to(*levels[:i])
+        close(level)
 
         if level == 'QCM':
             code.append('#QCM')
@@ -349,6 +348,7 @@ def generate_tex(text):
                 # of the section, since there may be some explanations between
                 # the section title and the first question.
                 code.append('\\begin{enumerate}[resume]')
+                code.append('#ITEM % shuffle sections')
                 code.append('#SHUFFLE % (questions)')
             #~ # Open a section to add a \\begin{enumerate} only once.
             #~ if stack[-1] != 'SECTION':
@@ -359,11 +359,11 @@ def generate_tex(text):
                 code.append('#ITEM % shuffle questions') # shuffle blocks.
             code.append('\\item')
             code.append('\\setcounter{answerNumber}{0}')
-            code.append('#PICK')
+            code.append('#PICK % (question)')
 
         elif level == 'ANSWERS':
             # First, end question.
-            code.append('#END')
+            code.append('#END % question')
             # Shuffle answers.
             code.append('#SHUFFLE % (answers)')
             code.append('\n\n\\sloppy')
@@ -381,13 +381,24 @@ def generate_tex(text):
         #~ if tag == 'QUESTION_BLOCK':
             #~ begin('NEW_QUESTION')
 
-    def return_to(*targets):
-        while stack[-1] not in targets:
+    def close(level):
+        """Close `level` (and any opened upper one).
+
+        For example, close('SECTION') will close levels until returning
+        to a level lower than SECTION ('ROOT' or 'QCM').
+        Any opened upper level ('QUESTION_BLOCK' or 'ANSWERS') will be closed first.
+        """
+        i = levels.index(level)
+        levels_to_close = levels[i:]
+        print(level, levels_to_close)
+        while stack[-1] in levels_to_close:
             level = stack.pop()
+            print('closing level %s' % level)
+            print('Current state: %s' % repr(code[-20:]))
 
             # Specify how to close each level.
             if level == 'QCM':
-                code.append('#END_SHUFFLE % (QCM)')
+                code.append('#END_SHUFFLE % (sections)')
                 code.append('#END_QCM')
 
             elif level == 'SECTION':
@@ -437,9 +448,11 @@ def generate_tex(text):
             # * question
             # Start a question block, with possibly several versions of a question.
 
-            # If line starts with 'OR', this is not a new block, only another
-            # version of current question block.
-            if line[:2] != 'OR':
+            if line[:2] == 'OR':
+                # If line starts with 'OR', this is not a new block, only another
+                # version of current question block.
+                close('ANSWERS')
+            else:
                 # This is a new question.
                 begin('QUESTION_BLOCK', shuffle=(line[0]=='*'))
             code.append('#ITEM % pick a version') # pick a block.
@@ -451,7 +464,7 @@ def generate_tex(text):
             # End question.
             # (Usually, questions are closed when seeing answers, ie. lines
             # introduced by '-' or '+').
-            code.append('#END % (question after l_answers)')
+            code.append('#END % question (before l_answers)')
             code.append(line)
 
         elif line.startswith('- ') or line.startswith('+ '):
@@ -468,7 +481,7 @@ def generate_tex(text):
                 # A blank line may be used to separate answers groups.
                 # (It should not appear in final pdf, so overwrite it).
                 # (NB: This must not be done for the first answer !)
-                code[-1] = '#END'
+                code[-1] = '#END_SHUFFLE % (answers)'
                 code.append('#SHUFFLE % (answers)')
 
             code.append('#ITEM % shuffling answers')
@@ -480,7 +493,7 @@ def generate_tex(text):
         elif n >= 3 and all(c == '>' for c in line):
             # >>>>>>>>>>>>>>>>>>>>
             # End MCQ
-            return_to('ROOT')
+            close('QCM')
 
         else:
             code.append(_line_)

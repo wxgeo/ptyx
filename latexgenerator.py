@@ -96,14 +96,11 @@ class Node(object):
             if isinstance(child, Node):
                 texts.append(child.display(color, indent + 2, raw=raw))
             else:
-                if raw:
-                    text = repr(child)
-                else:
-                    lines = child.split('\n')
-                    text = lines[0]
-                    if len(lines) > 1:
-                        text += ' [...]'
-                    text = repr(text)
+                assert isinstance(child, str)
+                text = repr(child)
+                if not raw:
+                    if len(text) > 30:
+                        text = text[:25] + ' [...]'
                 if color:
                     text = term_color(text, 'green')
                 texts.append('%s  - text: %s' % (indent*' ', text))
@@ -785,7 +782,12 @@ class LatexGenerator(object):
                 if isinstance(child, Node) and child.name == 'ITEM':
                     break
             items = node.children[i:]
-            assert all(isinstance(item, Node) and item.name == 'ITEM' for item in items)
+            for item in items:
+                if not (isinstance(item, Node) and item.name == 'ITEM'):
+                    log = ['This is current structure:']
+                    log.append(node.display())
+                    log.append('\n%s is not an ITEM node !' % repr(item))
+                    raise RuntimeError('\n'.join(log))
             randfunc.shuffle(items)
             self._parse_children(node.children[:i] + items)
             #~ print('\n------------')
@@ -812,7 +814,12 @@ class LatexGenerator(object):
                 if isinstance(child, Node) and child.name == 'ITEM':
                     break
             items = node.children[i:]
-            assert all(isinstance(item, Node) and item.name == 'ITEM' for item in items)
+            for item in items:
+                if not (isinstance(item, Node) and item.name == 'ITEM'):
+                    log = ['This is current structure:']
+                    log.append(node.display())
+                    log.append('\n%s is not an ITEM node !' % repr(item))
+                    raise RuntimeError('\n'.join(log))
             item = randfunc.randchoice(items)
             self._parse_children(node.children[:i] + [item])
             #~ print('\n------------')
@@ -820,7 +827,7 @@ class LatexGenerator(object):
             #~ print('state hash is %s' % hash(random.getstate()))
             #~ print('------------\n')
 
-
+    # TODO: Refactor _parse_PICK_tag/_parse_SHUFFLE_tag
 
 
     #~ def _parse_SELECT_tag(self, node):
