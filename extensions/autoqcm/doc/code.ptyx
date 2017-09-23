@@ -1,0 +1,35 @@
+#LOAD{autoqcm}
+#SEED{17}
+..........
+liste_question_3 = ['E', 'W', 'N', 'S']
+..........
+
+<<<<<
+== Section 1 ==
+* Question 1
+- A
+- B
++ C
+- D
+
+OR Question 1 bis
+- aa
+- bb
++ cc
+
+- last answer
+
+> Question 2
+- 1
++ 2
+
+* Question 3
+#L_ANSWERS{liste_question_3}{'W'}
+
+== Section 2 ==
+* Question 4
++ V
+- F
+>>>>>
+
+

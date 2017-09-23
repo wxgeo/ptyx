@@ -1,0 +1,301 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[left=2cm, right=2cm,top=2cm,bottom=2cm]{geometry}
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{frame=tb,basicstyle=\ttfamily\small,%
+        keywords={QCM,END_QCM},
+        keywordstyle=\color{orange!90!black}\bfseries,
+        commentstyle=\color{red!80!black}\itshape,
+        stringstyle=\color{DarkGreen},
+        keywords=[2]{True,False},
+        rulecolor=\color{black!30!white},
+        backgroundcolor=\color{blue!7},
+        keywords=[2]{SHUFFLE,END_SHUFFLE,PICK,END_PICK,ITEM},
+        keywordstyle={[2]\color{violet}},
+        keywords=[3]{NEW_QUESTION,END_QUESTION},
+        keywordstyle={[3]\color{blue!70!black}},
+        keywords=[4]{NEW_ANSWER,L_ANSWERS,ANSWERS},
+        keywordstyle={[4]\color{red!70!black}},        
+        keywords=[5]{QUESTION_BLOCK,END_QUESTION_BLOCK},
+        keywordstyle={[5]\color{green!50!black}\itshape},        
+        keywords=[6]{PROPOSED_ANSWER,END,PYTHON,LOAD,SEED},
+        keywordstyle={[6]\color{gray!50!black}},         
+        keywords=[7]{SECTION},
+        keywordstyle={[7]\color{yellow!50!black}\itshape}, 
+        literate=%
+        {é}{{\'e}}1
+        {è}{{\`e}}1
+        {ê}{{\^e}}1
+        {à}{{\`a}}1
+        {â}{{\^a}}1
+        {Â}{{\^A}}1
+        {ô}{{\^o}}1
+        {ï}{{\"i}}1
+        {>>>>>}{{{\color{brown}>{}>{}>{}>{}>{}}}}5
+        {<<<<<}{{{\color{brown}<{}<{}<{}<{}<{}}}}5
+        }
+%opening
+\title{Exemple détaillé}
+\author{}
+
+\begin{document}
+
+\section{Code AutoQCM}
+
+The left column displays the internal state (called \texttt{level} in AutoQCM source code) of the code generator     after reading each line.
+
+\bigskip
+
+\begin{minipage}{.17\linewidth}
+\begin{lstlisting}
+ROOT
+ROOT
+ROOT
+ROOT
+ROOT
+ROOT
+QCM
+SECTION
+QUESTION_BLOCK
+ANSWERS
+ANSWERS
+ANSWERS
+ANSWERS
+ANSWERS
+QUESTION_BLOCK
+ANSWERS
+ANSWERS
+ANSWERS
+ANSWERS
+ANSWERS
+ANSWERS
+QUESTION_BLOCK
+ANSWERS
+ANSWERS
+ANSWERS
+ANSWERS
+ANSWERS
+ANSWERS
+SECTION
+QUESTION_BLOCK
+ANSWERS
+ANSWERS
+ROOT
+\end{lstlisting}
+\end{minipage}
+\begin{minipage}{.5\linewidth}
+%\lstinputlisting[style=mystyle]{code.txt}
+\lstinputlisting{code.ptyx}
+\end{minipage}
+
+
+
+
+\section{pTyX tags}
+
+\begin{lstlisting}
+#PYTHON
+liste_question_3 = ['E', 'W', 'N', 'S']
+#END
+
+#QCM
+    #SHUFFLE % sections
+        #ITEM % shuffle sections
+            [SECTION]
+                # SHUFFLE % questions
+                    #ITEM % shuffle questions
+                        [QUESTION_BLOCK]
+                            #PICK
+                                #ITEM % pick a version
+                                    #NEW_QUESTION
+                                        Question 1
+                                    #END_QUESTION
+                                    #SHUFFLE % shuffle answers
+                                        #ITEM
+                                            #NEW_ANSWER{False}
+                                            #PROPOSED_ANSWER A#END
+                                        #ITEM
+                                            #NEW_ANSWER{False}
+                                            #PROPOSED_ANSWER B#END
+                                        #ITEM
+                                            #NEW_ANSWER{True}
+                                            #PROPOSED_ANSWER C#END
+                                        #ITEM
+                                            #NEW_ANSWER{False}
+                                            #PROPOSED_ANSWER D#END
+                                    #END_SHUFFLE % shuffle answers
+
+                                #ITEM % pick a version
+                                    #NEW_QUESTION
+                                        Question 1 bis
+                                    #END_QUESTION
+                                    #SHUFFLE % shuffle answers
+                                        #ITEM
+                                            #NEW_ANSWER{False}
+                                            #PROPOSED_ANSWER aa#END
+                                        #ITEM
+                                            #NEW_ANSWER{False}
+                                            #PROPOSED_ANSWER bb#END
+                                        #ITEM
+                                            #NEW_ANSWER{True}
+                                            #PROPOSED_ANSWER cc#END
+                                    #END_SHUFFLE % shuffle answers
+                                    #SHUFFLE % shuffle answers
+                                        #ITEM
+                                            #NEW_ANSWER{False}
+                                            #PROPOSED_ANSWER last answer#END
+                                    #END_SHUFFLE % shuffle answers
+                            #END_PICK
+                        [/QUESTION_BLOCK]
+
+                        [QUESTION_BLOCK]
+                            #PICK
+                                #ITEM % pick a version
+                                    #NEW_QUESTION
+                                        Question 2
+                                    #END_QUESTION
+                                    #SHUFFLE % shuffle answers
+                                        #ITEM
+                                            #NEW_ANSWER{False}
+                                            #PROPOSED_ANSWER 1#END
+                                        #ITEM
+                                            #NEW_ANSWER{True}
+                                            #PROPOSED_ANSWER 2#END
+                                    #END_SHUFFLE % shuffle answers
+                            #END_PICK
+                        [/QUESTION_BLOCK]
+
+                    #ITEM % shuffle questions
+                        [QUESTION_BLOCK]
+                            #PICK
+                                #ITEM % pick a version
+                                    #NEW_QUESTION
+                                        Question 3
+                                    #END_QUESTION
+                                    #L_ANSWERS{liste_question_3}
+                            #END_PICK
+                        [/QUESTION_BLOCK]
+                #END_SHUFFLE % questions
+            [/SECTION]
+
+        #ITEM % shuffle sections
+            [SECTION]
+                # SHUFFLE % questions
+                    #ITEM % shuffle questions
+                        [QUESTION_BLOCK]
+                            #PICK
+                                #ITEM % pick a version
+                                    #NEW_QUESTION
+                                        Question 4
+                                    #END_QUESTION
+                                    #SHUFFLE % shuffle answers
+                                        #ITEM
+                                            #NEW_ANSWER{True}
+                                            #PROPOSED_ANSWER V#END
+                                        #ITEM
+                                            #NEW_ANSWER{False}
+                                            #PROPOSED_ANSWER F#END
+                                    #END_SHUFFLE % shuffle answers
+                                #END_PICK
+                        [/QUESTION_BLOCK]
+                #END_SHUFFLE % questions
+            [/SECTION]
+    #END_SHUFFLE % sections 
+#END_QCM
+\end{lstlisting}
+
+
+
+
+\section{pTyX tags + LaTeX code}
+
+%TODO: in English
+
+Idéalement, autoQCM ne devrait générer que des balises pTyX, et ensuite tout le code LaTeX devrait être généré par les balises elles-mêmes.\\
+Cela nécessiterait de créer d'autres balises personnalisées pour AutoQCM.\\
+En attendant, un peu de code LaTeX est généré par autoQCM en plus des balises.
+
+\medskip
+
+
+\textit{à venir...}
+
+
+\end{document}
+
+\begin{lstlisting}
+#QCM
+    #SHUFFLE % sections
+        #ITEM % shuffle questions
+            #QUESTION_BLOCK
+                #PICK
+                    #ITEM % pick a version
+                        #NEW_QUESTION
+                            Question 1
+                        #END_QUESTION
+                        #PROPOSED_ANSWER                        
+                            #SHUFFLE % shuffle answers
+                                #ITEM
+                                    #NEW_ANSWER{False}A
+                                #ITEM
+                                    #NEW_ANSWER{False}B
+                                #ITEM
+                                    #NEW_ANSWER{True}C
+                                #ITEM
+                                    #NEW_ANSWER{False}D
+                            #END_SHUFFLE % shuffle answers
+                        #END_PROPOSED_ANSWER
+
+                    #ITEM % pick a version
+                        #NEW_QUESTION
+                            Question 1 bis
+                        #END_QUESTION
+                        #PROPOSED_ANSWER                            
+                            #SHUFFLE % shuffle answers
+                                #ITEM
+                                    #NEW_ANSWER{False}aa
+                                #ITEM
+                                    #NEW_ANSWER{False}bb
+                                #ITEM
+                                    #NEW_ANSWER{True}cc
+                            #END_SHUFFLE % shuffle answers
+                            #NEW_ANSWER{False}last answer
+                        #END_PROPOSED_ANSWER
+                #END_PICK
+            #END_QUESTION_BLOCK
+
+            #QUESTION_BLOCK
+                #PICK
+                    #ITEM % pick a version
+                        #NEW_QUESTION
+                            Question 2
+                        #END_QUESTION
+                        #PROPOSED_ANSWER                        
+                            #SHUFFLE % shuffle answers
+                                #ITEM
+                                    #NEW_ANSWER{False}1
+                                #ITEM
+                                    #NEW_ANSWER{True}2
+                            #END_SHUFFLE % shuffle answers
+                        #END_PROPOSED_ANSWER
+                #END_PICK
+            #END_QUESTION_BLOCK
+
+        #ITEM % shuffle questions
+            #QUESTION_BLOCK
+                #PICK
+                    #ITEM % pick a version
+                        #NEW_QUESTION
+                            Question 3
+                        #END_QUESTION
+                        #L_ANSWERS{liste_question_3}
+                #END_PICK
+            #END_QUESTION_BLOCK
+    #END_SHUFFLE % sections 
+#END_QCM
+\end{lstlisting}
+
+
+
+\end{document}
