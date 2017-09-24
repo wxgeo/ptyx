@@ -1,5 +1,5 @@
 #LOAD{autoqcm}
-#SEED{17}
+#SEED{187}
 ..........
 liste_question_3 = ['E', 'W', 'N', 'S']
 ..........

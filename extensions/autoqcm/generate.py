@@ -13,6 +13,103 @@ from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM,
 
 
 
+class StaticStack():
+    """This is a fixed values "stack".
+
+    This "stack" is initialized with a tuple of successive values.
+    Thoses values are accessible through `.level` attribute.
+
+    One can only go up or down in the stack ; stack `.state` consist of all
+    values below current position (values above are supposed not in the stack).
+    We start at position 0.
+
+    We can't go below first level, nor above last level.
+
+    As a consequence, this "stack" can never be empty.
+
+    >>> s = StaticStack(('a', 'b', 'c'))
+    >>> s.levels
+    ('a', 'b', 'c')
+    >>> s.state
+    ('a',)
+    >>> s.up() # Return last top value.
+    'a'
+    >>> s.state
+    ('a', 'b')
+    >>> s.up()
+    'b'
+    >>> s.state
+    ('a', 'b', 'c')
+    >>> s.current
+    'c'
+    >>> s.up()
+    IndexError: Can't go higher than c !
+    >>> s.down()
+    'c'
+    >>> s.current
+    'b'
+    >>> 'c' in s
+    False
+    >>> s[-1]
+    'b'
+    >>> len(s)
+    2
+    >>> s.pos    # s[s.pos] == s[-1] == s.current is always True
+    1
+    >>> print(s)
+    a, b (c)
+    """
+
+    def __init__(self, levels:tuple):
+        self.__levels = levels
+        self.__i = 0
+
+    @property
+    def levels(self):
+        return self.__levels
+
+    def up(self):
+        "Go up in the stack and return previous level."
+        if self.__i == len(self.__levels) - 1:
+            raise IndexError("Can't go higher than %s !" % self.__levels[-1])
+        self.__i += 1
+        return self.__levels[self.__i - 1]
+
+    def down(self):
+        "Go down in the stack and return previous level."
+        if self.__i == 0:
+            raise IndexError("Can't go lower than %s !" % self.__levels[0])
+        self.__i -= 1
+        return self.__levels[self.__i + 1]
+
+    @property
+    def state(self):
+        return self.__levels[:self.__i + 1]
+
+    def __contains__(self, value):
+        return value in self.state
+
+    @property
+    def pos(self):
+        return self.__i
+
+    def __len__(self):
+        return self.__i + 1
+
+    @property
+    def current(self):
+        return self.__levels[self.__i]
+
+    def __getitem__(self, i):
+        return self.state[i]
+
+    def __str__(self):
+        return ', '.join(str(v) for v in self.state) + \
+                ' (%s)' % ', '.join(str(v) for v in self.levels[self.__i + 1:])
+
+
+
+
 
 def generate_identification_band(identifier, full=True, squares_number=15):
     """Generate top banner of the page to be scanned later.
@@ -321,14 +418,14 @@ def generate_tex(text):
 
     intro = []
     header=[]
-    stack = ['ROOT']
     levels = ('ROOT', 'QCM', 'SECTION', 'QUESTION_BLOCK', 'ANSWERS')
+    stack = StaticStack(levels)
 
     def begin(level, **kw):
 
         # Keep track of previous level: this is useful to know if a question block
         # is the first of a section, for example.
-        previous_level = stack[-1]
+        previous_level = stack.current
         # First, close any opened level until founding a parent.
         close(level)
 
@@ -342,13 +439,15 @@ def generate_tex(text):
                 code.append(r'\section{%s}' % kw['title'])
 
         elif level == 'QUESTION_BLOCK':
+            if stack.current == 'QCM':
+                begin('SECTION')
+
             if previous_level in ('SECTION', 'QCM'):
                 # This is the first question block.
                 # NB: \begin{enumerate} must not be written just after the begining
                 # of the section, since there may be some explanations between
                 # the section title and the first question.
                 code.append('\\begin{enumerate}[resume]')
-                code.append('#ITEM % shuffle sections')
                 code.append('#SHUFFLE % (questions)')
             #~ # Open a section to add a \\begin{enumerate} only once.
             #~ if stack[-1] != 'SECTION':
@@ -376,7 +475,9 @@ def generate_tex(text):
             #~ code.append('#NEW_QUESTION')
             #~ answer_number = 0
 
-        stack.append(level)
+        print(stack.pos*4*' ' + 'begin %s' % level)
+        stack.up()
+        assert stack.current == level
 
         #~ if tag == 'QUESTION_BLOCK':
             #~ begin('NEW_QUESTION')
@@ -388,32 +489,33 @@ def generate_tex(text):
         to a level lower than SECTION ('ROOT' or 'QCM').
         Any opened upper level ('QUESTION_BLOCK' or 'ANSWERS') will be closed first.
         """
-        i = levels.index(level)
-        levels_to_close = levels[i:]
-        print(level, levels_to_close)
-        while stack[-1] in levels_to_close:
-            level = stack.pop()
-            print('closing level %s' % level)
-            print('Current state: %s' % repr(code[-20:]))
+
+        while level in stack:
+            # Note that close('ROOT') will raise an error, as expected.
+            _level = stack.down()
+            print(stack.pos*4*' ' + 'close %s' % _level)
+            #~ print('Current code: %s' % repr(code[-20:]))
 
             # Specify how to close each level.
-            if level == 'QCM':
+            if _level == 'QCM':
                 code.append('#END_SHUFFLE % (sections)')
                 code.append('#END_QCM')
 
-            elif level == 'SECTION':
-                code.append('#END_SHUFFLE % (section)')
+            elif _level == 'SECTION':
+                code.append('#END_SHUFFLE % (questions)')
                 code.append(r'\end{enumerate}')
 
-            elif level == 'QUESTION_BLOCK':
+            elif _level == 'QUESTION_BLOCK':
                 code.append('#END_PICK % (question)')
 
-            elif level == 'ANSWERS':
+            elif _level == 'ANSWERS':
                 # Remove  blank lines which may be placed between two answers
                 # when shuffling.
                 while code[-1].strip() == '':
                     code.pop()
                 code.append('#END_SHUFFLE % (answers)')
+
+
 
     previous_line = None
     before_QCM = True
@@ -427,6 +529,8 @@ def generate_tex(text):
             # start MCQ
             code.extend(intro)
             code.append('#END % (introduction)')
+            print('Parsing QCM...\n')
+            print('STRUCTURE:\n')
             begin('QCM')
             before_QCM = False
 
@@ -471,9 +575,9 @@ def generate_tex(text):
             # - incorrect answer
             # + correct answer
 
-            assert stack[-1] in ('ANSWERS', 'QUESTION_BLOCK')
+            assert stack.current in ('ANSWERS', 'QUESTION_BLOCK')
 
-            if stack[-1] == 'QUESTION_BLOCK':
+            if stack.current == 'QUESTION_BLOCK':
                 # This is the first answer of a new answer block.
                 begin('ANSWERS')
 
