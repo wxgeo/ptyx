@@ -171,7 +171,7 @@ class AutoQCMTags(object):
                                             question=self.current_question[0])
         self.write(r'\mbox{')
         self._parse_children(node.children, function=f)
-        self.write(r'}\qquad\linebreak[3]%' '\n')
+        self.write(r'}\qquad%' '\n')
 
     def _parse_NEW_ANSWER_tag(self, node):
         is_correct = (node.arg(0) == 'True')
@@ -219,7 +219,7 @@ class AutoQCMTags(object):
 
         # Shuffle and generate LaTeX.
         randfunc.shuffle(l)
-        self.write('\n\n\\sloppy')
+        self.write('\n\n\\begin{flushleft}')
         for ans in l:
             is_correct = (ans == correct_answer)
             if is_correct:
@@ -232,8 +232,9 @@ class AutoQCMTags(object):
                 self.write(r'\whitesquared')
             else:
                 self.write(r'\graysquared')
-            self.write(r'{\alph{answerNumber}}~~\mbox{%s}\qquad\linebreak[3]' % ans)
+            self.write(r'{\alph{answerNumber}}~~\mbox{%s}\qquad' % ans)
             self.write('%\n')
+        self.write('\n\\end{flushleft}')
 
     def _parse_DEBUG_AUTOQCM_tag(self, node):
         ans = self.autoqcm_correct_answers

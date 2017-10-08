@@ -464,8 +464,8 @@ def generate_tex(text):
             # First, end question.
             code.append('#END % question')
             # Shuffle answers.
+            code.append('\n\n\\begin{flushleft}')
             code.append('#SHUFFLE % (answers)')
-            code.append('\n\n\\sloppy')
 
         else:
             raise RuntimeError('Unknown level: %s' % level)
@@ -514,6 +514,7 @@ def generate_tex(text):
                 while code[-1].strip() == '':
                     code.pop()
                 code.append('#END_SHUFFLE % (answers)')
+                code.append('\n\\end{flushleft}')
 
 
 
