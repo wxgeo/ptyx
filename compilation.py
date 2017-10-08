@@ -257,3 +257,4 @@ def join_files(output_name, filenames, seed_file_name=None, **options):
         # monfichier.pdf -> monfichier-brochure.pdf
         new_name = '%s-%s.pdf' % (pdf_name[:pdf_name.index('.')], mode)
         execute('pdftk %s cat %s output %s' % (pdf_name, ' '.join(str(i) for i in order), new_name))
+    print('%s files merged.' %len(filenames))
