@@ -169,9 +169,9 @@ class AutoQCMTags(object):
         else:
             f = partial(test_singularity_and_append, l=self.auto_qcm_answers,
                                             question=self.current_question[0])
-        self.write(r'\mbox{')
+        self.write(r'\begin{tabular}[t]{l}')
         self._parse_children(node.children, function=f)
-        self.write(r'}\qquad%' '\n')
+        self.write(r'\end{tabular}\quad%' '\n')
 
     def _parse_NEW_ANSWER_tag(self, node):
         is_correct = (node.arg(0) == 'True')
@@ -184,7 +184,7 @@ class AutoQCMTags(object):
             self.write(r'\whitesquared')
         else:
             self.write(r'\graysquared')
-        self.write(r'{\alph{answerNumber}}~~')
+        self.write(r'{\alph{answerNumber}}')
         if is_correct:
             self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
         self.autoqcm_answer_number += 1
@@ -232,7 +232,7 @@ class AutoQCMTags(object):
                 self.write(r'\whitesquared')
             else:
                 self.write(r'\graysquared')
-            self.write(r'{\alph{answerNumber}}~~\mbox{%s}\qquad' % ans)
+            self.write(r'{\alph{answerNumber}}\begin{tabular}[t]{c}%s\end{tabular}\quad' % ans)
             self.write('%\n')
         self.write('\n\\end{flushleft}\n\\end{minipage}')
 
