@@ -324,6 +324,14 @@ if __name__ == '__main__':
                    Additionnaly, if `-n` option is not specified, \
                    default value will be the number of names in the CSV file."
                    )
+
+    parser.add_argument("--filter-by-pages-number", metavar='N', type=int,
+            help="Keep only pdf files whose pages number match N. \
+            This may be useful for printing pdf later. \
+            Note that the number of files may not be respected then, so \
+            you may have to adjust the number of files manually."
+            )
+
     parser.add_argument("--generate-batch-for-windows-printing", action="store_true",
             help="Generate a batch file for printing all pdf files using SumatraPDF."
             )

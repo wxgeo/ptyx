@@ -1,6 +1,6 @@
 from __future__ import division, unicode_literals, absolute_import, print_function
 
-import os, sys, locale
+import os, sys, locale, re
 import subprocess
 import tempfile
 import shutil
@@ -98,13 +98,24 @@ def make_files(input_name, correction=False, **options):
         options.setdefault('context', {})
         options['context'].update(WITH_ANSWERS=correction, NUM=num, NAME=name,
                                   TOTAL=n)
-        make_file(filename, **options)
+        infos = make_file(filename, **options)
+        if infos.get('pages_number') and options.get('filter_by_pages_number'):
+            if  infos.get('pages_number') != options.get('filter_by_pages_number'):
+                filename = filenames.pop()
+                print('Warning: removing %s (incorrect page number) !' % filename)
 
+    if len(filenames) < n:
+        msg1 = ('Warning: only %s pdf files generated (not %s) !' % (len(filenames), n))
+        msg2 = '(Unreleased pdf did not match page number constraints).'
+        sep = max(len(msg1), len(msg2))*'~'
+        print('\n'.join(('', sep, msg1, msg2, sep, '')))
     return filenames, output_name
 
 
 
 def _compile_latex_file(filename, dest=None, quiet=False):
+    """Compile the latex file and return the number of pages of the pdf
+    (or None if not found)."""
     # By default, pdflatex use current directory as destination folder.
     # However, much of the time, we want destination folder to be the one
     # where the tex file was found.
@@ -121,8 +132,15 @@ def _compile_latex_file(filename, dest=None, quiet=False):
        'There were undefined references.' in log:
         log = execute(command)
 
+    # Return the number of pages of the pdf generated.
+    pattern = r'Output written on .+ \(([0-9]+) pages, [0-9]+ bytes\)\.'
+    m = re.search(pattern, log, flags=re.DOTALL)
+    return (int(m.group(1)) if m is not None else None)
+
+
 
 def make_file(output_name, **options):
+    infos = {}
     remove = options.get('remove')
     quiet = options.get('quiet')
     formats = options.get('formats', param['formats'])
@@ -141,7 +159,8 @@ def make_file(output_name, **options):
             texfile.write(latex)
             if 'pdf' in formats:
                 texfile.flush()
-                _compile_latex_file(texfile.name, quiet=quiet)
+                pages_number = _compile_latex_file(texfile.name, quiet=quiet)
+                infos['pages_number'] = pages_number
                 if remove:
                     for extension in ('aux', 'log', 'out'):
                         name = '%s.%s' % (output_name, extension)
@@ -153,14 +172,18 @@ def make_file(output_name, **options):
         # - Difficult to debug.
         # - Seems to be problem with references too.
         assert 'pdf' in formats
+        print("Warning: not including tex in output format may result in\n"
+              "incorrect behaviour (broken references for example) !")
 
         with tempfile.TemporaryDirectory() as tmp_path:
             tmp_name = os.path.join(tmp_path, os.path.basename(output_name))
             with open(tmp_name + '.tex', 'w') as texfile:
                 texfile.write(latex)
                 texfile.flush()
-                _compile_latex_file(texfile.name, quiet=quiet)
+                pages_number = _compile_latex_file(texfile.name, quiet=quiet)
+                infos['pages_number'] = pages_number
             shutil.move(tmp_name + '.pdf', output_name + '.pdf')
+    return infos
 
 
 def join_files(output_name, filenames, seed_file_name=None, **options):
