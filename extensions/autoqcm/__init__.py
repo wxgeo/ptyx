@@ -219,7 +219,7 @@ class AutoQCMTags(object):
 
         # Shuffle and generate LaTeX.
         randfunc.shuffle(l)
-        self.write('\n\n\\begin{flushleft}')
+        self.write('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
         for ans in l:
             is_correct = (ans == correct_answer)
             if is_correct:
@@ -234,7 +234,7 @@ class AutoQCMTags(object):
                 self.write(r'\graysquared')
             self.write(r'{\alph{answerNumber}}~~\mbox{%s}\qquad' % ans)
             self.write('%\n')
-        self.write('\n\\end{flushleft}')
+        self.write('\n\\end{flushleft}\n\\end{minipage}')
 
     def _parse_DEBUG_AUTOQCM_tag(self, node):
         ans = self.autoqcm_correct_answers

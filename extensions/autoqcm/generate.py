@@ -464,7 +464,7 @@ def generate_tex(text):
             # First, end question.
             code.append('#END % question')
             # Shuffle answers.
-            code.append('\n\n\\begin{flushleft}')
+            code.append('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
             code.append('#SHUFFLE % (answers)')
 
         else:
@@ -514,7 +514,7 @@ def generate_tex(text):
                 while code[-1].strip() == '':
                     code.pop()
                 code.append('#END_SHUFFLE % (answers)')
-                code.append('\n\\end{flushleft}')
+                code.append('\n\\end{flushleft}\n\\end{minipage}')
 
 
 
