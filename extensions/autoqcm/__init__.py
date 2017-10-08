@@ -95,6 +95,11 @@ class AutoQCMTags(object):
         self.n_max_answers = 0
         self._parse_children(node.children)
 
+    def _parse_ANSWERS_BLOCK_tag(self, node):
+        self.write('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
+        self._parse_children(node.children)
+        self.write('\n\\end{flushleft}\n\\end{minipage}')
+
     def _parse_END_QCM_tag(self, node):
         data = self.autoqcm_data
         context = self.context
@@ -236,6 +241,7 @@ class AutoQCMTags(object):
             self.write('%\n')
         self.write('\n\\end{flushleft}\n\\end{minipage}')
 
+
     def _parse_DEBUG_AUTOQCM_tag(self, node):
         ans = self.autoqcm_correct_answers
         print('---------------------------------------------------------------')
@@ -281,6 +287,7 @@ def main(text, compiler):
     compiler.add_new_tag('TABLE_FOR_ANSWERS', (0, 0, None), AutoQCMTags._parse_TABLE_FOR_ANSWERS_tag, 'autoqcm', update=False)
     compiler.add_new_tag('SCORES', (1, 0, None), AutoQCMTags._parse_SCORES_tag, 'autoqcm', update=False)
     compiler.add_new_tag('PROPOSED_ANSWER', (0, 0, ['@END']), AutoQCMTags._parse_PROPOSED_ANSWER_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('ANSWERS_BLOCK', (0, 0, ['@END']), AutoQCMTags._parse_ANSWERS_BLOCK_tag, 'autoqcm', update=False)
     compiler.add_new_tag('L_ANSWERS', (2, 0, None), AutoQCMTags._parse_L_ANSWERS_tag, 'autoqcm', update=False)
     compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), AutoQCMTags._parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
     code, students_list = generate_tex(text)
