@@ -518,7 +518,8 @@ def scan_picture(filename, config):
 
             # Remove borders of the square when testing,
             # since it may induce false positives.
-            answers[-1].append(test_square_color(search_area, i + 5, j + 5, cell_size - 7))
+            answers[-1].append(test_square_color(search_area, i + 5, j + 5, cell_size - 7, proportion=0.3, gray_level=0.65) or
+                               test_square_color(search_area, i + 5, j + 5, cell_size - 7, proportion=0.4, gray_level=0.75))
             #~ if test_square_color(search_area, i, j, cell_size):
                 #~ test_square_color(search_area, i + 5, j + 5, cell_size - 7, _debug=True)
                 #~ color2debug((vpos + i, j), (vpos + i + cell_size, j + cell_size),display=False)
@@ -526,8 +527,9 @@ def scan_picture(filename, config):
 
     #~ print("Answers:\n%s" % '\n'.join(str(a) for a in answers))
     print("Result of grid scanning:")
-    for question in zip(*answers):
-        print(' '.join(('■' if checked else '□') for checked in question))
+    rows = (answers if flip else zip(*answers))
+    for row in rows:
+        print(' '.join(('■' if checked else '□') for checked in row))
 
 
     correct_answers = config['answers'][identifier]
@@ -593,7 +595,11 @@ def read_config(pth):
                         cfg[key] = val
                     elif section == 'answers':
                         q, correct_ans = line.split(' -> ')
-                        ans[num].append([int(n) - 1 for n in correct_ans.split(',')])
+                        # There may be no answers, so test if string is empty.
+                        if correct_ans.strip():
+                            ans[num].append([int(n) - 1 for n in correct_ans.split(',')])
+                        else:
+                            ans[num].append([])
                         assert len(ans[num]) == int(q), ('Incorrect question number: %s' % q)
                     else:
                         assert section == 'students'
