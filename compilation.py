@@ -233,6 +233,8 @@ def join_files(output_name, filenames, seed_file_name=None, **options):
                 pdf_with_seed = os.path.join(temp_dir, 'with_seed.pdf')
                 execute('pdftk "%s" attach_files "%s" output "%s"' % (pdf_name, seed_file_name, pdf_with_seed))
                 shutil.copyfile(pdf_with_seed, pdf_name)
+        print('%s files merged.' %len(filenames))
+
     if options.get('reorder_pages'):
         # Use pdftk to detect how many pages has the pdf document.
         n = int(execute('pdftk %s dump_data output | grep -i NumberOfPages:' % pdf_name).strip().split()[-1])
@@ -257,4 +259,4 @@ def join_files(output_name, filenames, seed_file_name=None, **options):
         # monfichier.pdf -> monfichier-brochure.pdf
         new_name = '%s-%s.pdf' % (pdf_name[:pdf_name.index('.')], mode)
         execute('pdftk %s cat %s output %s' % (pdf_name, ' '.join(str(i) for i in order), new_name))
-    print('%s files merged.' %len(filenames))
+
