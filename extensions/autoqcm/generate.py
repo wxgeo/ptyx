@@ -225,6 +225,35 @@ def generate_students_list(csv_path='', _n_student=None):
 
 
 
+def generate_student_id_table(digits=2):
+    """"Generate a table where the students can write its identification number.
+
+    `digits` is the number of digits of the student identification number.
+    The table have a row for each digit, where the student check corresponding
+    digit to indicate its number.
+    """
+    content = []
+    write = content.append
+    write('\n\n')
+    write(r'Votre numéro~:\quad\begin{tikzpicture}[baseline=-10pt,scale=.25]')
+    write(r'\draw[fill=black] (-1, 0) rectangle (0,%s);' % (-digits))
+    # One column for each possibility (0-9).
+    for i in range(10):
+        # Digit above each column.
+        write(r'\draw (%s,0.5) node {\small %s};' %(i + .5, i))
+        # One row for each digit of the student id number.
+        for j in range(digits):
+            write('r\draw (%s,%s) rectangle (%s,%s);' % (i, -j, i+1, -j-1))
+    write(r'\end{tikzpicture}')
+    write(r'\qquad')
+    write(r'Nom~:~\dotfill')
+    write(r'Prénom~:~\dotfill')
+    write(r'Groupe~:~\dots')
+    write('\n\n')
+    return '\n'.join(content)
+
+
+
 def generate_table_for_answers(questions, answers, correct_answers=(), flip=False, options={}):
     """Generate the table where students select correct answers.
 
@@ -397,7 +426,7 @@ def generate_tex(text):
     code.append("#AUTOQCM_BARCODE")
 
     # Extract from text the path of the csv file containing students names.
-    m=re.match("[ ]*%[ ]*csv:(.*)", text, re.IGNORECASE)
+    m = re.match("[ ]*%[ ]*csv:(.*)", text, re.IGNORECASE)
     if m:
         csv_path = m.group(1).strip()
         _code, students_list = generate_students_list(csv_path)
@@ -407,6 +436,12 @@ def generate_tex(text):
     else:
         students_list = []
         print("Warning: no student list provided (or incorrect syntax), ignoring...")
+
+    m = re.match("[ ]*%[ ]*digits:(.*)", text, re.IGNORECASE)
+    if m:
+        code.append(generate_student_id_table(int(m.group(1))))
+
+
 
     code.append(r'\AutoQCMsimfill')
 
