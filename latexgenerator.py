@@ -85,7 +85,8 @@ class Node(object):
                 # somewhere, it is parsed as an `#EVAL` tag with `myvar` as argument.
                 # So, a lonely `#` is parsed as an `#EVAL` with no argument at all.
                 raise ValueError("Error! There is a lonely '#' somewhere !")
-            raise ValueError("%s argument number %s should not be empty !" % (self.name, i + 1))
+            print("Warning: %s argument number %s is empty." % (self.name, i + 1))
+            return ''
 
         return child.children[0]
 
@@ -234,6 +235,7 @@ class SyntaxTreeGenerator(object):
 
 
     def _preparse(self, node, text):
+        "Parse `text`, then add corresponding content to `node`."
         position = 0
         update_last_position = True
         node._closing_tags = []
@@ -388,7 +390,7 @@ class SyntaxTreeGenerator(object):
                 try:
                     # - Tolerate spaces before bracket.
                     tmp_pos = position
-                    while text[tmp_pos] == ' ':
+                    while text[tmp_pos].isspace():
                         tmp_pos += 1
                         if text[tmp_pos] == '[':
                             position = tmp_pos
@@ -401,6 +403,7 @@ class SyntaxTreeGenerator(object):
                 except IndexError:
                     # Don't raise error, since argument is optional.
                     pass
+
                 # Detect command arguments.
                 # ~~~~~~~~~~~~~~~~~~~~~~~~~
                 # Each argument become a node with its number as name.
@@ -411,7 +414,7 @@ class SyntaxTreeGenerator(object):
                 for i in range(code_args_number + raw_args_number):
                     try:
                         # - Tolerate spaces before bracket.
-                        while text[position] == ' ':
+                        while text[position].isspace():
                             position += 1
                         # - Handle argument.
                         if text[position] == '{':
