@@ -54,7 +54,8 @@ One may include some PTYX code of course.
 from functools import partial
 
 from .generate import (generate_tex, generate_identification_band,
-                       generate_table_for_answers)
+                       generate_table_for_answers, generate_students_list,
+                       generate_student_id_table, generate_latex_header)
 from .. import extended_python
 import randfunc
 from utilities import print_sympy_expr
@@ -88,6 +89,9 @@ def test_singularity_and_append(code, l, question):
     return code
 
 
+# This class is only used as a spacename.
+# TODO: remove this class, use module namespace instead, using a class as a names
+# space only add confusion.
 class AutoQCMTags(object):
     def _parse_QCM_tag(self, node):
         self.autoqcm_correct_answers = []
@@ -131,16 +135,6 @@ class AutoQCMTags(object):
                 if elt == '#TABLE_FOR_ANSWERS':
                     textlist[len(textlist) - i - 1] = latex
 
-    def _parse_SCORES_tag(self, node):
-        arg = node.arg(0)
-        vals = sorted(arg.split(), key=float)
-        self.autoqcm_data['correct'] = vals[-1]
-        assert 1 <= len(vals) <= 3, 'One must provide between 1 and 3 scores '\
-                '(for correct answers, incorrect answers and no answer at all).'
-        if len(vals) >= 2:
-            self.autoqcm_data['incorrect'] = vals[0]
-            if len(vals) >= 3:
-                self.autoqcm_data['skipped'] = vals[1]
 
     def _parse_NEW_QUESTION_tag(self, node):
         self.autoqcm_correct_answers.append([])
@@ -154,15 +148,10 @@ class AutoQCMTags(object):
         self._parse_children(node.children, function=partial(remember_last_question, l=l))
 
 
-    def _parse_AUTOQCM_BARCODE_tag(self, node):
-        n = self.context['NUM']
-        full=('AUTOQCM__SCORE_FOR_THIS_STUDENT' not in self.context)
-        self.write(generate_identification_band(identifier=n, full=full))
-
     def _parse_TABLE_FOR_ANSWERS_tag(self, node):
         self.autoqcm_data['table_for_answers_options'] = self._parse_options(node)
         # Don't parse it now, since we don't know the number of questions
-        # and of answers par question for now.
+        # and of answers per question for now.
         # Write the tag name as a bookmark... it will be replaced by latex
         # code eventually when closing MCQ (see: _parse_END_QCM_tag).
         self.write('#TABLE_FOR_ANSWERS')
@@ -177,6 +166,7 @@ class AutoQCMTags(object):
         self.write(r'\begin{tabular}[t]{l}')
         self._parse_children(node.children, function=f)
         self.write(r'\end{tabular}\quad%' '\n')
+
 
     def _parse_NEW_ANSWER_tag(self, node):
         is_correct = (node.arg(0) == 'True')
@@ -251,6 +241,82 @@ class AutoQCMTags(object):
         self.write(ans)
 
 
+    def _parse_QCM_HEADER_tag(self, node):
+        sty = ''
+        try:
+            check_id_or_name = self.autoqcm_cache['check_id_or_name']
+        except KeyError:
+            code = ''
+            # Read config
+            for line in node.arg(0).split('\n'):
+                if not line.strip():
+                    continue
+                key, val = line.split('=', maxsplit=1)
+                key = key.strip()
+                val = val.strip()
+
+                if key in ('scores', 'score'):
+                    # Set how many points are won/lost for a correct/incorrect answer.
+                    if ',' in val:
+                        vals = val.split(',')
+                    else:
+                        vals = val.split()
+                    vals = sorted(vals, key=float)
+                    self.autoqcm_data['correct'] = vals[-1]
+                    assert 1 <= len(vals) <= 3, 'One must provide between 1 and 3 scores '\
+                            '(for correct answers, incorrect answers and no answer at all).'
+                    if len(vals) >= 2:
+                        self.autoqcm_data['incorrect'] = vals[0]
+                        if len(vals) >= 3:
+                            self.autoqcm_data['skipped'] = vals[1]
+
+                elif key == 'mode':
+                    self.autoqcm_data['mode'] = val
+
+                elif key in ('names', 'name', 'students', 'student'):
+                    # val must be the path of a CSV file.
+                    code, students_list = generate_students_list(val)
+                    self.autoqcm_data['students_list'] = students_list
+
+                elif key in ('id', 'ids'):
+                    # val must be the path of a CSV file.
+                    code, ids = generate_student_id_table(val)
+                    self.autoqcm_data['ids'] = ids
+
+                elif key in ('sty', 'package'):
+                    sty = val
+
+                if not self.context.get('WITH_ANSWERS'):
+                    check_id_or_name = code
+            self.autoqcm_cache['check_id_or_name'] = check_id_or_name
+            check_id_or_name += '\n\\AutoQCMsimfill\n\n'
+
+        try:
+            header = self.autoqcm_cache['header']
+        except KeyError:
+            # TODO: Once using Python 3.6+ (string literals),
+            # make generate_latex_header() return a tuple
+            # (it's to painful for now because of.format()).
+            if sty:
+                sty = r'\usepackage{%s}' % sty
+            header1, header2 = generate_latex_header()
+            header = '\n'.join([header1, sty, header2, r'\begin{document}'])
+            self.autoqcm_cache['header'] = header
+
+        # Generate barcode
+        # Barcode must NOT be put in the cache, since each document has a
+        # unique
+        n = self.context['NUM']
+        full=('AUTOQCM__SCORE_FOR_THIS_STUDENT' not in self.context)
+        barcode = generate_identification_band(identifier=n, full=full)
+
+        self.write('\n'.join([header, barcode, check_id_or_name]))
+
+
+
+
+
+
 def main(text, compiler):
     # Generation algorithm is the following:
     # 1. Parse AutoQCM code, to convert it to plain pTyX code.
@@ -283,16 +349,19 @@ def main(text, compiler):
     compiler.add_new_tag('NEW_QUESTION', (0, 0, ['@END', '@END_QUESTION']), AutoQCMTags._parse_NEW_QUESTION_tag, 'autoqcm', update=False)
     compiler.add_new_tag('NEW_ANSWER', (1, 0, None), AutoQCMTags._parse_NEW_ANSWER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('END_QCM', (0, 0, None), AutoQCMTags._parse_END_QCM_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('AUTOQCM_BARCODE', (0, 0, None), AutoQCMTags._parse_AUTOQCM_BARCODE_tag, 'autoqcm', update=False)
     compiler.add_new_tag('TABLE_FOR_ANSWERS', (0, 0, None), AutoQCMTags._parse_TABLE_FOR_ANSWERS_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('SCORES', (1, 0, None), AutoQCMTags._parse_SCORES_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('QCM_HEADER', (1, 0, None), AutoQCMTags._parse_QCM_HEADER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('PROPOSED_ANSWER', (0, 0, ['@END']), AutoQCMTags._parse_PROPOSED_ANSWER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('ANSWERS_BLOCK', (0, 0, ['@END']), AutoQCMTags._parse_ANSWERS_BLOCK_tag, 'autoqcm', update=False)
     compiler.add_new_tag('L_ANSWERS', (2, 0, None), AutoQCMTags._parse_L_ANSWERS_tag, 'autoqcm', update=False)
     compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), AutoQCMTags._parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
-    code, students_list = generate_tex(text)
+    code = generate_tex(text)
+    # Some tags may use cache, for code which don't change between two successive compilation.
+    compiler.latex_generator.autoqcm_cache = {}
+    # Default configuration:
     compiler.latex_generator.autoqcm_data = {'answers': {},
-            'students': students_list,
+            'students': [],
+            'ids': {},
             'correct': 1,
             'incorrect': 0,
             'skipped': 0,
@@ -325,7 +394,10 @@ def close(compiler):
     for name in g.autoqcm_data['students']:
         l.append(name)
 
+    l.append('*** IDS LIST ***')
+    for id_, name in g.autoqcm_data['ids'].items():
+        l.append('%s: %s' % (id_, name))
+
     with open(compiler.state['path'] + '.autoqcm.config', 'w') as f:
         f.write('\n'.join(l))
-
 

@@ -225,13 +225,21 @@ def generate_students_list(csv_path='', _n_student=None):
 
 
 
-def generate_student_id_table(digits=2):
+def generate_student_id_table(csv_path):
     """"Generate a table where the students can write its identification number.
 
-    `digits` is the number of digits of the student identification number.
+    `csv_path` is the path of the CSV file who contains students names and ids.
+    The first column of the CSV file must contain the ids.
     The table have a row for each digit, where the student check corresponding
     digit to indicate its number.
     """
+    ids = {}
+    # Read CSV file and generate the dictionary {id: "student name"}.
+    with open(csv_path) as f:
+        for row in csv.reader(f):
+            n, *row = row
+            ids[int(n)] = ' '.join(item.strip() for item in row)
+    digits = len(str(max(ids)))
     content = []
     write = content.append
     write('\n\n')
@@ -250,7 +258,7 @@ def generate_student_id_table(digits=2):
     write(r'Prénom~:~\dotfill')
     write(r'Groupe~:~\dots')
     write('\n\n')
-    return '\n'.join(content)
+    return '\n'.join(content), ids
 
 
 
@@ -342,16 +350,11 @@ def generate_table_for_answers(questions, answers, correct_answers=(), flip=Fals
 def generate_latex_header():
     paper_format = '%spaper' % PAPER_FORMAT.lower()
     # LaTeX header is in two part, so as user may insert some customization here.
-    return [r"\documentclass[%s,10pt]{article}" % paper_format,
-    r"""\usepackage[utf8]{{inputenc}}
-    \usepackage[document]{{ragged2e}}
-    \usepackage{{nopageno}}
-    \usepackage{{tikz}}
-    \usepackage[left={left}cm,right={right}cm,top={top}cm,bottom={bottom}cm]{{geometry}}
+    return [r"""\documentclass[{paper_format},10pt]{{article}}
+    \PassOptionsToPackage{{utf8}}{{inputenc}}
+    \PassOptionsToPackage{{document}}{{ragged2e}}
+    \PassOptionsToPackage{{left={left}cm,right={right}cm,top={top}cm,bottom={bottom}cm}}{{geometry}}
     \parindent=0cm
-    \usepackage{{pifont}}
-    \usepackage{{textcomp}}
-    \usepackage{{enumitem}} % To resume an enumeration.
     \newcommand*\graysquared[1]{{\tikz[baseline=(char.base)]{{
         \node[fill=gray,shape=rectangle,draw,inner sep=2pt] (char) {{\color{{white}}\textbf{{#1}}}};}}}}
     \newcommand*\whitesquared[1]{{\tikz[baseline=(char.base)]{{
@@ -365,9 +368,20 @@ def generate_latex_header():
     \makeatother
     \newcounter{{answerNumber}}
     \renewcommand{{\thesubsection}}{{\Alph{{subsection}}}}
-    \setenumerate[0]{{label=\protect\AutoQCMcircled{{\arabic*}}}}
-    \begin{{document}}""".format(left=MARGIN_LEFT_IN_CM, right=MARGIN_RIGHT_IN_CM,
-                           top=MARGIN_TOP_IN_CM, bottom=MARGIN_BOTTOM_IN_CM)]
+    """.format(paper_format=paper_format, left=MARGIN_LEFT_IN_CM,
+                           right=MARGIN_RIGHT_IN_CM,
+                           top=MARGIN_TOP_IN_CM, bottom=MARGIN_BOTTOM_IN_CM),
+    # Custom packages will be loaded here
+    r"""\usepackage{inputenc}
+    \usepackage{ragged2e}
+    \usepackage{geometry}
+    \usepackage{pifont}
+    \usepackage{textcomp}
+    \usepackage{nopageno}
+    \usepackage{tikz}
+    \usepackage{enumitem} % To resume an enumeration.
+    \setenumerate[0]{label=\protect\AutoQCMcircled{\arabic*}}
+    """]
 
 
 
@@ -418,41 +432,8 @@ def generate_tex(text):
 
     #TODO: improve ability to customize this part ?
 
-    # Every LaTeX package loaded by user will be inserted here
-    # (after first line of the header).
-    customized_header_position = 1
-    code = generate_latex_header()
+    code = []
 
-    code.append("#AUTOQCM_BARCODE")
-
-    # Extract from text the path of the csv file containing students names.
-    m = re.match("[ ]*%[ ]*csv:(.*)", text, re.IGNORECASE)
-    if m:
-        csv_path = m.group(1).strip()
-        _code, students_list = generate_students_list(csv_path)
-        code.append('#ASK_ONLY')
-        code.append(_code)
-        code.append('#END')
-    else:
-        students_list = []
-        print("Warning: no student list provided (or incorrect syntax), ignoring...")
-
-    m = re.match("[ ]*%[ ]*digits:(.*)", text, re.IGNORECASE)
-    if m:
-        code.append(generate_student_id_table(int(m.group(1))))
-
-
-
-    code.append(r'\AutoQCMsimfill')
-
-    # The table that students use to answer MCQ will be generated and inserted here by default.
-    # (User can customize its position by using #TABLE_FOR_ANSWERS tag).
-    if '#TABLE_FOR_ANSWERS' not in text:
-        code.append('#TABLE_FOR_ANSWERS')
-
-
-    intro = []
-    header=[]
     levels = ('ROOT', 'QCM', 'SECTION', 'QUESTION_BLOCK', 'ANSWERS')
     stack = StaticStack(levels)
 
@@ -555,29 +536,39 @@ def generate_tex(text):
 
     previous_line = None
     before_QCM = True
+    is_header = False
+    header = ['#QCM_HEADER{']
+
+    intro = ['#ASK_ONLY % (introduction)']
+    # The table that students use to answer MCQ will be generated and inserted here by default.
+    # (User can customize its position by using #TABLE_FOR_ANSWERS tag).
+    if '#TABLE_FOR_ANSWERS' not in text:
+        intro.append('#TABLE_FOR_ANSWERS')
 
     for _line_ in text.split('\n'):
         line = _line_.strip()
         n = len(line)
 
-        if n >= 3 and all(c == '<' for c in line):
-            # <<<<<<<<<<<<
+        if n >= 3 and all(c == '<' for c in line):  # <<<
             # start MCQ
+            header.append('}')
+            code.extend(header)
+
+            intro.append('#END % (introduction)')
             code.extend(intro)
-            code.append('#END % (introduction)')
             print('Parsing QCM...\n')
             print('STRUCTURE:\n')
             begin('QCM')
             before_QCM = False
 
         elif before_QCM:
-            if intro:
-                intro.append(_line_)
-            elif re.search('#LOAD{[ ]*autoqcm[ ]*}', line):
-                intro = ['#ASK_ONLY % (introduction)']
-            else:
+            if n >= 3 and all(c == '=' for c in line):  # ===
+                # Enter (or leave) header section.
+                is_header = not is_header
+            elif is_header:
                 header.append(_line_)
-
+            else:
+                intro.append(_line_)
 
         elif n >= 3 and line.startswith('=') and line.endswith('='):
             # === title ===
@@ -630,8 +621,7 @@ def generate_tex(text):
 
             code.append('#PROPOSED_ANSWER %s#END' % line[2:])
 
-        elif n >= 3 and all(c == '>' for c in line):
-            # >>>>>>>>>>>>>>>>>>>>
+        elif n >= 3 and all(c == '>' for c in line):  # >>>
             # End MCQ
             close('QCM')
 
@@ -640,10 +630,8 @@ def generate_tex(text):
 
         previous_line = line
 
-    i = customized_header_position
-    code = code[:i] + header + code[i:] + [r'\end{document}']
-
-    return '\n'.join(code), students_list
+    code.append(r'\end{document}')
+    return '\n'.join(code)
 
 
 
