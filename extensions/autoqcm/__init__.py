@@ -89,228 +89,228 @@ def test_singularity_and_append(code, l, question):
     return code
 
 
-# This class is only used as a spacename.
-# TODO: remove this class, use module namespace instead, using a class as a names
-# space only add confusion.
-class AutoQCMTags(object):
-    def _parse_QCM_tag(self, node):
-        self.autoqcm_correct_answers = []
-        self.n_questions = 0
-        self.n_max_answers = 0
-        self._parse_children(node.children)
+# ------------------
+#    CUSTOM TAGS
+# ------------------
 
-    def _parse_ANSWERS_BLOCK_tag(self, node):
-        self.write('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
-        self._parse_children(node.children)
-        self.write('\n\\end{flushleft}\n\\end{minipage}')
+def _parse_QCM_tag(self, node):
+    self.autoqcm_correct_answers = []
+    self.n_questions = 0
+    self.n_max_answers = 0
+    self._parse_children(node.children)
 
-    def _parse_END_QCM_tag(self, node):
-        data = self.autoqcm_data
-        context = self.context
-        n = context['NUM']
-        data['answers'][n] = self.autoqcm_correct_answers
-        # Those are supposed to have same value for each test,
-        # so we don't save test number:
-        data['n_questions'] = len(self.autoqcm_correct_answers)
-        data['n_max_answers'] = self.n_max_answers
+def _parse_ANSWERS_BLOCK_tag(self, node):
+    self.write('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
+    self._parse_children(node.children)
+    self.write('\n\\end{flushleft}\n\\end{minipage}')
 
-        # Now, we know the number of questions and of answers per question for
-        # the whole MCQ, so we can generate the table for the answers.
-        args, kw = data['table_for_answers_options']
-        kw['answers'] = int(kw.get('answers', data['n_max_answers']))
-        kw['questions'] = int(kw.get('questions', data['n_questions']))
-        if context.get('WITH_ANSWERS'):
-            kw['correct_answers'] = data['answers'][n]
-        latex = generate_table_for_answers(*args, **kw)
-        # orientation must be stored for scan later.
-        data['flip'] = bool(kw.get('flip', False))
-        #XXX: If flip is not the same for all tests, only last flip value
-        # will be stored, which may lead to errors (though it's highly unlikely
-        # that user would adapt flip value depending on subject number).
+def _parse_END_QCM_tag(self, node):
+    data = self.autoqcm_data
+    context = self.context
+    n = context['NUM']
+    data['answers'][n] = self.autoqcm_correct_answers
+    # Those are supposed to have same value for each test,
+    # so we don't save test number:
+    data['n_questions'] = len(self.autoqcm_correct_answers)
+    data['n_max_answers'] = self.n_max_answers
 
-        # Search backward for #TABLE_FOR_ANSWERS to replace it with
-        # corresponding LaTeX code.
-        for textlist in self.backups + [self.context['LATEX']]:
-            for i, elt in enumerate(reversed(textlist)):
-                if elt == '#TABLE_FOR_ANSWERS':
-                    textlist[len(textlist) - i - 1] = latex
+    # Now, we know the number of questions and of answers per question for
+    # the whole MCQ, so we can generate the table for the answers.
+    args, kw = data['table_for_answers_options']
+    kw['answers'] = int(kw.get('answers', data['n_max_answers']))
+    kw['questions'] = int(kw.get('questions', data['n_questions']))
+    if context.get('WITH_ANSWERS'):
+        kw['correct_answers'] = data['answers'][n]
+    latex = generate_table_for_answers(*args, **kw)
+    # orientation must be stored for scan later.
+    data['flip'] = bool(kw.get('flip', False))
+    #XXX: If flip is not the same for all tests, only last flip value
+    # will be stored, which may lead to errors (though it's highly unlikely
+    # that user would adapt flip value depending on subject number).
 
-
-    def _parse_NEW_QUESTION_tag(self, node):
-        self.autoqcm_correct_answers.append([])
-        self.autoqcm_answer_number = 0
-        self.auto_qcm_answers = []
-        # This is used to improve message error when an error occured.
-        self.current_question = l = []
-        def remember_last_question(code, l):
-            l.append(code)
-            return code
-        self._parse_children(node.children, function=partial(remember_last_question, l=l))
+    # Search backward for #TABLE_FOR_ANSWERS to replace it with
+    # corresponding LaTeX code.
+    for textlist in self.backups + [self.context['LATEX']]:
+        for i, elt in enumerate(reversed(textlist)):
+            if elt == '#TABLE_FOR_ANSWERS':
+                textlist[len(textlist) - i - 1] = latex
 
 
-    def _parse_TABLE_FOR_ANSWERS_tag(self, node):
-        self.autoqcm_data['table_for_answers_options'] = self._parse_options(node)
-        # Don't parse it now, since we don't know the number of questions
-        # and of answers per question for now.
-        # Write the tag name as a bookmark... it will be replaced by latex
-        # code eventually when closing MCQ (see: _parse_END_QCM_tag).
-        self.write('#TABLE_FOR_ANSWERS')
+def _parse_NEW_QUESTION_tag(self, node):
+    self.autoqcm_correct_answers.append([])
+    self.autoqcm_answer_number = 0
+    self.auto_qcm_answers = []
+    # This is used to improve message error when an error occured.
+    self.current_question = l = []
+    def remember_last_question(code, l):
+        l.append(code)
+        return code
+    self._parse_children(node.children, function=partial(remember_last_question, l=l))
 
 
-    def _parse_PROPOSED_ANSWER_tag(self, node):
-        if self.context.get('ALLOW_SAME_ANSWER_TWICE'):
-            f = None
-        else:
-            f = partial(test_singularity_and_append, l=self.auto_qcm_answers,
-                                            question=self.current_question[0])
-        self.write(r'\begin{tabular}[t]{l}')
-        self._parse_children(node.children, function=f)
-        self.write(r'\end{tabular}\quad%' '\n')
+def _parse_TABLE_FOR_ANSWERS_tag(self, node):
+    self.autoqcm_data['table_for_answers_options'] = self._parse_options(node)
+    # Don't parse it now, since we don't know the number of questions
+    # and of answers per question for now.
+    # Write the tag name as a bookmark... it will be replaced by latex
+    # code eventually when closing MCQ (see: _parse_END_QCM_tag).
+    self.write('#TABLE_FOR_ANSWERS')
 
 
-    def _parse_NEW_ANSWER_tag(self, node):
-        is_correct = (node.arg(0) == 'True')
-        # Add counter for each answer.
-        self.write(r'\stepcounter{answerNumber}')
-        # When the pdf with solutions will be generated, incorrect answers
-        # will be preceded by a white square, while correct ones will
-        # be preceded by a gray one.
-        if self.context.get('WITH_ANSWERS') and not is_correct:
-            self.write(r'\whitesquared')
-        else:
-            self.write(r'\graysquared')
-        self.write(r'{\alph{answerNumber}}')
+def _parse_PROPOSED_ANSWER_tag(self, node):
+    if self.context.get('ALLOW_SAME_ANSWER_TWICE'):
+        f = None
+    else:
+        f = partial(test_singularity_and_append, l=self.auto_qcm_answers,
+                                        question=self.current_question[0])
+    self.write(r'\begin{tabular}[t]{l}')
+    self._parse_children(node.children, function=f)
+    self.write(r'\end{tabular}\quad%' '\n')
+
+
+def _parse_NEW_ANSWER_tag(self, node):
+    is_correct = (node.arg(0) == 'True')
+    # Add counter for each answer.
+    self.write(r'\stepcounter{answerNumber}')
+    # When the pdf with solutions will be generated, incorrect answers
+    # will be preceded by a white square, while correct ones will
+    # be preceded by a gray one.
+    if self.context.get('WITH_ANSWERS') and not is_correct:
+        self.write(r'\whitesquared')
+    else:
+        self.write(r'\graysquared')
+    self.write(r'{\alph{answerNumber}}')
+    if is_correct:
+        self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
+    self.autoqcm_answer_number += 1
+    if self.autoqcm_answer_number > self.n_max_answers:
+        self.n_max_answers = self.autoqcm_answer_number
+
+
+def _parse_L_ANSWERS_tag(self, node):
+    """#L_ANSWERS{list}{correct_answer} generate answers from a python list.
+
+    Example:
+    #L_ANSWERS{l}{l[0]}
+    Note that if list or correct_answer are not strings, they will be
+    converted automatically to math mode latex code (1/2 -> '$\frac{1}{2}$').
+    """
+    raw_l = self.context[node.arg(0).strip()]
+    def conv(v):
+        if isinstance(v, str):
+            return v
+        return '$%s$' % print_sympy_expr(v)
+    correct_answer = conv(eval(node.arg(1).strip(), self.context))
+
+    # Test that first argument seems correct
+    # (it must be a list of unique answers including the correct one).
+    if not isinstance(raw_l, (list, tuple)):
+        raise RuntimeError('#L_ANSWERS: first argument must be a list of answers.')
+    l = []
+    for v in raw_l:
+        test_singularity_and_append(conv(v), l, self.current_question[0])
+    if correct_answer not in l:
+        raise RuntimeError('#L_ANSWERS: correct answer is not in proposed answers list !')
+
+    # Shuffle and generate LaTeX.
+    randfunc.shuffle(l)
+    self.write('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
+    for ans in l:
+        is_correct = (ans == correct_answer)
         if is_correct:
             self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
         self.autoqcm_answer_number += 1
         if self.autoqcm_answer_number > self.n_max_answers:
             self.n_max_answers = self.autoqcm_answer_number
+        self.write(r'\stepcounter{answerNumber}')
+        if self.context.get('WITH_ANSWERS') and not is_correct:
+            self.write(r'\whitesquared')
+        else:
+            self.write(r'\graysquared')
+        self.write(r'{\alph{answerNumber}}\begin{tabular}[t]{c}%s\end{tabular}\quad' % ans)
+        self.write('%\n')
+    self.write('\n\\end{flushleft}\n\\end{minipage}')
 
 
-    def _parse_L_ANSWERS_tag(self, node):
-        """#L_ANSWERS{list}{correct_answer} generate answers from a python list.
-
-        Example:
-        #L_ANSWERS{l}{l[0]}
-        Note that if list or correct_answer are not strings, they will be
-        converted automatically to math mode latex code (1/2 -> '$\frac{1}{2}$').
-        """
-        raw_l = self.context[node.arg(0).strip()]
-        def conv(v):
-            if isinstance(v, str):
-                return v
-            return '$%s$' % print_sympy_expr(v)
-        correct_answer = conv(eval(node.arg(1).strip(), self.context))
-
-        # Test that first argument seems correct
-        # (it must be a list of unique answers including the correct one).
-        if not isinstance(raw_l, (list, tuple)):
-            raise RuntimeError('#L_ANSWERS: first argument must be a list of answers.')
-        l = []
-        for v in raw_l:
-            test_singularity_and_append(conv(v), l, self.current_question[0])
-        if correct_answer not in l:
-            raise RuntimeError('#L_ANSWERS: correct answer is not in proposed answers list !')
-
-        # Shuffle and generate LaTeX.
-        randfunc.shuffle(l)
-        self.write('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
-        for ans in l:
-            is_correct = (ans == correct_answer)
-            if is_correct:
-                self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
-            self.autoqcm_answer_number += 1
-            if self.autoqcm_answer_number > self.n_max_answers:
-                self.n_max_answers = self.autoqcm_answer_number
-            self.write(r'\stepcounter{answerNumber}')
-            if self.context.get('WITH_ANSWERS') and not is_correct:
-                self.write(r'\whitesquared')
-            else:
-                self.write(r'\graysquared')
-            self.write(r'{\alph{answerNumber}}\begin{tabular}[t]{c}%s\end{tabular}\quad' % ans)
-            self.write('%\n')
-        self.write('\n\\end{flushleft}\n\\end{minipage}')
+def _parse_DEBUG_AUTOQCM_tag(self, node):
+    ans = self.autoqcm_correct_answers
+    print('---------------------------------------------------------------')
+    print('AutoQCM answers:')
+    print(ans)
+    print('---------------------------------------------------------------')
+    self.write(ans)
 
 
-    def _parse_DEBUG_AUTOQCM_tag(self, node):
-        ans = self.autoqcm_correct_answers
-        print('---------------------------------------------------------------')
-        print('AutoQCM answers:')
-        print(ans)
-        print('---------------------------------------------------------------')
-        self.write(ans)
+def _parse_QCM_HEADER_tag(self, node):
+    sty = ''
+    try:
+        check_id_or_name = self.autoqcm_cache['check_id_or_name']
+    except KeyError:
+        code = ''
+        # Read config
+        for line in node.arg(0).split('\n'):
+            if not line.strip():
+                continue
+            key, val = line.split('=', maxsplit=1)
+            key = key.strip()
+            val = val.strip()
 
+            if key in ('scores', 'score'):
+                # Set how many points are won/lost for a correct/incorrect answer.
+                if ',' in val:
+                    vals = val.split(',')
+                else:
+                    vals = val.split()
+                vals = sorted(vals, key=float)
+                self.autoqcm_data['correct'] = vals[-1]
+                assert 1 <= len(vals) <= 3, 'One must provide between 1 and 3 scores '\
+                        '(for correct answers, incorrect answers and no answer at all).'
+                if len(vals) >= 2:
+                    self.autoqcm_data['incorrect'] = vals[0]
+                    if len(vals) >= 3:
+                        self.autoqcm_data['skipped'] = vals[1]
 
-    def _parse_QCM_HEADER_tag(self, node):
-        sty = ''
-        try:
-            check_id_or_name = self.autoqcm_cache['check_id_or_name']
-        except KeyError:
-            code = ''
-            # Read config
-            for line in node.arg(0).split('\n'):
-                if not line.strip():
-                    continue
-                key, val = line.split('=', maxsplit=1)
-                key = key.strip()
-                val = val.strip()
+            elif key == 'mode':
+                self.autoqcm_data['mode'] = val
 
-                if key in ('scores', 'score'):
-                    # Set how many points are won/lost for a correct/incorrect answer.
-                    if ',' in val:
-                        vals = val.split(',')
-                    else:
-                        vals = val.split()
-                    vals = sorted(vals, key=float)
-                    self.autoqcm_data['correct'] = vals[-1]
-                    assert 1 <= len(vals) <= 3, 'One must provide between 1 and 3 scores '\
-                            '(for correct answers, incorrect answers and no answer at all).'
-                    if len(vals) >= 2:
-                        self.autoqcm_data['incorrect'] = vals[0]
-                        if len(vals) >= 3:
-                            self.autoqcm_data['skipped'] = vals[1]
+            elif key in ('names', 'name', 'students', 'student'):
+                # val must be the path of a CSV file.
+                code, students_list = generate_students_list(val)
+                self.autoqcm_data['students_list'] = students_list
 
-                elif key == 'mode':
-                    self.autoqcm_data['mode'] = val
+            elif key in ('id', 'ids'):
+                # val must be the path of a CSV file.
+                code, ids = generate_student_id_table(val)
+                self.autoqcm_data['ids'] = ids
 
-                elif key in ('names', 'name', 'students', 'student'):
-                    # val must be the path of a CSV file.
-                    code, students_list = generate_students_list(val)
-                    self.autoqcm_data['students_list'] = students_list
+            elif key in ('sty', 'package'):
+                sty = val
 
-                elif key in ('id', 'ids'):
-                    # val must be the path of a CSV file.
-                    code, ids = generate_student_id_table(val)
-                    self.autoqcm_data['ids'] = ids
+            if not self.context.get('WITH_ANSWERS'):
+                check_id_or_name = code
+        self.autoqcm_cache['check_id_or_name'] = check_id_or_name
+        check_id_or_name += '\n\\AutoQCMsimfill\n\n'
 
-                elif key in ('sty', 'package'):
-                    sty = val
+    try:
+        header = self.autoqcm_cache['header']
+    except KeyError:
+        # TODO: Once using Python 3.6+ (string literals),
+        # make generate_latex_header() return a tuple
+        # (it's to painful for now because of.format()).
+        if sty:
+            sty = r'\usepackage{%s}' % sty
+        header1, header2 = generate_latex_header()
+        header = '\n'.join([header1, sty, header2, r'\begin{document}'])
+        self.autoqcm_cache['header'] = header
 
-                if not self.context.get('WITH_ANSWERS'):
-                    check_id_or_name = code
-            self.autoqcm_cache['check_id_or_name'] = check_id_or_name
-            check_id_or_name += '\n\\AutoQCMsimfill\n\n'
+    # Generate barcode
+    # Barcode must NOT be put in the cache, since each document has a
+    # unique
+    n = self.context['NUM']
+    full=('AUTOQCM__SCORE_FOR_THIS_STUDENT' not in self.context)
+    barcode = generate_identification_band(identifier=n, full=full)
 
-        try:
-            header = self.autoqcm_cache['header']
-        except KeyError:
-            # TODO: Once using Python 3.6+ (string literals),
-            # make generate_latex_header() return a tuple
-            # (it's to painful for now because of.format()).
-            if sty:
-                sty = r'\usepackage{%s}' % sty
-            header1, header2 = generate_latex_header()
-            header = '\n'.join([header1, sty, header2, r'\begin{document}'])
-            self.autoqcm_cache['header'] = header
-
-        # Generate barcode
-        # Barcode must NOT be put in the cache, since each document has a
-        # unique
-        n = self.context['NUM']
-        full=('AUTOQCM__SCORE_FOR_THIS_STUDENT' not in self.context)
-        barcode = generate_identification_band(identifier=n, full=full)
-
-        self.write('\n'.join([header, barcode, check_id_or_name]))
+    self.write('\n'.join([header, barcode, check_id_or_name]))
 
 
 
@@ -345,16 +345,16 @@ def main(text, compiler):
     #    }
     text = extended_python.main(text, compiler)
     # For efficiency, update only for last tag.
-    compiler.add_new_tag('QCM', (0, 0, ['END_QCM']), AutoQCMTags._parse_QCM_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('NEW_QUESTION', (0, 0, ['@END', '@END_QUESTION']), AutoQCMTags._parse_NEW_QUESTION_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('NEW_ANSWER', (1, 0, None), AutoQCMTags._parse_NEW_ANSWER_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('END_QCM', (0, 0, None), AutoQCMTags._parse_END_QCM_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('TABLE_FOR_ANSWERS', (0, 0, None), AutoQCMTags._parse_TABLE_FOR_ANSWERS_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('QCM_HEADER', (1, 0, None), AutoQCMTags._parse_QCM_HEADER_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('PROPOSED_ANSWER', (0, 0, ['@END']), AutoQCMTags._parse_PROPOSED_ANSWER_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('ANSWERS_BLOCK', (0, 0, ['@END']), AutoQCMTags._parse_ANSWERS_BLOCK_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('L_ANSWERS', (2, 0, None), AutoQCMTags._parse_L_ANSWERS_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), AutoQCMTags._parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
+    compiler.add_new_tag('QCM', (0, 0, ['END_QCM']), _parse_QCM_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('NEW_QUESTION', (0, 0, ['@END', '@END_QUESTION']), _parse_NEW_QUESTION_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('NEW_ANSWER', (1, 0, None), _parse_NEW_ANSWER_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('END_QCM', (0, 0, None), _parse_END_QCM_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('TABLE_FOR_ANSWERS', (0, 0, None), _parse_TABLE_FOR_ANSWERS_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('QCM_HEADER', (1, 0, None), _parse_QCM_HEADER_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('PROPOSED_ANSWER', (0, 0, ['@END']), _parse_PROPOSED_ANSWER_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('ANSWERS_BLOCK', (0, 0, ['@END']), _parse_ANSWERS_BLOCK_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('L_ANSWERS', (2, 0, None), _parse_L_ANSWERS_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), _parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
     code = generate_tex(text)
     # Some tags may use cache, for code which don't change between two successive compilation.
     compiler.latex_generator.autoqcm_cache = {}
