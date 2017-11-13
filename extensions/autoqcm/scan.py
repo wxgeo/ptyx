@@ -24,7 +24,7 @@
 
 
 from math import atan, degrees
-from os.path import isdir, join as joinpath, expanduser, abspath, dirname
+from os.path import isdir, join as joinpath, expanduser, abspath, dirname, basename
 from os import listdir
 import subprocess
 import tempfile
@@ -187,6 +187,129 @@ def find_black_square(matrix, size=50, error=0.30, gray_level=.4, mode='l'):
 
 
 
+def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4, mode='l'):
+    """Detect a black rectangle of given size (in pixels) in matrix.
+
+    The n*m matrix must contain only floats between 0 (white) and 1 (black).
+
+    Optional parameters:
+        - `error` is the ratio of white pixels allowed in the black square.
+        - `gray_level` is the level above which a pixel is considered to be white.
+           If it is set to 0, only black pixels will be considered black ; if it
+           is close to 1 (max value), almost all pixels are considered black
+           except white ones (for which value is 1.).
+        - `mode` is either 'l' (picture is scanned line by line) or 'c' (picture
+           is scanned column by column).
+
+    Return a generator of (i, j) where i is line number and j is column number,
+    indicating black squares top left corner.
+
+    """
+    # First, convert grayscale image to black and white.
+    m = array(matrix, copy=False) < gray_level
+    # Black pixels are represented by False, white ones by True.
+    #pic_height, pic_width = m.shape
+    per_line = (1 - error)*width
+    per_col = (1 - error)*height
+    goal = per_line*height
+    to_avoid = []
+    # Find a black pixel, starting from top left corner,
+    # and scanning line by line (ie. from top to bottom).
+    if mode == 'l':
+        black_pixels = nonzero(m)
+    elif mode == 'c':
+        black_pixels = reversed(nonzero(transpose(array(m))))
+    else:
+        raise RuntimeError("Unknown mode: %s. Mode should be either 'l' or 'c'." % repr(mode))
+    for (i, j) in zip(*black_pixels):
+        #print("Black pixel found at %s, %s" % (i, j))
+        # Avoid to detect an already found square.
+        if any((li_min <= i <= li_max and co_min <= j <= co_max)
+                for (li_min, li_max, co_min, co_max) in to_avoid):
+            continue
+        assert m[i, j] == 1
+        total = m[i:i+height, j:j+width].sum()
+#        print("Detection: %s found (minimum was %s)." % (total, goal))
+        if total >= goal:
+            #~ print("\nBlack square found at (%s,%s)." % (i, j))
+            # Adjust detection if top left corner is a bit "damaged"
+            # (ie. if some pixels are missing there), or if this pixel is
+            # only an artefact before the square.
+            i0 = i
+            j0 = j
+            # Note: limit adjustement range (in case there are two consecutive squares)
+            for _i in range(50):
+                horizontal = vertical = False
+                # Horizontal adjustement:
+                try:
+                    while abs(j - j0) < error*width \
+                        and (m[i:i+height, j+width+1].sum() > per_col > m[i:i+height, j].sum()):
+                        j += 1
+                        #~ print("j+=1")
+                        horizontal = True
+                except IndexError:
+                    pass
+                # If square was already shifted horizontally in one way, don't try
+                # to shift it in the opposite direction.
+                if not horizontal:
+                    try:
+                        while abs(j - j0) < error*width \
+                            and m[i:i+height, j+width].sum() < per_col < m[i:i+height, j-1].sum():
+                            j -= 1
+                            #~ print("j-=1")
+                            horizontal = True
+                    except IndexError:
+                        pass
+                # Vertical adjustement:
+                try:
+                    while abs(i - i0) < error*height and m[i+height+1, j:j+width].sum() > per_line > m[i, j:j+width].sum():
+                        i += 1
+                        #~ print("i+=1")
+                        vertical = True
+                    while abs(i - i0) < error*height and m[i+height, j:j+width].sum() < per_line < m[i-1, j:j+width].sum():
+                        i -= 1
+                        #~ print("i-=1")
+                        vertical = True
+                except IndexError:
+                        pass
+                if not (vertical or horizontal):
+                    break
+            else:
+                print("Warning: adjustement of square position seems abnormally long... Skiping...")
+            #
+            #      Do not detect pixels there to avoid detecting
+            #      the same square twice.
+            #      ←—————————————————————————————————→
+            #      ←——————————→  ←———————————————————→
+            #      buffer zone      square itself
+            #      ///////////   #####################
+            #      ///////////   #####################
+            #      ///////////   #####################
+            #      ///////////   #####################
+            #      ///////////   #####################
+            #      ///////////   #####################
+            #      ///////////   #####################
+            #      ///////////   #####################
+            #      ///////////   #####################
+            #      ///////////   #####################
+            #      ←——————————→  ←———————————————————→
+            #      ≃ error*size          size
+
+            # Avoid to detect an already found square.
+            if any((li_min <= i <= li_max and co_min <= j <= co_max)
+                    for (li_min, li_max, co_min, co_max) in to_avoid):
+                continue
+
+            to_avoid.append((i - error*height - 1, i + height - 2, j - error*width - 1, j + width - 2))
+            #~ print("Final position of this new square is (%s, %s)" % (i, j))
+            #~ print("Forbidden areas are now:")
+            #~ print(to_avoid)
+            yield (i, j)
+
+
+def find_black_square(matrix, size, **kw):
+    return find_black_rectangle(matrix, width=size, height=size, **kw)
+
 
 def detect_all_squares(matrix, size=50, error=0.30):
     return list(find_black_square(matrix, size=size, error=error))
@@ -210,6 +333,27 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=Fals
     # positives if proportion is kept low (like default value).
     core = square[2:-2,2:-2]
     return square.sum() > proportion*size**2 and core.sum() > proportion*(size - 4)**2
+
+
+def eval_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=False):
+    """Return an indice of blackness, which is a float in range (0, 1).
+
+    The indice is useful to compare several squares, and find the blacker one.
+    Note that the core of the square is considered the more important part to assert
+    blackness.
+
+    (i, j) is top left corner of the square, where i is line number
+    and j is column number.
+    `proportion` is the minimal proportion of black pixels the square must have
+    to be considered black (`gray_level` is the level below which a pixel
+    is considered black).
+    """
+    square = m[i:i+size, j:j+size]
+    # Test also the core of the square, since borders may induce false
+    # positives if proportion is kept low (like default value).
+    core = square[2:-2,2:-2]
+    return 1 - (3*core.sum()/(size - 4)**2 + square.sum()/size**2)/4
+
 
 
 def find_lonely_square(m, size, error):
@@ -308,6 +452,7 @@ def scan_picture(filename, config):
     n_answers = config['answers (max)']
     students = config['students']
     n_students = len(students)
+    ids = config['ids']
 
     # ------------------------------------------------------------------
     #                          CALIBRATION
@@ -452,15 +597,23 @@ def scan_picture(filename, config):
     vpos = max(i1, i2, i3) + 2*square_size
 
 
+
+
     # ------------------------------------------------------------------
-    #                  READ STUDENT NAME (OPTIONAL)
+    #                  IDENTIFY STUDENT (OPTIONAL)
     # ------------------------------------------------------------------
     student_number = None
     student_name = "Unknown student!"
+
+
+    # Read student name directly
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     if n_students:
         search_area = m[vpos:vpos + 4*square_size,:]
         i, j0 = find_black_square(search_area, size=square_size, error=0.3, mode='c').__next__()
         #~ color2debug((vpos + i, j0), (vpos + i + square_size, j0 + square_size), color=(0,255,0))
+        vpos += i + square_size
 
         l = []
         for k in range(1, n_students + 1):
@@ -481,11 +634,54 @@ def scan_picture(filename, config):
         else:
             student_number = n_students - l.index(True) - 1
             student_name = students[student_number]
-            print("Student name: %s" % student_name)
+
+
+
+
+    # Read student id, then find name
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    elif ids:
+        digits = len(str(max(ids)))
+        imin = round(int(vpos + 2*square_size))
+        imax = round(int(vpos + (3.5 + digits)*square_size))
+        height = digits*square_size
+        #~ color2debug((imin, 0), (imax, 1000), color=(0,120,255))
+        search_area = m[imin:imax,:]
+        i0, j0 = find_black_rectangle(search_area, width=square_size,
+                                height=height, error=0.3, mode='c').__next__()
+        vpos = imin + height
+        #~ color2debug((imin + i0, j0), (imin + i0 + height, j0 + square_size), color=(0,255,0), display=False)
+        n = 0
+        for k in range(digits):
+            i = int(round(i0 + k*f_square_size))
+            # `vals` is a dict of potentially checked digits.
+            # Format: {indice of blackness: digit}
+            # The blackest of all the cases of the row will be considered
+            # checked by the student.
+            vals = {}
+            for d in range(10):
+                j = int(round(j0 + (d + 1)*f_square_size))
+                if test_square_color(search_area, i, j, square_size):
+                    blackness = eval_square_color(search_area, i, j, square_size)
+                    vals[blackness] = d
+                    #~ color2debug((imin + i, j), (imin + i + square_size, j + square_size))
+            if vals:
+                digit = vals[max(vals)]
+                n += digit*10**(digits - k - 1)
+        print("Student ID:", n)
+        student_name = ids[n]
+
+
+
     else:
         print("No students list.")
 
-    vpos += i + square_size
+    print("Student name:", student_name)
+
+
+
+
 
     # ------------------------------------------------------------------
     #                      READ ANSWERS
@@ -495,6 +691,7 @@ def scan_picture(filename, config):
     cell_size = int(round(f_cell_size))
     search_area = m[vpos:,:]
     i0, j0 = find_black_square(search_area, size=cell_size, error=0.3).__next__()
+    #~ color2debug((vpos + i0, j0), (vpos + i0 + cell_size, j0 + cell_size), display=True)
 
     # List of all answers grouped by question.
     # (So answers will be a matrix, each line corresponding to a question.)
@@ -557,6 +754,7 @@ def scan_picture(filename, config):
             ok = proposed and proposed.issubset(correct)
         else:
             raise RuntimeError('Invalid mode (%s) !' % mode)
+        print(ok, proposed, correct)
         if ok:
             scores.append(config['correct'])
         elif not proposed:
@@ -571,7 +769,7 @@ def scan_picture(filename, config):
 
 
 def read_config(pth):
-    cfg = {'answers': {}, 'students': []}
+    cfg = {'answers': {}, 'students': [], 'ids': {}}
     parameters_types = {'mode': str, 'correct': float, 'incorrect': float,
                   'skipped': float, 'questions': int, 'answers (max)': int,
                   'flip': bool, 'seed': int}
@@ -587,6 +785,9 @@ def read_config(pth):
                 elif line.startswith('*** STUDENTS LIST ***'):
                     section = 'students'
                     students = cfg['students']
+                elif line.startswith('*** IDS LIST ***'):
+                    section = 'ids'
+                    ids = cfg['ids']
                 else:
                     if section == 'parameters':
                         key, val =  line.split(':')
@@ -601,9 +802,13 @@ def read_config(pth):
                         else:
                             ans[num].append([])
                         assert len(ans[num]) == int(q), ('Incorrect question number: %s' % q)
-                    else:
-                        assert section == 'students'
+                    elif section == 'students':
                         students.append(line.strip())
+                    elif section == 'ids':
+                        num, name = line.split(':', 1)
+                        ids[int(num)] = name.strip()
+                    else:
+                        raise NotImplementedError('Unknown section: %s !' % section)
 
             except Exception:
                 print("Error while parsing this line: " + repr(line))
@@ -625,6 +830,8 @@ if __name__ == '__main__':
                                         help="Read only page P of pdf file.")
     parser.add_argument("-n", "--names", metavar="CSV_FILENAME", type=str,
                                         help="Read names from file CSV_FILENAME.")
+    parser.add_argument("-P", "--print", action='store_true', help='Print scores and solutions on default printer.')
+    parser.add_argument("-m", '-M', "--mail", metavar="CSV_file", help='Mail scores and solutions.')
     args = parser.parse_args()
 
 
@@ -658,8 +865,26 @@ if __name__ == '__main__':
             directory = dirname(directory)
             if not isdir(directory):
                 raise FileNotFoundError('%s does not seem to be a directory !' % directory)
-        scanpdf = search_by_extension(directory, '.scan.pdf')
 
+
+        # Print scores and solutions (a first scan must have been done earlier).
+        if args.print:
+            csvname = joinpath(directory, '.%s.scan.csv' % basename(scanpdf[:-9]))
+            print('\nPREPARING TO PRINT SCORES...')
+            print("Insert test papers in printer (to print score and solutions on other side).")
+            with open(csvname, 'r', newline='') as csvfile:
+                reader = csv.reader(csvfile)
+                for row in reader:
+                    identifier, name, score = row
+                    print('Student:', name, '(subject number: %s, score %s)' % (identifier, score))
+                    input('-pause- (Press ENTER to process, CTRL^C to quit)')
+                    subprocess.run(["lp", "-P %s" % (i + 1), "-o sides=one-sided",
+                                    "%s.pdf" % output_name], stdout=subprocess.PIPE)
+            sys.exit()
+        elif args.mail:
+            pass
+
+        scanpdf = search_by_extension(directory, '.scan.pdf')
 
         # Read configuration file.
         configfile = search_by_extension(directory, '.autoqcm.config')
@@ -735,6 +960,7 @@ if __name__ == '__main__':
             writerow = csv.writer(csvfile).writerow
             for name in sorted(scores):
                 writerow([name, scores[name]])
+        print("Results stored in %s." % csvname)
 
 
 
@@ -756,13 +982,15 @@ if __name__ == '__main__':
         output_name = '%s-corr.SCORE' % filename[:-5]
         join_files(output_name, pdfnames, remove_all=True, compress=True)
 
-        print('\nPREPARING TO PRINT SCORES...')
-        print("Insert test papers in printer (to print score and solutions on other side).")
-        for i, (identifier, answers, name, score) in enumerate(all_data):
-            print('Student:', name, '(subject number: %s, score %s)' % (identifier, score))
-            input('-pause- (Press ENTER to process, CTRL^C to quit)')
-            subprocess.run(["lp", "-P %s" % (i + 1), "-o sides=one-sided",
-                            "%s.pdf" % output_name], stdout=subprocess.PIPE)
+        # Generate an hidden CSV file for printing or mailing results later.
+        csvname = joinpath(directory, '.%s.scan.csv' % basename(scanpdf[:-9]))
+        with open(csvname, 'w', newline='') as csvfile:
+            writerow = csv.writer(csvfile).writerow
+            for (identifier, answers, name, score) in all_data:
+                writerow([identifier, name, score])
+        print("Config file generated for printing or mailing later.")
+
+
 
 
 
