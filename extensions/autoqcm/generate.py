@@ -575,7 +575,7 @@ def generate_tex(text):
             # Start a new section.
             begin('SECTION', title=line.strip('= '))
 
-        elif any(line.startswith(s) for s in ('* ', '> ', 'OR ')):
+        elif any(line.startswith(s) for s in ('* ', '> ', 'OR ')) or line == 'OR':
             # * question
             # Start a question block, with possibly several versions of a question.
 

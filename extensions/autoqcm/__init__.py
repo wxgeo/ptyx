@@ -5,6 +5,17 @@ This extension enables computer corrected tests.
 
 An example:
 
+    #LOAD{autoqcm}
+    #SEED{8737545887}
+
+    ===========================
+    sty=my_custom_sty_file
+    scores=1 0 0
+    mode=all
+    ids=~/my_students.csv
+    ===========================
+
+
     <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     ======= Mathematics ===========
@@ -46,10 +57,9 @@ An example:
 
 One may include some PTYX code of course.
 
-#NEW INT(2,10) a, b, c, d WITH a*b - c*d != 0
-
-
     """
+
+#TODO: support things like `#NEW INT(2,10) a, b, c, d WITH a*b - c*d != 0`.
 
 from functools import partial
 
@@ -242,6 +252,15 @@ def _parse_DEBUG_AUTOQCM_tag(self, node):
 
 
 def _parse_QCM_HEADER_tag(self, node):
+    """Parse HEADER.
+
+    ===========================
+    sty=my_custom_sty_file
+    scores=1 0 0
+    mode=all
+    ids=~/my_students.csv
+    ===========================
+    """
     sty = ''
     try:
         check_id_or_name = self.autoqcm_cache['check_id_or_name']
