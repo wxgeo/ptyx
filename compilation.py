@@ -189,17 +189,19 @@ def make_file(output_name, **options):
 def join_files(output_name, filenames, seed_file_name=None, **options):
     "Join different versions in a single pdf, then compress it if asked to."
     number = len(filenames)
-    if options.get('compress') or (options.get('cat') and number > 1):
+    if options.get('compress') or options.get('cat'):
+        # Nota: don't exclude the case `number == 1`,
+        # since the following actions rename file,
+        # so excluding the case `number == 1` would break autoqcm scan for example.
         # pdftk and ghostscript must be installed.
         filenames = [filename + '.pdf' for filename in filenames]
         pdf_name = output_name + '.pdf'
-        if number > 1:
-            files = ' '.join('"%s"' % filename for filename in filenames)
-            print('Pdftk output:')
-            print(execute('pdftk %s output "%s"' % (files, pdf_name)))
-            if options.get('remove_all'):
-                for name in filenames:
-                    os.remove(name)
+        files = ' '.join('"%s"' % filename for filename in filenames)
+        print('Pdftk output:')
+        print(execute('pdftk %s output "%s"' % (files, pdf_name)))
+        if options.get('remove_all'):
+            for name in filenames:
+                os.remove(name)
         if options.get('compress'):
             temp_dir = tempfile.mkdtemp()
             compressed_pdf_name = os.path.join(temp_dir, 'compresse.pdf')
@@ -233,7 +235,8 @@ def join_files(output_name, filenames, seed_file_name=None, **options):
                 pdf_with_seed = os.path.join(temp_dir, 'with_seed.pdf')
                 execute('pdftk "%s" attach_files "%s" output "%s"' % (pdf_name, seed_file_name, pdf_with_seed))
                 shutil.copyfile(pdf_with_seed, pdf_name)
-        print('%s files merged.' %len(filenames))
+        if number > 1:
+            print('%s files merged.' %len(filenames))
 
     if options.get('reorder_pages'):
         # Use pdftk to detect how many pages has the pdf document.
