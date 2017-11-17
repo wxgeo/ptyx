@@ -24,8 +24,10 @@
 
 
 from math import atan, degrees
-from os.path import isdir, join as joinpath, expanduser, abspath, dirname, basename
-from os import listdir
+from os.path import (isdir, isfile, join as joinpath, expanduser, abspath,
+                     dirname, basename)
+from os import listdir, mkdir
+from shutil import rmtree
 import subprocess
 import tempfile
 import argparse
@@ -387,7 +389,13 @@ def scan_picture(filename, config):
       * n_answers is the number of answers per question.
       * n_students is the number of students
 
-    Return an integer and a list of lists of booleans.
+    Return the following tuple:
+      * int identifier: identifier of the sheet
+      * list answers: a list of lists of booleans
+      * str student_name: the name of the student if found, or None
+      * int score: the score of the student.
+      * list students: list of students names (str). May be empty.
+      * list ids: list of students ID (int). May be empty.
     """
 
     def color2debug(from_=None, to_=None, color=(255, 0, 0), display=True, fill=False, _d={}):
@@ -657,20 +665,29 @@ def scan_picture(filename, config):
             i = int(round(i0 + k*f_square_size))
             # `vals` is a dict of potentially checked digits.
             # Format: {indice of blackness: digit}
-            # The blackest of all the cases of the row will be considered
-            # checked by the student.
-            vals = {}
+            # The blackest of all the black cases of the row will be considered
+            # checked by the student, as long as there is enough difference
+            # between the blackest and the other black one.
+            vals = []
             for d in range(10):
                 j = int(round(j0 + (d + 1)*f_square_size))
                 if test_square_color(search_area, i, j, square_size):
                     blackness = eval_square_color(search_area, i, j, square_size)
-                    vals[blackness] = d
+                    vals.append((blackness, d))
                     #~ color2debug((imin + i, j), (imin + i + square_size, j + square_size))
             if vals:
-                digit = vals[max(vals)]
-                n += digit*10**(digits - k - 1)
-        print("Student ID:", n)
-        student_name = ids[n]
+                vals.sort(reverse=True)
+                # Test if there is enough difference between the blackest
+                # and the second blackest (minimal difference was set empirically).
+                if len(vals) == 1 or vals[0][0] - vals[1][0] > 0.3:
+                    # The blackest one:
+                    digit = vals[0][1]
+                    n += digit*10**(digits - k - 1)
+        if n in ids:
+            print("Student ID:", n)
+            student_name = ids[n]
+        else:
+            print("Warning: invalid student id '%s' !" % n)
 
 
 
@@ -764,7 +781,10 @@ def scan_picture(filename, config):
     print('Scores: ', scores)
     score = sum(scores)
 
-    return identifier, answers, student_name, score
+    return identifier, answers, student_name, score, students, ids
+
+
+
 
 
 
@@ -816,6 +836,48 @@ def read_config(pth):
     return cfg
 
 
+def search_by_extension(directory, ext):
+    """Search for a file with extension `ext` in given directory.
+
+    Search is NOT case sensible.
+    If no or more than one file is found, an error is raised.
+    """
+    ext = ext.lower()
+    names = [name for name in listdir(directory) if name.lower().endswith(ext)]
+    if not names:
+        raise FileNotFoundError('No `%s` file found in that directory (%s) ! '
+                                % (ext, directory))
+    elif len(names) > 1:
+        raise RuntimeError('Several `%s` file found in that directory (%s) ! '
+            'Keep one and delete all others (or rename their extensions).'
+            % (ext, directory))
+    return joinpath(directory, names[0])
+
+
+def extract_pictures(pdf_path, dest, page=None):
+    "Extract all pictures from pdf file in given `dest` directory. "
+    print('Extracting all images from pdf, please wait...')
+    cmd = ["pdfimages", "-all", pdf_path, joinpath(dest, 'pic')]
+    if page is not None:
+        p = str(page)
+        cmd = cmd[:1] + ['-f', p, '-l', p] + cmd[1:]
+    #~ print(cmd)
+    subprocess.run(cmd, stdout=subprocess.PIPE)
+
+
+def number_of_pages(pdf_path):
+    "Return the umber of pages of the pdf."
+    cmd = ["pdfinfo", pdf_path]
+    # An example of pdfinfo output:
+    # ...
+    # JavaScript:     no
+    # Pages:          19
+    # Encrypted:      no
+    # ...
+    l = subprocess.run(cmd, stdout=subprocess.PIPE).stdout.decode('utf-8').split()
+    return int(l[l.index('Pages:') + 1])
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Extract information from numerised tests.")
@@ -827,24 +889,15 @@ if __name__ == '__main__':
     group.add_argument("-p", "--page", metavar="P", type=int,
                                         help="Read only page P of pdf file.")
     group.add_argument("-s", "--skip-pages", metavar="P", type=int, nargs='+', default=[],
-                                        help="Read only page P of pdf file.")
+                                        help="Skip page P of pdf file.")
     parser.add_argument("-n", "--names", metavar="CSV_FILENAME", type=str,
                                         help="Read names from file CSV_FILENAME.")
     parser.add_argument("-P", "--print", action='store_true', help='Print scores and solutions on default printer.')
     parser.add_argument("-m", '-M', "--mail", metavar="CSV_file", help='Mail scores and solutions.')
+    parser.add_argument("--reset", action="store_true", help='Delete `scan` directory.')
+    parser.add_argument("-d", "--dir", type=str, help='Specify a directory with write permission.')
     args = parser.parse_args()
 
-
-    def search_by_extension(directory, ext):
-        names = [name for name in listdir(directory) if name.endswith(ext)]
-        if not names:
-            raise FileNotFoundError('No `%s` file found in that directory (%s) ! '
-                                    % (ext, directory))
-        elif len(names) > 1:
-            raise RuntimeError('Several `%s` file found in that directory (%s) ! '
-                'Keep one and delete all others (or rename their extensions).'
-                % (ext, directory))
-        return joinpath(directory, names[0])
 
     if args.path.endswith('.png'):
         # This is used for debuging (it allows to test pages one by one).
@@ -860,34 +913,57 @@ if __name__ == '__main__':
 
         # First, detect pdf file.
         # NB: file extension must be `.scan.pdf`.
-        directory = abspath(expanduser(args.path))
-        if not isdir(directory):
-            directory = dirname(directory)
-            if not isdir(directory):
-                raise FileNotFoundError('%s does not seem to be a directory !' % directory)
+        DIR = abspath(expanduser(args.path))
+        if not isdir(DIR):
+            DIR = dirname(DIR)
+            if not isdir(DIR):
+                raise FileNotFoundError('%s does not seem to be a directory !' % DIR)
 
+        # Directory tree:
+        # scan/
+        # scan/pic -> pictures extracted from the pdf
+        # scan/cfg/names.csv -> missing students names.
+        # scan/scores.csv
+        SCAN_DIR = joinpath(args.dir or DIR, 'scan')
+        CFG_DIR = joinpath(SCAN_DIR, 'cfg')
+        PIC_DIR = joinpath(SCAN_DIR, 'pic')
+        PDF_DIR = joinpath(SCAN_DIR, 'pdf')
+
+        if args.reset and isdir(SCAN_DIR):
+            rmtree(SCAN_DIR)
+
+        for directory in (SCAN_DIR, CFG_DIR, PIC_DIR, PDF_DIR):
+            print(directory)
+            if not isdir(directory):
+                mkdir(directory)
+
+        base_name = basename(search_by_extension(DIR, '.ptyx'))[:-5]
+        scan_pdf_path = search_by_extension(DIR, '.scan.pdf')
+        scores_pdf_path = joinpath(PDF_DIR, '%s-scores' % base_name)
+        data_path = joinpath(CFG_DIR, 'data.csv')
 
         # Print scores and solutions (a first scan must have been done earlier).
         if args.print:
-            csvname = joinpath(directory, '.%s.scan.csv' % basename(scanpdf[:-9]))
+            #TODO: test this section.
+            if not isfile(data_path):
+                raise RuntimeError('Data file not found ! Run ./scan.py once before.')
             print('\nPREPARING TO PRINT SCORES...')
             print("Insert test papers in printer (to print score and solutions on other side).")
-            with open(csvname, 'r', newline='') as csvfile:
+            with open(data_path, 'r', newline='') as csvfile:
                 reader = csv.reader(csvfile)
-                for row in reader:
+                for i, row in enumerate(reader):
                     identifier, name, score = row
                     print('Student:', name, '(subject number: %s, score %s)' % (identifier, score))
                     input('-pause- (Press ENTER to process, CTRL^C to quit)')
                     subprocess.run(["lp", "-P %s" % (i + 1), "-o sides=one-sided",
-                                    "%s.pdf" % output_name], stdout=subprocess.PIPE)
+                                    scores_pdf_path], stdout=subprocess.PIPE)
             sys.exit()
         elif args.mail:
+            #TODO
             pass
 
-        scanpdf = search_by_extension(directory, '.scan.pdf')
-
         # Read configuration file.
-        configfile = search_by_extension(directory, '.autoqcm.config')
+        configfile = search_by_extension(DIR, '.autoqcm.config')
         config = read_config(configfile)
         #~ print(config)
 
@@ -898,97 +974,106 @@ if __name__ == '__main__':
             with open(args.names, newline='') as csvfile:
                 names = [' '.join(row) for row in csv.reader(csvfile) if row and row[0]]
 
-        names_manually_modified = False
+
         # Extract all images from pdf.
-        with tempfile.TemporaryDirectory() as tmp_path:
-            #tmp_path = '/home/nicolas/.tmp/scan'
-            print(scanpdf, tmp_path)
-            print('Extracting all images from pdf, please wait...')
-            cmd = ["pdfimages", "-all", scanpdf, joinpath(tmp_path, 'pic')]
-            if args.page is not None:
-                p = str(args.page)
-                cmd = cmd[:1] + ['-f', p, '-l', p] + cmd[1:]
-            result = subprocess.run(cmd, stdout=subprocess.PIPE)
-            scores = {}
-            all_data = []
-            for i, pic in enumerate(sorted(listdir(tmp_path))):
-                if i + 1 in args.skip_pages:
-                    continue
-                print('-------------------------------------------------------')
-                print('Page', i + 1)
-                # Extract data from image
-                data = list(scan_picture(joinpath(tmp_path, pic), config))
-                all_data.append(data)
-                name, score = data[2:]
-                if args.names is None:
-                    if name == "Unknown student!":
-                        print('----------------')
-                        print(name)
-                        print('----------------')
-                        print('Please read manually the name and enter it below:')
-                        subprocess.run(["display", "-resize", "1920x1080", joinpath(tmp_path, pic)])
-                        name = input('Student name:')
-                        names_manually_modified = True
-                    if name in scores:
-                        raise RuntimeError('2 tests for same student (%s) !' % name)
-                else:
-                    if not names:
-                        raise RuntimeError('Not enough names in `%s` !' % args.names)
-                    name = names.pop(0)
-                data[2] = name
-                scores[name] = score
-                print("Score: %s/%s" % (data[3], max_score))
+        if len(listdir(PIC_DIR)) != number_of_pages(scan_pdf_path):
+            extract_pictures(scan_pdf_path, PIC_DIR, args.page)
+
+        # Read manually entered informations (if any).
+        more_infos = {} # sheet_id: name
+        cfg_path = joinpath(CFG_DIR, 'more_infos.csv')
+        if isfile(cfg_path):
+            with open(cfg_path, 'r', newline='') as csvfile:
+                reader = csv.reader(csvfile)
+                for row in reader:
+                    sheet_id, name = row
+                    more_infos[int(sheet_id)] = name
+                print("Retrieved infos:", more_infos)
+
+
+        # Extract informations from the pictures.
+        scores = {}
+        all_data = []
+        for i, pic in enumerate(sorted(listdir(PIC_DIR))):
+            if i + 1 in args.skip_pages:
+                continue
+            print('-------------------------------------------------------')
+            print('Page', i + 1)
+            # Extract data from image
+            pic_path = joinpath(PIC_DIR, pic)
+            data = list(scan_picture(pic_path, config))
+            all_data.append(data)
+            sheet_id, _, name, score, students, ids = data
+            # Manually entered information must prevail:
+            name = more_infos.get(sheet_id, name)
+            if args.names is None:
+                if name == "Unknown student!":
+                    print('----------------')
+                    print(name)
+                    print('----------------')
+                    print('Please read manually the name, then enter it below.')
+                    subprocess.run(["display", "-resize", "1920x1080", pic_path])
+                    #TODO: use first letters of students name to find student.
+                    #(ask again if not found, or if several names match first letters)
+                    name = input('Student name or ID:')
+                    name = name.strip()
+                    if name.isdigit() and ids:
+                        name = ids[int(name)]
+                    more_infos[sheet_id] = name
+                if name in scores:
+                    raise RuntimeError('2 tests for same student (%s) !' % name)
+            else:
+                if not names:
+                    raise RuntimeError('Not enough names in `%s` !' % args.names)
+                name = names.pop(0)
+            data[2] = name
+            scores[name] = score
+            print("Score: %s/%s" % (data[3], max_score))
+
+        # Store manually entered information (may be useful
+        # if scan.py has to be run again later).
+        with open(cfg_path, 'w', newline='') as csvfile:
+            writerow = csv.writer(csvfile).writerow
+            for sheet_id, name in more_infos.items():
+                writerow([str(sheet_id), name])
 
         if args.names is not None and names:
             # Names list should be empty !
             raise RuntimeError('Too many names in `%s` !' % args.names)
 
-        if names_manually_modified:
-            # Generate CSV file with names.
-            # (names will be in the same order than scanned files)
-            csvname = scanpdf[:-9] + '.names.csv'
-            with open(csvname, 'w', newline='') as csvfile:
-                writerow = csv.writer(csvfile).writerow
-                for data in all_data:
-                    writerow(data[2:3])
-
 
         # Generate CSV file with results.
         print(scores)
-        csvname = scanpdf[:-9] + '.scores.csv'
-        with open(csvname, 'w', newline='') as csvfile:
+        scores_path = joinpath(SCAN_DIR, 'scores.csv')
+        with open(scores_path, 'w', newline='') as csvfile:
             writerow = csv.writer(csvfile).writerow
             for name in sorted(scores):
                 writerow([name, scores[name]])
-        print("Results stored in %s." % csvname)
+        print("Results stored in %s." % scores_path)
 
 
 
         # Generate pdf files, with the score and the table of correct answers for each test.
-        pdfnames = []
-        filename = search_by_extension(directory, '.ptyx')
-        for identifier, answers, name, score in all_data:
-            output_name = '%s-%s-corr.score' % (filename[:-5], identifier)
-            pdfnames.append(output_name)
+        pdf_paths = []
+        for identifier, answers, name, score, students, ids in all_data:
+            path = joinpath(PDF_DIR, '%s-%s-corr.score' % (base_name, identifier))
+            pdf_paths.append(path)
             print('Generating pdf file for student %s (subject %s, score %s)...'
                                                     % (name, identifier, score))
             latex = generate_answers_and_score(config, name, identifier, score, max_score)
-            make_file(output_name, plain_latex=latex,
+            make_file(path, plain_latex=latex,
                                 remove=True,
                                 formats=['pdf'],
                                 quiet=True,
                                 )
-
-        output_name = '%s-corr.SCORE' % filename[:-5]
-        join_files(output_name, pdfnames, remove_all=True, compress=True)
+        join_files(scores_pdf_path, pdf_paths, remove_all=True, compress=True)
 
         # Generate an hidden CSV file for printing or mailing results later.
-        csvname = joinpath(directory, '.%s.scan.csv' % basename(scanpdf[:-9]))
-        with open(csvname, 'w', newline='') as csvfile:
+        with open(data_path, 'w', newline='') as csvfile:
             writerow = csv.writer(csvfile).writerow
-            for (identifier, answers, name, score) in all_data:
+            for (identifier, answers, name, score, students, ids) in all_data:
                 writerow([identifier, name, score])
-        print("Config file generated for printing or mailing later.")
+        print("Data file generated for printing or mailing later.")
 
 
 
