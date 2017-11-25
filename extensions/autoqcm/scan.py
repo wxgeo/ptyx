@@ -51,7 +51,7 @@ from compilation import compiler, make_file, join_files
 
 
 def convert_png_to_gray(name):
-    # Read from PNG file.
+    # Read from PNG or JPG file.
     m = imread(name)
     # m.shape[2] is 4 if there is an alpha channel (transparency), 3 else (RGB).
     print("Image data:", m)
@@ -743,9 +743,17 @@ def extract_pictures(pdf_path, dest, page=None):
     #~ print(cmd)
     subprocess.run(cmd, stdout=subprocess.PIPE)
 
+def convert_pdf_to_png(pdf_path, dest, page=None):
+    print('Convert PDF to PNG, please wait...')
+    cmd = ['gs', '-dNOPAUSE', '-dBATCH', '-sDEVICE=jpeg', '-r200',
+           '-sOutputFile=' + joinpath(dest, 'page-%03d.jpg'), pdf_path]
+    if page is not None:
+        cmd = cmd[:1] + ["-dFirstPage=%s" % page, "-dLastPage=%s" % page] + cmd[1:]
+    subprocess.run(cmd, stdout=subprocess.PIPE)
+
 
 def number_of_pages(pdf_path):
-    "Return the umber of pages of the pdf."
+    "Return the number of pages of the pdf."
     cmd = ["pdfinfo", pdf_path]
     # An example of pdfinfo output:
     # ...
@@ -756,6 +764,32 @@ def number_of_pages(pdf_path):
     l = subprocess.run(cmd, stdout=subprocess.PIPE).stdout.decode('utf-8').split()
     return int(l[l.index('Pages:') + 1])
 
+
+def read_name_manually(pic_path, ids=None, msg=''):
+    if msg:
+        decoration = max(len(line) for line in msg.split('\n'))*'-'
+        print(decoration)
+        print(msg)
+        print(decoration)
+    print('Please read manually the name, then enter it below.')
+    subprocess.run(["display", "-resize", "1920x1080", pic_path])
+    #TODO: use first letters of students name to find student.
+    #(ask again if not found, or if several names match first letters)
+    while True:
+        name = input('Student name or ID:')
+        name = name.strip()
+        if name.isdigit() and ids:
+            try:
+                name = ids[int(name)]
+            except KeyError:
+                print('Unknown ID.')
+                continue
+        print("Name: %s" % name)
+        if input("Is it correct ? (Y/n)") in ("N", "n"):
+            continue
+        if name:
+            break
+    return name
 
 
 if __name__ == '__main__':
@@ -775,12 +809,13 @@ if __name__ == '__main__':
     parser.add_argument("-m", '-M', "--mail", metavar="CSV_file", help='Mail scores and solutions.')
     parser.add_argument("--reset", action="store_true", help='Delete `scan` directory.')
     parser.add_argument("-d", "--dir", type=str, help='Specify a directory with write permission.')
+    parser.add_argument("--gs", type=str, help='Specify a directory with write permission.')
     args = parser.parse_args()
 
 
-    if args.path.endswith('.png'):
+    if args.path.endswith('.png') or args.path.endswith('.jpg'):
         # This is used for debuging (it allows to test pages one by one).
-        configfile = search_by_extension(dirname(args.path), '.autoqcm.config')
+        configfile = search_by_extension(dirname(abspath(args.path)), '.autoqcm.config')
         config = read_config(configfile)
         print(config)
         data = scan_picture(abspath(expanduser(args.path)), config)
@@ -858,6 +893,13 @@ if __name__ == '__main__':
         if len(listdir(PIC_DIR)) != number_of_pages(scan_pdf_path):
             extract_pictures(scan_pdf_path, PIC_DIR, args.page)
 
+        EXTS = ('.jpg', '.jpeg', '.png')
+        pics = listdir(PIC_DIR)
+        if not all(any(f.endswith(ext) for ext in EXTS) for f in pics):
+            rmtree(PIC_DIR)
+            mkdir(PIC_DIR)
+            convert_pdf_to_png(scan_pdf_path, PIC_DIR, args.page)
+
         # Read manually entered informations (if any).
         more_infos = {} # sheet_id: name
         cfg_path = joinpath(CFG_DIR, 'more_infos.csv')
@@ -871,13 +913,21 @@ if __name__ == '__main__':
 
 
         # Extract informations from the pictures.
-        scores = {}
+        scores = {} # {name: score}
+        pages = {} # {name: page}
+        pics = {} # {name: pic}
+        sheets = {} # {name: sheet ID}
+
         all_data = []
-        for i, pic in enumerate(sorted(listdir(PIC_DIR))):
+        exts = ('.jpg', '.jpeg', '.png')
+        pic_list = sorted(f for f in listdir(PIC_DIR)
+                        if any(f.lower().endswith(ext) for ext in exts))
+        for i, pic in enumerate(pic_list):
             if i + 1 in args.skip_pages:
                 continue
             print('-------------------------------------------------------')
             print('Page', i + 1)
+            print('File:', pic)
             # Extract data from image
             pic_path = joinpath(PIC_DIR, pic)
             data = list(scan_picture(pic_path, config))
@@ -885,28 +935,36 @@ if __name__ == '__main__':
             sheet_id, _, name, score, students, ids = data
             # Manually entered information must prevail:
             name = more_infos.get(sheet_id, name)
+            #TODO: change `all_data` if manually info was found.
             if args.names is None:
                 if name == "Unknown student!":
-                    print('----------------')
-                    print(name)
-                    print('----------------')
-                    print('Please read manually the name, then enter it below.')
-                    subprocess.run(["display", "-resize", "1920x1080", pic_path])
-                    #TODO: use first letters of students name to find student.
-                    #(ask again if not found, or if several names match first letters)
-                    name = input('Student name or ID:')
-                    name = name.strip()
-                    if name.isdigit() and ids:
-                        name = ids[int(name)]
+                    name = read_name_manually(pic_path, ids, msg=name)
                     more_infos[sheet_id] = name
                 if name in scores:
-                    raise RuntimeError('2 tests for same student (%s) !' % name)
+                    print('Page %s: %s' % (pages[name], name))
+                    print('Page %s: %s' % (i + 1, name))
+                    msg = 'Error : 2 tests for same student (%s) !\n' % name
+                    msg += "Write 'ok' if a name is correct."
+                    pic_path1 = joinpath(PIC_DIR, pics[name])
+                    name1 = read_name_manually(pic_path1, ids, msg)
+                    if name1 != 'ok':
+                        for d in scores, pages, pics, sheets:
+                            d[name1] = d.pop(name)
+                        more_infos[sheets[name1]] = name1
+                        #TODO: change `all_data`.
+                    name2 = read_name_manually(pic_path, ids)
+                    if name1 != 'ok':
+                        name = name2
+                        more_infos[sheet_id] = name
             else:
                 if not names:
                     raise RuntimeError('Not enough names in `%s` !' % args.names)
                 name = names.pop(0)
             data[2] = name
             scores[name] = score
+            pages[name] = i + 1
+            pics[name] = pic
+            sheets[name] = sheet_id
             print("Score: %s/%s" % (data[3], max_score))
 
         # Store manually entered information (may be useful
