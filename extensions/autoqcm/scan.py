@@ -33,7 +33,6 @@ import tempfile
 import argparse
 import csv
 import sys
-
 from numpy import array, nonzero, transpose
 from pylab import imread
 from PIL import Image
@@ -68,7 +67,7 @@ def convert_png_to_gray(name):
 
 
 
-def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4, mode='c', debug=False):
+def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4, mode='l', debug=False):
     """Detect a black rectangle of given size (in pixels) in matrix.
 
     The n*m matrix must contain only floats between 0 (white) and 1 (black).
@@ -79,8 +78,8 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
            If it is set to 0, only black pixels will be considered black ; if it
            is close to 1 (max value), almost all pixels are considered black
            except white ones (for which value is 1.).
-        - `mode` is either 'l' (picture is scanned line by line) or 'c' (picture
-           is scanned column by column).
+        - `mode` is either 'l' (picture is scanned line by line, from top to bottom)
+           or 'c' (picture is scanned column by column, from left to right).
 
     Return a generator of (i, j) where i is line number and j is column number,
     indicating black squares top left corner.
@@ -96,12 +95,14 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
     to_avoid = []
     # Find a black pixel, starting from top left corner,
     # and scanning line by line (ie. from top to bottom).
-    if mode == 'c':
+    if mode == 'l':
         black_pixels = nonzero(m)
-    elif mode == 'l':
+    elif mode == 'c':
         black_pixels = reversed(nonzero(transpose(array(m))))
     else:
         raise RuntimeError("Unknown mode: %s. Mode should be either 'l' or 'c'." % repr(mode))
+    if debug:
+        print(mode, black_pixels)
     for (i, j) in zip(*black_pixels):
         # Avoid to detect an already found square.
         if debug:
@@ -288,7 +289,7 @@ def color2debug(array, from_=None, to_=None, color=(255, 0, 0), display=True, fi
     - `feh` must be installed.
       On Ubuntu/Debian: sudo apt-get install feh
     - Left-draging the picture with mouse inside feh removes bluring/anti-aliasing,
-      making visual debuging a lot easier.
+      making visual debugging a lot easier.
     """
     ID = id(array)
     if ID not in _d:
@@ -465,7 +466,8 @@ def scan_picture(filename, config):
     imin = i1 - square_size
     imax = i1 + int(2*square_size)
     try:
-        i3, j3 = find_black_square(m[imin:imax,maxj:minj], size=square_size, error=0.3, mode='c').__next__()
+        i3, j3 = find_black_square(m[imin:imax,maxj:minj], size=square_size,
+                                   error=0.3, mode='c', debug=False).__next__()
     except StopIteration:
         print("ERROR: Can't find identification band, displaying search area in red.")
         color2debug(m, (imin, minj), (imax, maxj))
@@ -683,7 +685,8 @@ def scan_picture(filename, config):
     print('Scores: ', scores)
     score = sum(scores)
 
-    return identifier, answers, student_name, score, students, ids
+    return {'ID': identifier, 'answers': answers, 'name': student_name,
+            'score': score, 'students': students, 'ids': ids}
 
 
 
@@ -788,7 +791,7 @@ def number_of_pages(pdf_path):
     return int(l[l.index('Pages:') + 1])
 
 
-def read_name_manually(pic_path, ids=None, msg=''):
+def read_name_manually(pic_path, ids=None, msg='', default=None):
     if msg:
         decoration = max(len(line) for line in msg.split('\n'))*'-'
         print(decoration)
@@ -800,6 +803,10 @@ def read_name_manually(pic_path, ids=None, msg=''):
     #(ask again if not found, or if several names match first letters)
     while True:
         name = input('Student name or ID:')
+        if not name:
+            if default is None:
+                continue
+            name = default
         name = name.strip()
         if name.isdigit() and ids:
             try:
@@ -936,11 +943,12 @@ if __name__ == '__main__':
 
 
         # Extract informations from the pictures.
-        scores = {} # {name: score}
-        pages = {} # {name: page}
-        pics = {} # {name: pic}
-        sheets = {} # {name: sheet ID}
+        #~ scores = {} # {name: score}
+        #~ pages = {} # {name: page}
+        #~ pics = {} # {name: pic}
+        #~ sheets = {} # {name: sheet ID}
 
+        index = {} # {name: index} -> used to retrieve data associated with a name.
         all_data = []
         exts = ('.jpg', '.jpeg', '.png')
         pic_list = sorted(f for f in listdir(PIC_DIR)
@@ -953,42 +961,49 @@ if __name__ == '__main__':
             print('File:', pic)
             # Extract data from image
             pic_path = joinpath(PIC_DIR, pic)
-            data = list(scan_picture(pic_path, config))
+            data = scan_picture(pic_path, config)
+            # data format: {'ID': sheet ID (int),
+            #               'answers': answers (list),
+            #               'name': student name (str),
+            #               'score': score (float),
+            #               'students': students names (list),
+            #               'ids': students ID (dict)}
             all_data.append(data)
-            sheet_id, _, name, score, students, ids = data
+            #~ sheet_id, _, name, score, students, ids = data
             # Manually entered information must prevail:
-            name = more_infos.get(sheet_id, name)
-            #TODO: change `all_data` if manually info was found.
+            name = more_infos.get(data['ID'], data['name'])
             if args.names is None:
                 if name == "Unknown student!":
-                    name = read_name_manually(pic_path, ids, msg=name)
-                    more_infos[sheet_id] = name
-                if name in scores:
-                    print('Page %s: %s' % (pages[name], name))
+                    name = read_name_manually(pic_path, data['ids'], msg=name)
+                    more_infos[data['ID']] = name
+                if name in index:
+                    print('Page %s: %s' % (index[name] + 1, name))
                     print('Page %s: %s' % (i + 1, name))
                     msg = 'Error : 2 tests for same student (%s) !\n' % name
-                    msg += "Write 'ok' if a name is correct."
-                    pic_path1 = joinpath(PIC_DIR, pics[name])
-                    name1 = read_name_manually(pic_path1, ids, msg)
-                    if name1 != 'ok':
-                        for d in scores, pages, pics, sheets:
-                            d[name1] = d.pop(name)
-                        more_infos[sheets[name1]] = name1
-                        #TODO: change `all_data`.
-                    name2 = read_name_manually(pic_path, ids)
-                    if name1 != 'ok':
-                        name = name2
-                        more_infos[sheet_id] = name
+                    msg += "Write nothing if a name is correct."
+                    i1 = index.pop(name)
+                    old_data = all_data[i1]
+                    pic_path1 = joinpath(PIC_DIR, old_data['pic'])
+                    name1 = read_name_manually(pic_path1, data['ids'], msg, default=name)
+                    more_infos[old_data['ID']] = name1
+                    index[name1] = i1
+                    name = read_name_manually(pic_path, data['ids'], default=name)
+                    more_infos[data['ID']] = name
+
             else:
-                if not names:
+                if not args.names:
                     raise RuntimeError('Not enough names in `%s` !' % args.names)
-                name = names.pop(0)
-            data[2] = name
-            scores[name] = score
-            pages[name] = i + 1
-            pics[name] = pic
-            sheets[name] = sheet_id
-            print("Score: %s/%s" % (data[3], max_score))
+                name = args.names.pop(0)
+            data['name'] = name
+            data['pic'] = pic
+            index[name] = i
+            # `names` dict is used to find data associated with a given name.
+            assert all_data[index[name]]['name'] == name
+            #~ scores[name] = score
+            #~ pages[name] = i + 1
+            #~ pics[name] = pic
+            #~ sheets[name] = sheet_id
+            print("Score: %s/%s" % (data['score'], max_score))
 
         # Store manually entered information (may be useful
         # if scan.py has to be run again later).
@@ -1003,11 +1018,14 @@ if __name__ == '__main__':
 
 
         # Generate CSV file with results.
-        print(scores)
+        scores = {data['name']: data['score'] for data in all_data}
+        #~ print(scores)
         scores_path = joinpath(SCAN_DIR, 'scores.csv')
+        print('SCORES (/%s):' % max_score)
         with open(scores_path, 'w', newline='') as csvfile:
             writerow = csv.writer(csvfile).writerow
             for name in sorted(scores):
+                print(' - %s: %s' % (name, scores[name]))
                 writerow([name, scores[name]])
         print("Results stored in %s." % scores_path)
 
@@ -1015,12 +1033,16 @@ if __name__ == '__main__':
 
         # Generate pdf files, with the score and the table of correct answers for each test.
         pdf_paths = []
-        for identifier, answers, name, score, students, ids in all_data:
-            path = joinpath(PDF_DIR, '%s-%s-corr.score' % (base_name, identifier))
+        for data in all_data:
+            #~ identifier, answers, name, score, students, ids
+            ID = data['ID']
+            name = data['name']
+            score = data['score']
+            path = joinpath(PDF_DIR, '%s-%s-corr.score' % (base_name, ID))
             pdf_paths.append(path)
             print('Generating pdf file for student %s (subject %s, score %s)...'
-                                                    % (name, identifier, score))
-            latex = generate_answers_and_score(config, name, identifier, score, max_score)
+                                                    % (name, ID, score))
+            latex = generate_answers_and_score(config, name, ID, score, max_score)
             make_file(path, plain_latex=latex,
                                 remove=True,
                                 formats=['pdf'],
@@ -1031,8 +1053,9 @@ if __name__ == '__main__':
         # Generate an hidden CSV file for printing or mailing results later.
         with open(data_path, 'w', newline='') as csvfile:
             writerow = csv.writer(csvfile).writerow
-            for (identifier, answers, name, score, students, ids) in all_data:
-                writerow([identifier, name, score])
+            for data in all_data:
+                #~ (identifier, answers, name, score, students, ids)
+                writerow([data['ID'], data['name'], data['score']])
         print("Data file generated for printing or mailing later.")
 
 
