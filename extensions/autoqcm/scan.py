@@ -835,11 +835,15 @@ if __name__ == '__main__':
                                         help="Skip page P of pdf file.")
     parser.add_argument("-n", "--names", metavar="CSV_FILENAME", type=str,
                                         help="Read names from file CSV_FILENAME.")
-    parser.add_argument("-P", "--print", action='store_true', help='Print scores and solutions on default printer.')
-    parser.add_argument("-m", '-M', "--mail", metavar="CSV_file", help='Mail scores and solutions.')
+    parser.add_argument("-P", "--print", action='store_true',
+                        help='Print scores and solutions on default printer.')
+    parser.add_argument("-m", '-M', "--mail", metavar="CSV_file",
+                                                help='Mail scores and solutions.')
     parser.add_argument("--reset", action="store_true", help='Delete `scan` directory.')
-    parser.add_argument("-d", "--dir", type=str, help='Specify a directory with write permission.')
-    parser.add_argument("--gs", type=str, help='Specify a directory with write permission.')
+    parser.add_argument("-d", "--dir", type=str,
+                            help='Specify a directory with write permission.')
+    parser.add_argument("--hide-scores", action='store_true',
+                help="Print only answers, not scores, in generated pdf files.")
     args = parser.parse_args()
 
 
@@ -1042,7 +1046,8 @@ if __name__ == '__main__':
             pdf_paths.append(path)
             print('Generating pdf file for student %s (subject %s, score %s)...'
                                                     % (name, ID, score))
-            latex = generate_answers_and_score(config, name, ID, score, max_score)
+            latex = generate_answers_and_score(config, name, ID,
+                            (score if not args.hide_scores else None), max_score)
             make_file(path, plain_latex=latex,
                                 remove=True,
                                 formats=['pdf'],

@@ -387,8 +387,18 @@ def generate_latex_header():
 
 def generate_answers_and_score(config, name, identifier, score, max_score):
     "Generate plain LaTeX code corresponding to score and correct answers."
-    t = generate_table_for_answers(config['questions'], config['answers (max)'],
+    table = generate_table_for_answers(config['questions'], config['answers (max)'],
              correct_answers=config['answers'][identifier], flip=config['flip'])
+    if score is not None:
+        score = \
+            '''\begin{tikzpicture}
+            \node[draw,very thick,rectangle, rounded corners,red!70!black] (0,0) {
+            \begin{Large}
+            Score~: %(score)s/%(max_score)s
+            \end{Large}};
+            \end{tikzpicture}''' % locals()
+    else:
+        score = ''
     left = MARGIN_LEFT_IN_CM
     right = MARGIN_RIGHT_IN_CM
     top = MARGIN_TOP_IN_CM
@@ -405,19 +415,14 @@ def generate_answers_and_score(config, name, identifier, score, max_score):
 
     \begin{document}
     \begin{Large}\textsc{%(name)s}\end{Large}
-    \hfill\begin{tikzpicture}
-    \node[draw,very thick,rectangle, rounded corners,red!70!black] (0,0) {
-    \begin{Large}
-    Score~: %(score)s/%(max_score)s
-    \end{Large}};
-    \end{tikzpicture}
+    \hfill%(score)s
 
     \bigskip
 
     Solution~:
     \medskip
 
-    %(t)s
+    %(table)s
 
     \end{document}
     """ % locals())
