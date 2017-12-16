@@ -430,10 +430,17 @@ if __name__ == '__main__':
         #opt['seed_file_name'] = seed_file_name
         join_files(output_name, **opt)
 
-        # Do the same for the version with the answers.
+        # If any of the so-called `ANSWER_tags` is present, compile a second
+        # version of the documents with answers.
+        # TODO: make an API to choose if the version with answers must be generated
+        # or not:
+        # - there should be 3 modes, True, False and Auto (current mode).
+        # - each mode should be accessible from the command line (add an option)
+        # - it should be easy to modify mode for extensions.
+        ANSWER_tags = ('ANS', 'ANSWER', 'ASK_ONLY')
 
         tags = compiler.state['syntax_tree'].tags
-        if 'ANS' in tags or 'ANSWER' in tags:
+        if any(tag in tags for tag in ANSWER_tags):
             filenames, output_name = make_files(input_name, correction=True, **vars(options))
 
             # Join different versions in a single pdf, and compress if asked to.
