@@ -118,6 +118,44 @@ def find_closing_bracket(text, start = 0, brackets = '{}', detect_strings=True):
 
 
 
+def advanced_split(string, separator, quotes='"\'', brackets=('()', '[]', '{}')):
+    """Split string "main_string" smartly, detecting brackets group and inner strings.
+
+    Return a list of strings."""
+    if len(separator) != 1:
+        raise ValueError('Separator must be a single caracter, not %s.' % repr(separator))
+    if separator in quotes + ''.join(brackets):
+        raise ValueError("%s can't be used as separator.")
+    # Little optimisation since `not in` is very fast.
+    if separator not in string:
+        return [string]
+    breaks = [-1] # those are the points where the string will be cut
+    stack = ['.'] # ROOT
+    for i, letter in enumerate(string):
+        if letter in quotes:
+            if stack[-1] in quotes:
+                # We are inside a string.
+                if stack[-1] == letter:
+                    # Closing string.
+                    stack.pop()
+            else:
+                stack.append(letter)
+        elif letter == separator and len(stack) == 1:
+            breaks.append(i)
+        else:
+            for start, end in brackets:
+                if letter == start:
+                    stack.append(letter)
+                elif letter == end:
+                    if stack[-1] != start:
+                        raise ValueError('Unbalanced brackets in %s !' % repr(string))
+                    stack.pop()
+    if len(stack) != 1:
+        raise ValueError('Unbalanced brackets in %s !' % repr(string))
+    breaks.append(None)
+    # mystring[i:None] returns the end of the string.
+    return [string[i+1:j] for i, j in zip(breaks[:-1], breaks[1:])]
+
 
 
 def _float_me_if_you_can(expr):

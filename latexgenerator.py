@@ -9,8 +9,10 @@ from importlib import import_module
 from context import global_context, SympifyError
 from config import param, sympy, wxgeometrie
 import randfunc
-from utilities import print_sympy_expr, find_closing_bracket, \
-                      numbers_to_floats, _float_me_if_you_can, term_color
+from utilities import (print_sympy_expr, find_closing_bracket,
+                      numbers_to_floats, _float_me_if_you_can, term_color,
+                      advanced_split,
+                      )
 
 #ASSERT{}
 #CASE{int}...#CASE{int}...#END
@@ -755,7 +757,11 @@ class LatexGenerator(object):
         # XXX: support options round, float, (sympy, python,) select and rand
         code = node.arg(0)
         assert isinstance(code, str), type(code)
-        txt = self._eval_and_format_python_expr(code)
+        try:
+            txt = self._eval_and_format_python_expr(code)
+        except Exception:
+            print("ERROR: Can't evaluate this: " + repr(code))
+            raise
         # Tags must be cleared *before* calling .write(txt), since .write(txt)
         # add '+', '-' and '\times ' before txt if corresponding flags are set,
         # and ._eval_and_format_python_expr() has already do this.
@@ -1066,12 +1072,20 @@ class LatexGenerator(object):
             return ''
         sympy_code = flags.get('sympy', param['sympy_is_default'])
 
-        for subcode in code.split(';'):
+        display_result = True
+        if code.endswith(';'):
+            code = code.rstrip(';')
+            display_result = False
+
+        for subcode in advanced_split(code, ';', brackets=()):
             result = self._eval_python_expr(subcode)
-            # Note that only last result will be displayed.
-            # In particular, if code ends with ';', last result will be ''.
-            # So, '#{a=5}' and '#{a=5;}' will both affect 5 to a,
-            # but the second will not display '5' on final document.
+        # Note that only last result will be displayed.
+        # In particular, if code ends with ';', last result will be ''.
+        # So, '#{a=5}' and '#{a=5;}' will both affect 5 to a,
+        # but the second will not display '5' on final document.
+
+        if not display_result:
+            return ''
 
         if sympy_code and not flags.get('str'):
             latex = print_sympy_expr(result, **flags)
