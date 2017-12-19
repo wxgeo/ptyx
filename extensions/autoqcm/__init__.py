@@ -45,6 +45,7 @@ An example:
     - cheese maker
 
     > his son is also famous for
+    @{\color{blue}%s}
     - dancing french cancan
     - conquering Honolulu
     - walking for the first time on the moon
@@ -150,6 +151,7 @@ def _parse_NEW_QUESTION_tag(self, node):
     self.autoqcm_correct_answers.append([])
     self.autoqcm_answer_number = 0
     self.auto_qcm_answers = []
+    self.context['APPLY_TO_ANSWERS'] = None
     # This is used to improve message error when an error occured.
     self.current_question = l = []
     def remember_last_question(code, l):
@@ -168,13 +170,38 @@ def _parse_TABLE_FOR_ANSWERS_tag(self, node):
 
 
 def _parse_PROPOSED_ANSWER_tag(self, node):
-    if self.context.get('ALLOW_SAME_ANSWER_TWICE'):
-        f = None
-    else:
-        f = partial(test_singularity_and_append, l=self.auto_qcm_answers,
+    # TODO: functions should be compiled only once for each question block,
+    # not for every answer (though it is probably not be a bottleneck in
+    # code execution).
+    apply = self.context.get('APPLY_TO_ANSWERS')
+    f = None
+    if apply:
+        # Apply template or function to every answer.
+        # Support:
+        # - string templates. Ex: \texttt{%s}
+        # - functions to apply. Ex: f
+        if '%s' in apply:
+            f = (lambda s: (apply % s))
+        else:
+            #~ for key in sorted(self.context):
+                #~ print ('* ' + repr(key))
+            f = self.context[apply]
+
+    func = f
+
+    if not self.context.get('ALLOW_SAME_ANSWER_TWICE'):
+        # This function is used to verify that each answer is unique.
+        # This avoids proposing twice the same answer by mistake, which
+        # may occur easily when using random values.
+        func = g = partial(test_singularity_and_append, l=self.auto_qcm_answers,
                                         question=self.current_question[0])
+        if f is not None:
+            # Compose functions. Function f should be applied first,
+            # since it is not necessarily injective.
+            func = (lambda s: g(f(s)))
+
     self.write(r'\begin{tabular}[t]{l}')
-    self._parse_children(node.children, function=f)
+    self._parse_children(node.children, function=func)
     self.write(r'\end{tabular}\quad%' '\n')
 
 

@@ -603,6 +603,9 @@ def generate_tex(text):
             code.append('#END % question (before l_answers)')
             code.append(line)
 
+        elif line.startswith('@'):
+            code.append('#{APPLY_TO_ANSWERS=%s;}' % repr(line[1:]))
+
         elif line.startswith('- ') or line.startswith('+ '):
             # - incorrect answer
             # + correct answer
@@ -625,6 +628,10 @@ def generate_tex(text):
             code.append('#NEW_ANSWER{%s}' % iscorrect)
 
             code.append('#PROPOSED_ANSWER %s#END' % line[2:])
+
+        elif n >= 3 and all(c == '-' for c in line):  # ---
+            if stack.current == 'ANSWERS':
+                close('ANSWERS')
 
         elif n >= 3 and all(c == '>' for c in line):  # >>>
             # End MCQ
