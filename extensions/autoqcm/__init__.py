@@ -320,12 +320,12 @@ def _parse_QCM_HEADER_tag(self, node):
             elif key == 'mode':
                 self.autoqcm_data['mode'] = val
 
-            elif key in ('names', 'name', 'students', 'student') and WITH_ANSWERS:
+            elif key in ('names', 'name', 'students', 'student') and not WITH_ANSWERS:
                 # val must be the path of a CSV file.
                 code, students_list = generate_students_list(val)
                 self.autoqcm_data['students_list'] = students_list
 
-            elif key in ('id', 'ids') and WITH_ANSWERS:
+            elif key in ('id', 'ids') and not WITH_ANSWERS:
                 # val must be the path of a CSV file.
                 code, ids = generate_student_id_table(val)
                 self.autoqcm_data['ids'] = ids
