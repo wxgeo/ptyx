@@ -290,6 +290,8 @@ def _parse_QCM_HEADER_tag(self, node):
     """
     sty = ''
     WITH_ANSWERS = self.context.get('WITH_ANSWERS')
+    if WITH_ANSWERS:
+        self.context['format_ask'] = (lambda s: '')
     try:
         check_id_or_name = self.autoqcm_cache['check_id_or_name']
     except KeyError:

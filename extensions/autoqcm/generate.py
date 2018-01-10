@@ -544,7 +544,9 @@ def generate_tex(text):
     is_header = False
     header = ['#QCM_HEADER{']
 
-    intro = ['#ASK_ONLY % (introduction)']
+    # Don't use ASK_ONLY: if one insert Python code here, it would be removed
+    # silently when generating the pdf files with the answers !
+    intro = ['#ASK % (introduction)']
     # The table that students use to answer MCQ will be generated and inserted here by default.
     # (User can customize its position by using #TABLE_FOR_ANSWERS tag).
     if '#TABLE_FOR_ANSWERS' not in text:

@@ -437,7 +437,7 @@ if __name__ == '__main__':
         # - there should be 3 modes, True, False and Auto (current mode).
         # - each mode should be accessible from the command line (add an option)
         # - it should be easy to modify mode for extensions.
-        ANSWER_tags = ('ANS', 'ANSWER', 'ASK_ONLY')
+        ANSWER_tags = ('ANS', 'ANSWER', 'ASK', 'ASK_ONLY')
 
         tags = compiler.state['syntax_tree'].tags
         if any(tag in tags for tag in ANSWER_tags):
