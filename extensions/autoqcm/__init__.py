@@ -335,8 +335,7 @@ def _parse_QCM_HEADER_tag(self, node):
             elif key in ('sty', 'package'):
                 sty = val
 
-            if not self.context.get('WITH_ANSWERS'):
-                check_id_or_name = code
+        check_id_or_name = (code if not self.context.get('WITH_ANSWERS') else '')
         self.autoqcm_cache['check_id_or_name'] = check_id_or_name
         check_id_or_name += '\n\\AutoQCMsimfill\n\n'
 
