@@ -682,8 +682,9 @@ def scan_picture(filename, config):
             scores.append(config['skipped'])
         else:
             scores.append(config['incorrect'])
-    print('Scores: ', scores)
+
     score = sum(scores)
+    print('Scores: ', scores, '->', score, '/', config['correct']*len(scores))
 
     return {'ID': identifier, 'answers': answers, 'name': student_name,
             'score': score, 'students': students, 'ids': ids}
@@ -694,10 +695,12 @@ def scan_picture(filename, config):
 
 
 def read_config(pth):
+    def bool_(s):
+        return s.lower() == 'true'
     cfg = {'answers': {}, 'students': [], 'ids': {}}
     parameters_types = {'mode': str, 'correct': float, 'incorrect': float,
                   'skipped': float, 'questions': int, 'answers (max)': int,
-                  'flip': bool, 'seed': int}
+                  'flip': bool_, 'seed': int}
     ans = cfg['answers']
     with open(pth) as f:
         section = 'parameters'
@@ -870,7 +873,7 @@ if __name__ == '__main__':
         # Directory tree:
         # scan/
         # scan/pic -> pictures extracted from the pdf
-        # scan/cfg/names.csv -> missing students names.
+        # scan/cfg/more_infos.csv -> missing students names.
         # scan/scores.csv
         SCAN_DIR = joinpath(args.dir or DIR, 'scan')
         CFG_DIR = joinpath(SCAN_DIR, 'cfg')
@@ -958,6 +961,8 @@ if __name__ == '__main__':
         pic_list = sorted(f for f in listdir(PIC_DIR)
                         if any(f.lower().endswith(ext) for ext in exts))
         for i, pic in enumerate(pic_list):
+            if args.page is not None and args.page != i + 1:
+                continue
             if i + 1 in args.skip_pages:
                 continue
             print('-------------------------------------------------------')
@@ -995,9 +1000,10 @@ if __name__ == '__main__':
                     more_infos[data['ID']] = name
 
             else:
-                if not args.names:
+                if not names:
                     raise RuntimeError('Not enough names in `%s` !' % args.names)
-                name = args.names.pop(0)
+                name = names.pop(0)
+                print('Name:', name)
             data['name'] = name
             data['pic'] = pic
             index[name] = i
