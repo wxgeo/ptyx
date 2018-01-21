@@ -296,12 +296,19 @@ def color2debug(array, from_=None, to_=None, color=(255, 0, 0), display=True, fi
         # Load image only if not loaded previously.
         _d[ID] = Image.fromarray(255*array).convert('RGB')
     rgb = _d[ID]
+    height, width = array.shape
     if from_ is not None:
         if to_ is None:
             to_ = from_
+        i1, j1 = from_
+        i2, j2 = to_
+        if i2 is None:
+            i2 = height - 1
+        if j2 is None:
+            j2 = width - 1
         pix = rgb.load()
-        imin, imax = int(min(from_[0], to_[0])), int(max(from_[0], to_[0]))
-        jmin, jmax = int(min(from_[1], to_[1])), int(max(from_[1], to_[1]))
+        imin, imax = int(min(i1, i2)), int(max(i1, i2))
+        jmin, jmax = int(min(j1, j2)), int(max(j1, j2))
         if fill:
             for i in range(imin, imax + 1):
                 for j in range(jmin, jmax + 1):
@@ -384,29 +391,40 @@ def scan_picture(filename, config):
         # Detecting the top 2 squares (at the top left and the top right of the
         # page) to calibrate. Since square size is not known precisely,
         # keep a high error rate for now.
-        maxi = maxj = int(round(2*(1 + SQUARE_SIZE_IN_CM)*dpi/2.54))
-        maxj0 = maxj
+        maxi = maxj = maxj0 = int(round(2*(1 + SQUARE_SIZE_IN_CM)*dpi/2.54))
         # First, search the top left black square.
         while True:
-            #~ color2debug((0, 0), (maxi, maxj), color=(0,255,0), display=True)
+            #~ color2debug(m, (0, 0), (maxi, maxj), color=(0,255,0), display=True)
             try:
                 #~ i1, j1 = find_black_square(m[:maxi,:maxj], size=square_size, error=0.5).__next__()
                 i1, j1 = find_lonely_square(m[:maxi,:maxj], size=square_size, error=0.5)
-                #~ color2debug((i1, j1), (i1 + square_size, j1 + square_size), color=(255,255,0), display=True)
+                #~ color2debug(m, (i1, j1), (i1 + square_size, j1 + square_size), color=(255,255,0), display=True)
                 break
-            except StopIteration:
-                # Top square not found.
+            except (StopIteration, TypeError):
+                # Top left square not found.
                 # Expand search area, mostly vertically (expanding to much
                 # horizontally may induce false positives, because of the QR code).
                 print('Adjusting search area...')
                 maxi += square_size
                 if maxj < maxj0 + 4*square_size:
-                    maxj += maxj + square_size//2
+                    maxj += square_size//2
 
         # Search now for the top right black square.
-        minj = int(round((20 - 2*(1 + SQUARE_SIZE_IN_CM))*dpi/2.54))
-        i2, j2 = find_lonely_square(m[:maxi,minj:], size=square_size, error=0.5)
-        j2 += minj
+        minj = minj0 = int(round((20 - 2*(1 + SQUARE_SIZE_IN_CM))*dpi/2.54))
+        while True:
+            try:
+                #~ color2debug(m, (0, minj), (maxi, None), color=(0,255,0), display=True)
+                i2, j2 = find_lonely_square(m[:maxi,minj:], size=square_size, error=0.5)
+                j2 += minj
+                break
+            except (StopIteration, TypeError):
+                # Top right square not found.
+                # Expand search area, mostly vertically (expanding to much
+                # horizontally may induce false positives, because of the QR code).
+                print('Adjusting search area...')
+                maxi += square_size
+                if minj > minj0 - 4*square_size:
+                    minj -= square_size//2
 
         #~ print("Top left square at (%s,%s)." % (i1, j1))
         #~ print("Top right square at (%s,%s)." % (i2, j2))
