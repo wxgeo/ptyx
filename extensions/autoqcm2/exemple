@@ -1,0 +1,97 @@
+<<<<
+
+* Question 1
+- A
+- B
++ C
+- D
+
+OR Question 1 bis
+- aa
+- bb
++ cc
+
+- last answer
+
+> Question 2
+- 1
++ 2
+
+* Question 3
+#L_ANSWERS{liste_question_3}
+
+>>>
+
+
+devient
+
+
+#QCM
+	#SHUFFLE % sections
+		#ITEM % shuffle questions
+			#QUESTION_BLOCK
+				#PICK
+					#ITEM % pick a version
+						#NEW_QUESTION
+							Question 1
+						#END_QUESTION
+						#PROPOSED_ANSWER						
+							#SHUFFLE % shuffle answers
+								#ITEM
+									#NEW_ANSWER{False}A
+								#ITEM
+									#NEW_ANSWER{False}B
+								#ITEM
+									#NEW_ANSWER{True}C
+								#ITEM
+									#NEW_ANSWER{False}D
+							#END_SHUFFLE % shuffle answers
+						#END_PROPOSED_ANSWER
+
+					#ITEM % pick a version
+						#NEW_QUESTION
+							Question 1 bis
+						#END_QUESTION
+						#PROPOSED_ANSWER							
+							#SHUFFLE % shuffle answers
+								#ITEM
+									#NEW_ANSWER{False}aa
+								#ITEM
+									#NEW_ANSWER{False}bb
+								#ITEM
+									#NEW_ANSWER{True}cc
+							#END_SHUFFLE % shuffle answers
+							#NEW_ANSWER{False}last answer
+						#END
+				#END_PICK
+			#END_QUESTION_BLOCK
+
+			#QUESTION_BLOCK
+				#PICK
+					#ITEM % pick a version
+						#NEW_QUESTION
+							Question 2
+						#END_QUESTION
+				#END_PICK
+				#PROPOSED_ANSWER						
+					#SHUFFLE % shuffle answers
+						#ITEM
+							#NEW_ANSWER{False}1
+						#ITEM
+							#NEW_ANSWER{True}2
+					#END_SHUFFLE % shuffle answers
+				#END_PROPOSED_ANSWER
+			#END_QUESTION_BLOCK
+
+		#ITEM % shuffle questions
+			#QUESTION_BLOCK
+				#PICK
+					#ITEM % pick a version
+						#NEW_QUESTION
+							Question 3
+						#END_QUESTION
+						#L_ANSWERS{liste_question_3}
+				#END_PICK
+			#END_QUESTION_BLOCK
+	#END_SHUFFLE % sections 
+#END_QCM
