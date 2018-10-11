@@ -4,6 +4,8 @@ import os, sys, locale, re
 import subprocess
 import tempfile
 import shutil
+from os.path import dirname, basename, join, isdir, isfile
+from os import chdir, mkdir
 
 from latexgenerator import compiler
 from config import param
@@ -45,8 +47,20 @@ def make_files(input_name, correction=False, **options):
     formats = options.get('formats', param['formats'])
     names = options.get('names', [])
 
+    chdir(dirname(input_name))
+
+    # Create an empty `.compile/{input_name}` subfolder.
+    if not isdir('.compile'):
+        mkdir('.compile')
+        # XXX: handle errors (e.g `.compile` might be an existing file).
+    compilation_dir = join(dirname(input_name), '.compile', basename(input_name))
+
+    if not correction and isdir(compilation_dir):
+        shutil.rmtree(compilation_dir)
+    if not isdir(compilation_dir):
+        mkdir(compilation_dir)
+
     # Choose output names
-    os.chdir(os.path.split(input_name)[0])
     if input_name.endswith('.ptyx'):
         output_name = input_name[:-5]
     elif input_name.endswith('.tex'):
@@ -56,27 +70,10 @@ def make_files(input_name, correction=False, **options):
         # the trailing _ avoids name conflicts with the .tex file generated
     else:
         output_name = input_name + '_'
-
-    head, tail = os.path.split(output_name)
+    output_name = join(compilation_dir, basename(output_name))
 
     if correction:
         output_name += '-corr'
-        # Following prevent auto_make_dir option to result in a subdirectory
-        # for correction (this is bad for pictures).
-        head += '-corr'
-        tail += '-corr'
-
-    if options.get('auto_make_dir'):
-        # Test if the .ptyx file is already in a directory with same name.
-        options['make_directory'] = (os.path.split(head)[1] != tail)
-    if options.get('make_directory'):
-        # Create a directory with the same name than the .ptyx file,
-        # which will contain all generated files.
-        if not os.path.isdir(tail):
-            os.mkdir(tail)
-        output_name = output_name + os.sep + tail
-
-        print(output_name)
 
     filenames = []
     start = options.get('start', 1)
@@ -100,7 +97,7 @@ def make_files(input_name, correction=False, **options):
                                   TOTAL=n)
         infos = make_file(filename, **options)
         if infos.get('pages_number') and options.get('filter_by_pages_number'):
-            if  infos.get('pages_number') != options.get('filter_by_pages_number'):
+            if infos.get('pages_number') != options.get('filter_by_pages_number'):
                 filename = filenames.pop()
                 print('Warning: removing %s (incorrect page number) !' % filename)
 
@@ -109,7 +106,56 @@ def make_files(input_name, correction=False, **options):
         msg2 = '(Unreleased pdf did not match page number constraints).'
         sep = max(len(msg1), len(msg2))*'~'
         print('\n'.join(('', sep, msg1, msg2, sep, '')))
+
+    # Join different versions in a single pdf, and compress if asked to.
+    join_files(output_name, filenames, **options)
+
+
+    if options.get('generate_batch_for_windows_printing'):
+        name = "print%s.bat" % ('_corr' if correction else '')
+        bat_file_name = os.path.join(os.path.dirname(input_name), name)
+        with open(bat_file_name, 'w') as bat_file:
+            bat_file.write(param['win_print_command'] + ' '.join('%s.pdf'
+                                  % os.path.basename(f) for f in filenames))
+
+    # Copy pdf file to parent directory.
+    for ext in formats:
+        name = f'{output_name}.{ext}'
+        if isfile(name):
+            shutil.copy(name, dirname(input_name))
+        else:
+            for filename in filenames:
+                name = f'{filename}.{ext}'
+                shutil.copy(name, dirname(input_name))
+    # Remove `.compile` folder if asked to.
+    if options.get('remove'):
+        shutil.rmtree(compilation_dir)
+
     return filenames, output_name
+
+
+
+def make_file(output_name, **options):
+    infos = {}
+    quiet = options.get('quiet')
+    formats = options.get('formats', param['formats'])
+
+    # make_file() can be used to compile plain LaTeX too.
+    latex = options.get('plain_latex')
+    if latex is None:
+        context = options.get('context', {})
+        context.setdefault('NUM', 1)
+        context.setdefault('TOTAL', 1)
+
+        latex = compiler.generate_latex(**context)
+
+    with open(output_name + '.tex', 'w') as texfile:
+        texfile.write(latex)
+        if 'pdf' in formats:
+            texfile.flush()
+            pages_number = _compile_latex_file(texfile.name, quiet=quiet)
+            infos['pages_number'] = pages_number
+    return infos
 
 
 
@@ -139,68 +185,21 @@ def _compile_latex_file(filename, dest=None, quiet=False):
 
 
 
-def make_file(output_name, **options):
-    infos = {}
-    remove = options.get('remove')
-    quiet = options.get('quiet')
-    formats = options.get('formats', param['formats'])
-
-    # make_file() can be used to compile plain LaTeX too.
-    latex = options.get('plain_latex')
-    if latex is None:
-        context = options.get('context', {})
-        context.setdefault('NUM', 1)
-        context.setdefault('TOTAL', 1)
-
-        latex = compiler.generate_latex(**context)
-
-    if 'tex' in formats:
-        with open(output_name + '.tex', 'w') as texfile:
-            texfile.write(latex)
-            if 'pdf' in formats:
-                texfile.flush()
-                pages_number = _compile_latex_file(texfile.name, quiet=quiet)
-                infos['pages_number'] = pages_number
-                if remove:
-                    for extension in ('aux', 'log', 'out'):
-                        name = '%s.%s' % (output_name, extension)
-                        if os.path.isfile(name):
-                            os.remove(name)
-    else:
-        # FIXME:
-        # - Don't work with pgfplot !!!
-        # - Difficult to debug.
-        # - Seems to be problem with references too.
-        assert 'pdf' in formats
-        print("Warning: not including tex in output format may result in\n"
-              "incorrect behaviour (broken references for example) !")
-
-        with tempfile.TemporaryDirectory() as tmp_path:
-            tmp_name = os.path.join(tmp_path, os.path.basename(output_name))
-            with open(tmp_name + '.tex', 'w') as texfile:
-                texfile.write(latex)
-                texfile.flush()
-                pages_number = _compile_latex_file(texfile.name, quiet=quiet)
-                infos['pages_number'] = pages_number
-            shutil.move(tmp_name + '.pdf', output_name + '.pdf')
-    return infos
-
-
-def join_files(output_name, filenames, seed_file_name=None, **options):
+def join_files(output_name, pdfnames, seed_file_name=None, **options):
     "Join different versions in a single pdf, then compress it if asked to."
-    number = len(filenames)
+    number = len(pdfnames)
     if options.get('compress') or options.get('cat'):
         # Nota: don't exclude the case `number == 1`,
         # since the following actions rename file,
         # so excluding the case `number == 1` would break autoqcm scan for example.
         # pdftk and ghostscript must be installed.
-        filenames = [filename + '.pdf' for filename in filenames]
+        pdfnames = [filename + '.pdf' for filename in pdfnames]
         pdf_name = output_name + '.pdf'
-        files = ' '.join('"%s"' % filename for filename in filenames)
+        files = ' '.join('"%s"' % filename for filename in pdfnames)
         print('Pdftk output:')
         print(execute('pdftk %s output "%s"' % (files, pdf_name)))
         if options.get('remove_all'):
-            for name in filenames:
+            for name in pdfnames:
                 os.remove(name)
         if options.get('compress'):
             temp_dir = tempfile.mkdtemp()
@@ -236,7 +235,7 @@ def join_files(output_name, filenames, seed_file_name=None, **options):
                 execute('pdftk "%s" attach_files "%s" output "%s"' % (pdf_name, seed_file_name, pdf_with_seed))
                 shutil.copyfile(pdf_with_seed, pdf_name)
         if number > 1:
-            print('%s files merged.' %len(filenames))
+            print('%s files merged.' %len(pdfnames))
 
     if options.get('reorder_pages'):
         # Use pdftk to detect how many pages has the pdf document.

@@ -38,7 +38,7 @@ import argparse, re, random, os, sys, codecs, csv, math
 from config import param, sympy, numpy#, custom_latex
 import randfunc
 from utilities import print_sympy_expr, term_color
-from compilation import join_files, make_files
+from compilation import make_files
 from latexgenerator import compiler
 from context import global_context
 
@@ -211,48 +211,48 @@ def display_enumerate_tree(tree, color=True, indent=0, raw=False):
 
 
 
-def tree2strlist(tree, shuffle=False, answer=False):
-    str_list = []
-    for item in tree:
-        if isinstance(item, str):
-            if answer:
-                # '====' or any longer repetition of '=' begins an answer.
-                i = item.find('====')
-                if i != -1:
-                    j = i + 1
-                    n = len(item)
-                    while j < n and item[j] == '=':
-                        j += 1
-                    item = item[:i] + '#ANS{}' + item[j:]
-            str_list.append(item)
-        else:
-            if item.node_type == 'item':
-                if shuffle:
-                    str_list.append('#ITEM')
-                str_list.append(r'\item')
-                if answer:
-                    str_list.append('#ASK')
-                str_list.extend(tree2strlist(item.items, answer=answer))
-                if answer:
-                    str_list.append('#END')
-            else:
-                _shuffle_ = _answer_ = False
-                if '_shuffle_' in item.options:
-                    item.options.remove('_shuffle_')
-                    _shuffle_ = True
-                if '_answer_' in item.options:
-                    item.options.remove('_answer_')
-                    _answer_ = True
-                str_list.append(r'\begin{%s}' % item.node_type)
-                if item.options:
-                    str_list.append('[%s]' % ','.join(item.options))
-                if _shuffle_:
-                    str_list.append('#SHUFFLE')
-                str_list.extend(tree2strlist(item.items, shuffle=_shuffle_, answer=_answer_))
-                if _shuffle_:
-                    str_list.append('#END')
-                str_list.append(r'\end{%s}' % item.node_type)
-    return str_list
+# ~ def tree2strlist(tree, shuffle=False, answer=False):
+    # ~ str_list = []
+    # ~ for item in tree:
+        # ~ if isinstance(item, str):
+            # ~ if answer:
+                # ~ # '====' or any longer repetition of '=' begins an answer.
+                # ~ i = item.find('====')
+                # ~ if i != -1:
+                    # ~ j = i + 1
+                    # ~ n = len(item)
+                    # ~ while j < n and item[j] == '=':
+                        # ~ j += 1
+                    # ~ item = item[:i] + '#ANS{}' + item[j:]
+            # ~ str_list.append(item)
+        # ~ else:
+            # ~ if item.node_type == 'item':
+                # ~ if shuffle:
+                    # ~ str_list.append('#ITEM')
+                # ~ str_list.append(r'\item')
+                # ~ if answer:
+                    # ~ str_list.append('#ASK')
+                # ~ str_list.extend(tree2strlist(item.items, answer=answer))
+                # ~ if answer:
+                    # ~ str_list.append('#END')
+            # ~ else:
+                # ~ _shuffle_ = _answer_ = False
+                # ~ if '_shuffle_' in item.options:
+                    # ~ item.options.remove('_shuffle_')
+                    # ~ _shuffle_ = True
+                # ~ if '_answer_' in item.options:
+                    # ~ item.options.remove('_answer_')
+                    # ~ _answer_ = True
+                # ~ str_list.append(r'\begin{%s}' % item.node_type)
+                # ~ if item.options:
+                    # ~ str_list.append('[%s]' % ','.join(item.options))
+                # ~ if _shuffle_:
+                    # ~ str_list.append('#SHUFFLE')
+                # ~ str_list.extend(tree2strlist(item.items, shuffle=_shuffle_, answer=_answer_))
+                # ~ if _shuffle_:
+                    # ~ str_list.append('#END')
+                # ~ str_list.append(r'\end{%s}' % item.node_type)
+    # ~ return str_list
 
 
 
@@ -271,28 +271,14 @@ if __name__ == '__main__':
             help="Number of pdf files to generate. Default is %s.\n \
                    Ex: ptyx -n 5 my_file.ptyx" % param['total']
                    )
-    parser.add_argument("-f", "--formats", default='+'.join(param['formats']),
+    parser.add_argument("-f", "--formats", default=param['default_format'],
             choices=['pdf', 'tex', 'pdf+tex', 'tex+pdf'],
             help="Output format. Default is %(default)s.\n"
                    "Ex: ptyx -f tex my_file.ptyx"
                    )
     parser.add_argument("-r", "--remove", action="store_true",
-            help="Remove any generated .log and .aux file after compilation.\n \
-                    Note that references in LaTeX code could be lost."
+            help="Remove the `.compile` folder after compilation."
                     )
-    parser.add_argument("-R", "--remove-all", action="store_true",
-            help="Remove any generated .log and .aux file after compilation.\n \
-                    If --cat option or --compress option is used, remove also \
-                    all pdf files, except for the concatenated one."
-                    )
-    parser.add_argument("-m", "--make-directory", action="store_true",
-            help="Create a new directory to store all generated files."
-                    )
-    parser.add_argument("-a", "--auto-make-dir", action="store_true",
-            help="Switch to --make-directory mode, except if .ptyx file \
-                   is already in a directory with the same name \
-                   (e.g. myfile123/myfile123.ptyx)."
-                   )
     parser.add_argument("-b", "--debug", action="store_true",
             help="Debug mode."
                     )
@@ -313,7 +299,7 @@ if __name__ == '__main__':
     parser.add_argument("--reorder-pages", choices=['brochure', 'brochure-reversed'],
             help="Reorder pages for printing.\n\
             Currently, only 'brochure' and 'brochure-reversed' mode are supported.\
-            The pdftk command must be installed.\n\
+            The `pdftk` command must be installed.\n\
             Ex: ptyx --reorder-pages=brochure-reversed -f pdf myfile.ptyx."
             )
     parser.add_argument("--names", metavar='CSV_FILE',
@@ -332,7 +318,7 @@ if __name__ == '__main__':
             you may have to adjust the number of files manually."
             )
 
-    parser.add_argument("--generate-batch-for-windows-printing", action="store_true",
+    parser.add_argument("-g", "--generate-batch-for-windows-printing", action="store_true",
             help="Generate a batch file for printing all pdf files using SumatraPDF."
             )
     parser.add_argument("--context", default='',
@@ -347,9 +333,6 @@ if __name__ == '__main__':
 
     # First, parse all arguments (filenames, options...)
     # --------------------------------------------------
-
-    if options.remove_all:
-        options.remove = True
 
     options.formats = options.formats.split('+')
 
@@ -390,25 +373,29 @@ if __name__ == '__main__':
         # Read pTyX file.
         input_name = pth(input_name)
         compiler.read_file(input_name)
+        # Load extensions if needed.
         compiler.call_extensions()
 
-        # Preparse text (option _shuffle_ in enumerate/itemize)
-        # This is mainly for compatibility with old versions, extensions should
-        # be used instead now (extensions are handled directly by SyntaxTreeGenerator).
-        text = compiler.state['plain_ptyx_code']
-        if '_shuffle_' in text or '_answer_' in text:
-            print("Warning: deprecated option _shuffle_ or _answer__ is used !")
-            text = ''.join(tree2strlist(enumerate_shuffle_tree(text)))
-            tmp_file_name = os.path.join(os.path.dirname(input_name), '.ptyx.tmp')
-            with open(tmp_file_name, 'w') as tmp_ptyx_file:
-                tmp_ptyx_file.write(text)
-            compiler.state['plain_ptyx_code'] = text
+        # ~ # Preparse text (option _shuffle_ in enumerate/itemize)
+        # ~ # This is mainly for compatibility with old versions, extensions should
+        # ~ # be used instead now (extensions are handled directly by SyntaxTreeGenerator).
+        # ~ text = compiler.state['plain_ptyx_code']
+        # ~ if '_shuffle_' in text or '_answer_' in text:
+            # ~ print("Warning: deprecated option _shuffle_ or _answer_ is used !")
+            # ~ text = ''.join(tree2strlist(enumerate_shuffle_tree(text)))
+            # ~ tmp_file_name = os.path.join(os.path.dirname(input_name), '.ptyx.tmp')
+            # ~ with open(tmp_file_name, 'w') as tmp_ptyx_file:
+                # ~ tmp_ptyx_file.write(text)
+            # ~ compiler.state['plain_ptyx_code'] = text
 
-        # Generate syntax tree
+        # Generate syntax tree.
+        # The syntax tree is generated only once, and will then be used
+        # for all the following compilations.
         compiler.generate_syntax_tree()
 
-        # Read seed used for random numbers generation.
-        seed_value = compiler.read_seed()
+        # Set the seed used for pseudo-random numbers generation.
+        # (The seed value is set in the ptyx file using special tag #SEED{}).
+        compiler.read_seed()
         # Compile and generate output files (tex or pdf)
         filenames, output_name = make_files(input_name, **vars(options))
 
@@ -418,17 +405,6 @@ if __name__ == '__main__':
         with open(seed_file_name, 'w') as seed_file:
             seed_file.write(str(seed_value))
 
-        if options.generate_batch_for_windows_printing:
-            bat_file_name = os.path.join(os.path.dirname(output_name), 'print.bat')
-            with open(bat_file_name, 'w') as bat_file:
-                bat_file.write(param['win_print_command'] + ' '.join('%s.pdf'
-                                      % os.path.basename(f) for f in filenames))
-
-        # Join different versions in a single pdf, and compress if asked to.
-        opt = dict(vars(options))
-        opt['filenames'] = filenames
-        #opt['seed_file_name'] = seed_file_name
-        join_files(output_name, **opt)
 
         # If any of the so-called `ANSWER_tags` is present, compile a second
         # version of the documents with answers.
@@ -443,15 +419,7 @@ if __name__ == '__main__':
         if any(tag in tags for tag in ANSWER_tags):
             filenames, output_name = make_files(input_name, correction=True, **vars(options))
 
-            # Join different versions in a single pdf, and compress if asked to.
-            opt['filenames'] = filenames
-            join_files(output_name, **opt)
 
-            if options.generate_batch_for_windows_printing:
-                bat_file_name = os.path.join(os.path.dirname(output_name), 'print_corr.bat')
-                with open(bat_file_name, 'w') as bat_file:
-                    bat_file.write(param['win_print_command'] + ' '.join('%s.pdf'
-                                        % os.path.basename(f) for f in filenames))
         compiler.close()
 
 
