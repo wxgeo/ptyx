@@ -1,5 +1,3 @@
-from __future__ import division, unicode_literals, absolute_import, print_function
-
 import re
 from functools import partial
 from os.path import dirname, basename, join #, realpath
