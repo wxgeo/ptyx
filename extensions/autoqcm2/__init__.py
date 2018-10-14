@@ -339,13 +339,13 @@ def _parse_QCM_HEADER_tag(self, node):
 
             elif key in ('names', 'name', 'students', 'student') and not WITH_ANSWERS:
                 # val must be the path of a CSV file.
-                students = extract_NAME_from_csv(val)
+                students = extract_NAME_from_csv(val, self.compiler.state['path'])
                 code  = students_checkboxes(students)
                 self.autoqcm_data['students_list'] = students
 
             elif key in ('id', 'ids') and not WITH_ANSWERS:
                 # val must be the path of a CSV file.
-                ids = extract_ID_NAME_from_csv(val)
+                ids = extract_ID_NAME_from_csv(val, self.compiler.state['path'])
                 code = student_ID_table(ids)
                 self.autoqcm_data['ids'] = ids
 

@@ -2,7 +2,7 @@ from string import ascii_letters
 import csv
 import re
 import sys
-from os.path import join as abspath, dirname
+from os.path import join as abspath, dirname, isabs
 
 script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 sys.path.insert(0, script_path)
@@ -93,12 +93,14 @@ def ID_band(ID, calibration=True):
 
 
 
-def extract_ID_NAME_from_csv(csv_path):
+def extract_ID_NAME_from_csv(csv_path, script_path):
     """`csv_path` is the path of the CSV file who contains students names and ids.
     The first column of the CSV file must contain the ids.
 
     Return a dictionnary containing the students ID and corresponding names.
     """
+    if not isabs(csv_path):
+        csv_path = abspath(join(dirname(script_path), csv_path))
     # XXX: support ODS and XLS files ?
     # soffice --convert-to cvs filename.ods
     # https://ask.libreoffice.org/en/question/2641/convert-to-command-line-parameter/
@@ -111,11 +113,13 @@ def extract_ID_NAME_from_csv(csv_path):
     return ids
 
 
-def extract_NAME_from_csv(csv_path):
+def extract_NAME_from_csv(csv_path, script_path):
     """`csv_path` is the path of the CSV file who contains students names.
 
     Return a list of students names.
     """
+    if not isabs(csv_path):
+        csv_path = abspath(join(dirname(script_path), csv_path))
     names = []
     # Read CSV file and generate the dictionary {id: "student name"}.
     with open(csv_path) as f:
