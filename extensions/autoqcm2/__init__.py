@@ -63,6 +63,7 @@ One may include some PTYX code of course.
 #TODO: support things like `#NEW INT(2,10) a, b, c, d WITH a*b - c*d != 0`.
 
 from functools import partial
+from os.path import join, basename, dirname
 
 from .generate import generate_ptyx_code
 from .header import packages_and_macros, ID_band, extract_ID_NAME_from_csv, \
@@ -451,7 +452,7 @@ def close(compiler):
     # ~ l.append('FLIP: %s' % g.autoqcm_data['flip'])
     l.append('SEED: %s' % compiler.state['seed'])
     for n, correct_answers in answers:
-        l.append('*** ANSWERS (TEST %s) ***' % n)
+        l.append(f'*** ANSWERS (TEST {n}) ***')
         for i, nums in enumerate(correct_answers):
             # Format: question -> correct answers
             # For example: 1 -> 1,3,4
@@ -465,6 +466,20 @@ def close(compiler):
     for id_, name in g.autoqcm_data['ids'].items():
         l.append('%s: %s' % (id_, name))
 
-    with open(compiler.state['path'] + '.autoqcm.config', 'w') as f:
+    path = compiler.state['path']
+    folder = dirname(path)
+    name = basename(path)
+    for n in range(len(answers)):
+        # XXX: what if files are not auto-numbered, but a list
+        # of names is provided to Ptyx instead ?
+        # (cf. command line options).
+        filename = f'{name[:-5]}-{n + 1}.pos'
+        full_path = join(folder, '.compile', name, filename)
+        with open(full_path) as f:
+            l.append(f'*** BOXES (TEST {n}) ***')
+            l.append(f.read())
+
+    config_file = path + '.autoqcm.config'
+    with open(config_file, 'w') as f:
         f.write('\n'.join(l))
 

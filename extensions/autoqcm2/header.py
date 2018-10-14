@@ -76,8 +76,8 @@ def ID_band(ID, calibration=True):
             \draw[fill=black] (0,0) rectangle (0.25,0.25);
             \tikzmath {""")
     l.append(_byte_as_codebar(r'\thepage'))
-    l.append(_byte_as_codebar(ID//256, n=1))
-    l.append(_byte_as_codebar(ID%256, n=2))
+    l.append(_byte_as_codebar(ID%256, n=1))
+    l.append(_byte_as_codebar(ID//256, n=2))
     l.append(fr"""}}
         \node[anchor=west] at  ({{2.5+2*\j}},0.1)
             {{\tiny\textbf{{\#{ID}}}~:~{{\thepage}}/\zpageref{{LastPage}}}};
@@ -161,6 +161,17 @@ def students_checkboxes(names, _n_student=None):
     return '\n'.join(content)
 
 
+def set_up_ID_table(ids):
+    ID_length = max(len(iD) for iD in ids)
+    # On crée la liste de l'ensemble des valeurs possibles pour chaque chiffre.
+    digits = [set() for i in range(ID_length)]
+    for iD in ids:
+        for i, digit in enumerate(iD):
+            digits[i].add(digit)
+
+    max_digits = max(len(s) for s in digits)
+    return ID_length, max_digits, digits
+
 
 def student_ID_table(ids):
     """"Generate a table where the students can write its identification number.
@@ -171,28 +182,21 @@ def student_ID_table(ids):
 
     Return: LaTeX code.
     """
-    length = max(len(iD) for iD in ids)
-    # On crée la liste de l'ensemble des valeurs possibles pour chaque chiffre.
-    digits = [set() for i in range(length)]
-    for iD in ids:
-        for i, digit in enumerate(iD):
-            digits[i].add(digit)
-
-    max_digits = max(len(s) for s in digits)
+    ID_length, max_digits, digits = set_up_ID_table(ids)
 
     content = []
     write = content.append
     write('\n\n')
     write(r'Votre numéro~:\quad\begin{tikzpicture}[baseline=-10pt,scale=.25]')
-    write(r'\draw[fill=black] (-1, 0) rectangle (0,%s);' % (-length))
-    for j in range(length):
+    write(r'\draw[fill=black] (-1, 0) rectangle (0,%s);' % (-ID_length))
+    for j in range(ID_length):
         # One row for each digit of the student id number.
         for i, d in enumerate(sorted(digits[j])):
             write(fr'''\draw ({i},{-j}) rectangle ({i+1},{-j-1})
-                    node [midway] {{\scriptsize\color{{black!20}}{d}}};''')
+                    node [midway] {{\scriptsize\color{{black!50}}\textsf{{{d}}}}};''')
         for i in range(i, max_digits):
             write(fr'''\draw ({i},{-j}) rectangle ({i+1},{-j-1});''')
-    write(r'\draw[white,->] (-0.5, -0.5) -- (-0.5,%s);' % (0.5 - length))
+    write(r'\draw[white,->] (-0.5, -0.5) -- (-0.5,%s);' % (0.5 - ID_length))
     write(r'\end{tikzpicture}')
     write(r'\qquad')
     write(r'Nom~:~\dotfill')
@@ -329,7 +333,7 @@ def packages_and_macros():
     \usetikzlibrary{math}
     \makeatletter
     \newcommand\dimtomm[1]{%
-        \strip@pt\dimexpr 0.351459804\dimexpr#1\relax\relax mm%
+        \strip@pt\dimexpr 0.351459804\dimexpr#1\relax\relax%
     }
     \makeatother
     \newcommand{\checkBox}[3]{%
@@ -341,9 +345,7 @@ def packages_and_macros():
         \end{tikzpicture}%
         \write\mywrite{#2 (#3): page \thepage, position (%
             \dimtomm{\zposx{#2-ll}sp},
-            \dimtomm{\zposy{#2-ll}sp}), dimensions (%
-            \dimtomm{\zposx{#2-ur}sp-\zposx{#2-ll}sp},
-            \dimtomm{\zposy{#2-ur}sp-\zposy{#2-ll}sp})%
+            \dimtomm{\zposy{#2-ll}sp})%
         }%
     }
     \newwrite\mywrite
@@ -358,8 +360,8 @@ def packages_and_macros():
 
 def answers_and_score(config, name, identifier, score, max_score):
     "Generate plain LaTeX code corresponding to score and correct answers."
-    table = generate_table_for_answers(config['questions'], config['answers (max)'],
-             correct_answers=config['answers'][identifier], flip=config['flip'])
+    table = table_for_answers(config['questions'], config['answers (max)'],
+             correct_answers=config['answers'][identifier], flip=config.get('flip'))
     if score is not None:
         score = \
             '''\begin{tikzpicture}
