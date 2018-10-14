@@ -121,7 +121,7 @@ class Node(object):
 
 
 
-class SyntaxTreeGenerator(object):
+class SyntaxTreeGenerator:
     # For each tag, indicate:
     #   1. The number of interpreted arguments (arguments that contain code).
     #      Those arguments will not be parsed.
@@ -481,18 +481,24 @@ class SyntaxTreeGenerator(object):
 
 
 
-class LatexGenerator(object):
+class LatexGenerator:
     """Convert text containing ptyx tags to plain LaTeX."""
 
     convert_tags = {'+': 'ADD', '-': 'SUB', '*': 'MUL', '=': 'EQUAL', '?': 'SIGN', '#': 'SHARP'}
 
     re_varname = re.compile('[A-Za-z_][A-Za-z0-9_]*([[].+[]])?$')
 
-    def __init__(self):
+    def __init__(self, compiler=None):
         self.clear()
         self._tags_defined_by_extensions = {}
-        # This syntax tree generator will be used to scan code at runtime.
+        # Some pTyX code may be generated dynamically inside a #PYTHON code
+        # block for example. So, LatexGenerator need is own STG (Syntax Tree Generator)
+        # to be able to scan code at runtime.
+        # (Every run implies generating a syntax tree again for each
+        # of these pieces of embeded pTyX code.)
         self.preparser = SyntaxTreeGenerator()
+        # Access to compiler is needed by some extensions.
+        self.compiler = compiler
 
     def clear(self):
         self.macros = {}
@@ -1167,7 +1173,7 @@ class LatexGenerator(object):
 class Compiler(object):
     def __init__(self):
         self.syntax_tree_generator = SyntaxTreeGenerator()
-        self.latex_generator = LatexGenerator()
+        self.latex_generator = LatexGenerator(self)
         self.state = {}
 
     def read_file(self, path):
