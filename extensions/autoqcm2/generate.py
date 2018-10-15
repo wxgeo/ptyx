@@ -161,13 +161,13 @@ def generate_ptyx_code(text):
             # with '>' must not be separated from previous block.
             if kw.get('shuffle', True):
                 code.append('#ITEM % shuffle questions') # shuffle blocks.
-            code.append('\\item')
+            code.append('\\pagebreak[3]\\item')
             code.append('\\setcounter{answerNumber}{0}')
             code.append('#PICK % (question)')
 
         elif level == 'ANSWERS':
             # First, end question.
-            code.append('#END % question')
+            code.append('#END % question\n\\nopagebreak[4]')
             # Shuffle answers.
             code.append('#ANSWERS_BLOCK')
             code.append('#SHUFFLE % (answers)')
