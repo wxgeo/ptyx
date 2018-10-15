@@ -310,12 +310,16 @@ if __name__ == '__main__':
                    default value will be the number of names in the CSV file."
                    )
 
-    parser.add_argument("--filter-by-pages-number", metavar='N', type=int,
+    parser.add_argument("-p", "--filter-by-pages-number", metavar='N', type=int,
             help="Keep only pdf files whose pages number match N. \
             This may be useful for printing pdf later. \
             Note that the number of files may not be respected then, so \
             you may have to adjust the number of files manually."
             )
+
+    parser.add_argument("-nc", "--no-correction", action="store_true",
+            help="Don't generate a correction of the test."
+                   )
 
     parser.add_argument("-g", "--generate-batch-for-windows-printing", action="store_true",
             help="Generate a batch file for printing all pdf files using SumatraPDF."
@@ -412,11 +416,12 @@ if __name__ == '__main__':
         # - there should be 3 modes, True, False and Auto (current mode).
         # - each mode should be accessible from the command line (add an option)
         # - it should be easy to modify mode for extensions.
-        ANSWER_tags = ('ANS', 'ANSWER', 'ASK', 'ASK_ONLY')
+        if not options.no_correction:
+            ANSWER_tags = ('ANS', 'ANSWER', 'ASK', 'ASK_ONLY')
 
-        tags = compiler.state['syntax_tree'].tags
-        if any(tag in tags for tag in ANSWER_tags):
-            filenames, output_name = make_files(input_name, correction=True, **vars(options))
+            tags = compiler.state['syntax_tree'].tags
+            if any(tag in tags for tag in ANSWER_tags):
+                filenames, output_name = make_files(input_name, correction=True, **vars(options))
 
 
         compiler.close()
