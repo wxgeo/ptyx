@@ -48,13 +48,17 @@ def read_config(pth):
                             ans[num].append([])
                         assert len(ans[num]) == int(q), (f'Incorrect question number: {q}')
                     elif section == 'boxes':
+                        if line.startswith('ID-table:'):
+                            cfg['ID-table-pos'] = tuple(float(val) for val
+                                                        in line[11:-2].split(','))
+                            continue
                         try:
                             g = REG.match(line).group
                         except AttributeError:
                             raise ValueError(f'Error at line {repr(line)}')
                         boxes[num].setdefault(int(g('page')), {}) \
                                   .setdefault(g('question'), {}) \
-                                  [g('answer')] = {'correct': g('bool') == 'True',
+                                  [g('answer')] = {'correct': bool_(g('bool')),
                                                    'pos': (float(g('x')), float(g('y')))}
                     elif section == 'students':
                         students.append(line.strip())

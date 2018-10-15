@@ -239,6 +239,25 @@ def scan_picture(filename, config):
     vpos = max(i1, i2, i3) + 2*square_size
 
 
+    # For now, we can convert LaTeX position to pixel with a good precision.
+    f_cell_size = CELL_SIZE_IN_CM*pixels_per_cm
+    cell_size = int(round(f_cell_size))
+    yshift = i1 - pixels_per_cm
+    xshift = j1 - pixels_per_cm
+
+    def xy2ij(x, y):
+        '''Convert (x, y) position (mm) to pixels (i,j).
+
+        (x, y) is the position from the bottom left of the page in mm,
+        as given by LaTeX.
+        (i, j) is the position in pixels, where i is the line and j the
+        column, starting from the top left of the image.
+        '''
+        i = int(round((297 - y)*pixels_per_cm/10 + yshift))
+        j = int(round(x*pixels_per_cm/10 + xshift))
+        return (i,j)
+
+
     # ------------------------------------------------------------------
     #                  IDENTIFY STUDENT (OPTIONAL)
     # ------------------------------------------------------------------
@@ -281,28 +300,21 @@ def scan_picture(filename, config):
 
         # Read student id, then find name
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+        #
         elif ids:
             ID_length, max_digits, digits = set_up_ID_table(ids)
-            height = ID_length*square_size
-            # XXX: set search area more precisely (this implies to modify
-            # the LaTeX code so that the students ID grid is always at the same place.
-            imin = round(int(vpos + 2*square_size))
-            imax = round(int(vpos + height + 3.5*square_size))
-            # ~ color2debug(m, (imin, 0), (imax, 1000), color=(0,120,255), display=True)
-            search_area = m[imin:imax,:]
-            i0, j0 = find_black_rectangle(search_area, width=square_size,
-                                    height=height, error=0.3, mode='c', debug=False).__next__()
-            vpos = imin + height
-            i0 += imin
-            #~ color2debug(m, (imin + i0, j0), (imin + i0 + height, j0 + square_size), color=(0,255,0))
+            height = ID_length*cell_size
+
+            i0, j0 = xy2ij(*cfg['ID-table-pos'])
+
+            #~ color2debug(m, (imin + i0, j0), (imin + i0 + height, j0 + cell_size), color=(0,255,0))
 
             # Scan grid row by row. For each row, the darker cell is retrieved,
             # and the associated caracter is appended to the ID.
             student_ID = ''
             for n in range(ID_length):
                 # Top of the row.
-                i = int(round(i0 + n*f_square_size))
+                i = int(round(i0 + n*f_cell_size))
                 black_cells = []
                 # If a cell is black enough, a couple (indice_of_blackness, digit)
                 # will be appended to the list `cells`.
@@ -312,16 +324,16 @@ def scan_picture(filename, config):
                 # and the second blackest.
                 for k, d in enumerate(sorted(digits[n])):
                     # Left ot the cell.
-                    j = int(round(j0 + (k + 1)*f_square_size))
-                    # ~ val = eval_square_color(m, i, j, square_size)
+                    j = int(round(j0 + (k + 1)*f_cell_size))
+                    # ~ val = eval_square_color(m, i, j, cell_size)
                     # ~ print(d, val)
-                    # ~ color2debug(m, (i, j), (i + square_size, j + square_size), display=False)
-                    # ~ color2debug(m, (i + 2, j + 2), (i - 2 + square_size, j - 2+ square_size), color=(1,1,0))
-                    if test_square_color(m, i, j, square_size):
-                        blackness = eval_square_color(m, i, j, square_size)
+                    # ~ color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
+                    # ~ color2debug(m, (i + 2, j + 2), (i - 2 + cell_size, j - 2+ cell_size), color=(1,1,0))
+                    if test_square_color(m, i, j, cell_size):
+                        blackness = eval_square_color(m, i, j, cell_size)
                         black_cells.append((blackness, d))
                         print('Found:', d, blackness)
-                        # ~ color2debug(m, (imin + i, j), (imin + i + square_size, j + square_size))
+                        # ~ color2debug(m, (imin + i, j), (imin + i + cell_size, j + cell_size))
                 if black_cells:
                     black_cells.sort(reverse=True)
                     print(black_cells)
@@ -360,10 +372,6 @@ def scan_picture(filename, config):
     mode = config['mode']
 
     # Detect the answers.
-    f_cell_size = CELL_SIZE_IN_CM*pixels_per_cm
-    cell_size = int(round(f_cell_size))
-    yshift = i1 - pixels_per_cm
-    xshift = j1 - pixels_per_cm
     print('\n=== Reading answers ===')
     print(f'Mode: *{mode}* correct answers must be checked.')
     print('Rating:')
@@ -378,10 +386,7 @@ def scan_picture(filename, config):
         answered = False
         for answer, infos in answers.items():
             answer = int(answer)
-            x, y = infos['pos']
-            # x, y are coordinates in mm from the bottom left corner of the page.
-            i = int(round((297 - y)*pixels_per_cm/10 + yshift - f_cell_size))
-            j = int(round(x*pixels_per_cm/10 + xshift))
+            i, j = xy2ij(*infos['pos'])
 
             # Remove borders of the square when testing,
             # since it may induce false positives.

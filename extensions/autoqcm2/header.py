@@ -2,7 +2,7 @@ from string import ascii_letters
 import csv
 import re
 import sys
-from os.path import join as abspath, dirname, isabs
+from os.path import abspath, dirname, isabs, join
 
 script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 sys.path.insert(0, script_path)
@@ -80,7 +80,7 @@ def ID_band(ID, calibration=True):
     l.append(_byte_as_codebar(ID//256, n=2))
     l.append(fr"""}}
         \node[anchor=west] at  ({{2.5+2*\j}},0.1)
-            {{\tiny\textbf{{\#{ID}}}~:~{{\thepage}}/\zpageref{{LastPage}}}};
+            {{\scriptsize\textbf{{\#{ID}}}~:~{{\thepage}}/\zpageref{{LastPage}}}};
         \end{{tikzpicture}}}};
 
         \draw[dotted]  ([xshift=-1cm,yshift=-2cm]current page.north east)
@@ -191,8 +191,9 @@ def student_ID_table(ids):
     content = []
     write = content.append
     write('\n\n')
-    write(r'Votre numéro~:\quad\begin{tikzpicture}[baseline=-10pt,scale=.25]')
-    write(r'\draw[fill=black] (-1, 0) rectangle (0,%s);' % (-ID_length))
+    write(r'\begin{tikzpicture}[baseline=-10pt,scale=.5]')
+    write(r'\node[anchor=south west] at (-1, 0) {Numéro étudiant (INE)~:};')
+    write(r'\draw[fill=black] (-1, 0) node {\zsavepos{ID-table}} rectangle (0,%s);' % (-ID_length))
     for j in range(ID_length):
         # One row for each digit of the student id number.
         for i, d in enumerate(sorted(digits[j])):
@@ -200,12 +201,17 @@ def student_ID_table(ids):
                     node [midway] {{\scriptsize\color{{black!50}}\textsf{{{d}}}}};''')
         for i in range(i, max_digits):
             write(fr'''\draw ({i},{-j}) rectangle ({i+1},{-j-1});''')
-    write(r'\draw[white,->] (-0.5, -0.5) -- (-0.5,%s);' % (0.5 - ID_length))
+    write(r'\draw[white,->,thick] (-0.5, -0.5) -- (-0.5,%s);' % (0.5 - ID_length))
     write(r'\end{tikzpicture}')
-    write(r'\qquad')
-    write(r'Nom~:~\dotfill')
-    write(r'Prénom~:~\dotfill')
-    write(r'Groupe~:~\dots')
+    write(r'\hfill\begin{tikzpicture}[baseline=10pt]'
+          r'\node[draw,rounded corners] {\begin{tabular}{p{8cm}}'
+          r'\textsc{Nom~:}~\dotfill\\'
+          r'Prénom~:~\dotfill\\'
+          r'Groupe~:~\dots\\'
+          r'\end{tabular}};\end{tikzpicture}'
+          r'\write\mywrite{ID-table: '
+          r'(\dimtomm{\zposx{ID-table}sp}, '
+          r'\dimtomm{\zposy{ID-table}sp})}')
     write('\n\n')
     return '\n'.join(content)
 
@@ -341,11 +347,10 @@ def packages_and_macros():
     }
     \makeatother
     \newcommand{\checkBox}[3]{%
-        \begin{tikzpicture}[baseline,color=black, fill=#1, thick]
+        \begin{tikzpicture}[baseline=-12pt,color=black, fill=#1, thick]
             \draw (0,0)
                 node {\zsavepos{#2-ll}}
-                rectangle (5mm,5mm)
-                node {\zsavepos{#2-ur}};
+                rectangle (5mm,-5mm);
         \end{tikzpicture}%
         \write\mywrite{#2 (#3): page \thepage, position (%
             \dimtomm{\zposx{#2-ll}sp},
