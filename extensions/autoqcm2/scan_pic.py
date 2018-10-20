@@ -244,6 +244,9 @@ def scan_picture(filename, config):
     cell_size = int(round(f_cell_size))
     yshift = i1 - pixels_per_cm
     xshift = j1 - pixels_per_cm
+    TOP = i1
+    LEFT = j1
+    # ~ color2debug(m, (TOP, LEFT), (TOP + square_size, LEFT + square_size))
 
     def xy2ij(x, y):
         '''Convert (x, y) position (mm) to pixels (i,j).
@@ -253,10 +256,19 @@ def scan_picture(filename, config):
         (i, j) is the position in pixels, where i is the line and j the
         column, starting from the top left of the image.
         '''
-        i = int(round((297 - y)*pixels_per_cm/10 + yshift))
-        j = int(round(x*pixels_per_cm/10 + xshift))
-        return (i,j)
+        pixels_per_mm = pixels_per_cm/10
+        i = (287 - y)*pixels_per_mm + TOP
+        j = (x - 10)*pixels_per_mm + LEFT
+        return (int(round(i)), int(round(j)))
 
+    # ~ i, j = xy2ij(10, 10) # Top-left corner
+    # ~ color2debug(m, (i, j), (i + cell_size, j + cell_size))
+
+    # ~ ii, jj = xy2ij(0, 0)
+    # ~ for x in range(0, 200, 10):
+        # ~ i, j = xy2ij(x, 287)
+        # ~ color2debug(m, (i, j), (ii, j + cell_size), display=False)
+    # ~ color2debug(m, (0, 0), (0, 0), display=True)
 
     # ------------------------------------------------------------------
     #                  IDENTIFY STUDENT (OPTIONAL)
@@ -269,6 +281,11 @@ def scan_picture(filename, config):
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         if n_students:
+            #XXX: rewrite this section.
+            # Use .pos file to retrieve exact position of first square
+            # (just like in next section),
+            # instead of scanning a large area to detect first black square.
+
             student_number = None
             search_area = m[vpos:vpos + 4*square_size,:]
             i, j0 = find_black_square(search_area, size=square_size, error=0.3, mode='c').__next__()
@@ -305,9 +322,10 @@ def scan_picture(filename, config):
             ID_length, max_digits, digits = set_up_ID_table(ids)
             height = ID_length*cell_size
 
-            i0, j0 = xy2ij(*cfg['ID-table-pos'])
+            i0, j0 = xy2ij(*config['ID-table-pos'])
 
             #~ color2debug(m, (imin + i0, j0), (imin + i0 + height, j0 + cell_size), color=(0,255,0))
+            # ~ color2debug(m, (i0, j0), (i0 + cell_size, j0 + cell_size), color=(0,255,0))
 
             # Scan grid row by row. For each row, the darker cell is retrieved,
             # and the associated caracter is appended to the ID.
@@ -379,28 +397,34 @@ def scan_picture(filename, config):
     print(f"• {config['incorrect']} for wrongly answered question,")
     print(f"• {config['skipped']} for unanswered question.")
     print("Scanning...\n")
-    for question, answers in boxes.items():
+
+    # Using the config file to obtain correct answers list allows some easy customization
+    # after the test was generated (this is useful if some tests questions were flawed).
+
+    for ((question, answers), correct_answers) in zip(boxes.items(),
+                                         config['answers'][identifier]):
         question = int(question)
         print(f'{ANSI_CYAN}• Question {question}{ANSI_RESET}')
-        ok = []
-        answered = False
+        proposed = set()
+        correct = set(correct_answers)
         for answer, infos in answers.items():
             answer = int(answer)
             i, j = xy2ij(*infos['pos'])
 
             # Remove borders of the square when testing,
             # since it may induce false positives.
-            # ~ color2debug(m, (i, j), (i + cell_size, j + cell_size), display=True)
+
+            # ~ color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
             if (test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.2, gray_level=0.65) or
                     test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.4, gray_level=0.75)):
-                answered = True
                 c = '■'
-                is_ok = infos['correct']
+                # ~ is_ok = infos['correct']
+                is_ok = (answer in correct)
+                proposed.add(answer)
             else:
                 c = '□'
-                is_ok = not infos['correct']
-
-            ok.append(is_ok)
+                # ~ is_ok = not infos['correct']
+                is_ok = (answer not in correct)
 
             print(f"  {'' if is_ok else ANSI_YELLOW}{c} {answer + 1}  {ANSI_RESET}", end='\t')
 
@@ -412,11 +436,19 @@ def scan_picture(filename, config):
         # if not, answer will be considered incorrect. But if mode is set to
         # 'some', then student has only to check a subset of correct propositions
         # for his answer to be considered correct.
-        is_ok = (all(ok) if mode == 'all' else any(ok))
-        if is_ok:
+        if mode == 'all':
+            ok = (correct == proposed)
+        elif mode == 'some':
+            # Answer is valid if and only if :
+            # (proposed ≠ ∅ and proposed ⊆ correct) or (proposed = correct = ∅)
+            ok = (proposed and proposed.issubset(correct)) or (not proposed and not correct)
+        else:
+            raise RuntimeError('Invalid mode (%s) !' % mode)
+
+        if ok:
             earn = config['correct']
             color = ANSI_GREEN
-        elif not answered:
+        elif not proposed:
             earn = config['skipped']
             color = ANSI_YELLOW
         else:
@@ -425,6 +457,7 @@ def scan_picture(filename, config):
         print(f'\n  {color}Rating: {color}{earn:g}{ANSI_RESET}\n')
         score += earn
 
+    # ~ color2debug(m, (0,0), (0,0), display=True)
     print(f'\nScore: {ANSI_REVERSE}{score:g}{ANSI_RESET}\n')
 
     return {'ID': identifier, 'page': page, 'name': student_name, 'score': score}
