@@ -196,9 +196,9 @@ def _parse_PROPOSED_ANSWER_tag(self, node):
             # since it is not necessarily injective.
             func = (lambda s: g(f(s)))
 
-    self.write(r'\begin{tabular}[t]{l}')
     self._parse_children(node.children, function=func)
-    self.write(r'\end{tabular}\quad%' '\n')
+    # Close 'AutoQCMTab{' written by `_parse_NEW_ANSWER_tag()`.
+    self.write(r'}\quad%' '\n')
 
 
 # ~ def _parse_NEW_ANSWER_tag(self, node):
@@ -234,12 +234,13 @@ def _add_check_box(self, is_correct):
     q = len(self.autoqcm_correct_answers)
     # Answer number
     a = self.autoqcm_answer_number
-    cb_id = 'Q%s-%s' % (q, a)
+    self.write(r'\AutoQCMTab{')
+    cb_id = f'Q{q}-{a}'
     if self.context.get('WITH_ANSWERS') and not is_correct:
         self.write(r'\checkBox{white}{%s}{%s}' % (cb_id, is_correct))
     else:
         self.write(r'\checkBox{gray}{%s}{%s}' % (cb_id, is_correct))
-    # ~ self.write(r'{\alph{answerNumber}}')
+    self.write(r'}{')
     if is_correct:
         self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
     self.autoqcm_answer_number += 1

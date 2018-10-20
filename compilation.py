@@ -171,10 +171,12 @@ def _compile_latex_file(filename, dest=None, quiet=False):
     else:
         command = param['tex_command']
     command += ' -output-directory "%s" "%s"' % (dest, filename)
+    # ~ input('- run -')
     log = execute(command)
     # Run command twice if references were found.
     if 'Rerun to get cross-references right.' in log or \
        'There were undefined references.' in log:
+        # ~ input('- run again -')
         log = execute(command)
 
     # Return the number of pages of the pdf generated.

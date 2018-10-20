@@ -69,6 +69,18 @@ def ID_band(ID, calibration=True):
             rectangle ([xshift=1.25cm,yshift=1.25cm]current page.south west);
         \draw[fill=black] ([xshift=-1cm,yshift=1cm]current page.south east)
             rectangle ([xshift=-1.25cm,yshift=1.25cm]current page.south east);""")
+        # ~ l.append(r"""
+        # ~ \draw[fill=black] ([xshift=1cm,yshift=-1cm]current page.north west)
+            # ~ node {\zsavepos{top-left}} rectangle ([xshift=1.25cm,yshift=-1.25cm]current page.north west);
+        # ~ \draw[fill=black] ([xshift=-1cm,yshift=-1cm]current page.north east)
+         # ~ node {\zsavepos{top-right}}
+            # ~ rectangle ([xshift=-1.25cm,yshift=-1.25cm]current page.north east);
+        # ~ \draw[fill=black] ([xshift=1cm,yshift=1cm]current page.south west)
+          # ~ node {\zsavepos{bottom-left}}
+             # ~ rectangle ([xshift=1.25cm,yshift=1.25cm]current page.south west);
+        # ~ \draw[fill=black] ([xshift=-1cm,yshift=1cm]current page.south east)
+          # ~ node {\zsavepos{bottom-right}}
+             # ~ rectangle ([xshift=-1.25cm,yshift=1.25cm]current page.south east);""")
     l.append(r"""\node at ([yshift=-1cm]current page.north) [anchor=north] {
             \begin{tikzpicture}
             \definecolor{color0}{rgb}{1,1,1}
@@ -89,6 +101,14 @@ def ID_band(ID, calibration=True):
             {{\,\,\scriptsize\textuparrow\,\,\textsc{{N'écrivez rien au
             dessus de cette ligne}}\,\,\textuparrow\,\,}};
     \end{{tikzpicture}}}}""")
+    # ~ l.append('\n')
+    # ~ for y in ('top', 'bottom'):
+        # ~ for x in ('left', 'right'):
+            # ~ pos = f'{y}-{x}'
+            # ~ l.append(fr'\write\mywrite{{{pos}: '
+                    # ~ fr'(\dimtomm{{\zposx{{{pos}}}sp}}, '
+                    # ~ fr'\dimtomm{{\zposy{{{pos}}}sp}})}}')
+    # ~ l.append('\n')
     return ''.join(l)
 
 
@@ -339,6 +359,7 @@ def packages_and_macros():
     \usepackage{zref-abspage}
     \usepackage{zref-lastpage}
     \usepackage{everypage}
+    \usepackage{tabularx}
     \usetikzlibrary{calc}
     \usetikzlibrary{math}
     \makeatletter
@@ -350,7 +371,7 @@ def packages_and_macros():
         \begin{tikzpicture}[baseline=-12pt,color=black, fill=#1, thick]
             \draw (0,0)
                 node {\zsavepos{#2-ll}}
-                rectangle (5mm,-5mm);
+                rectangle (.5,-.5);
         \end{tikzpicture}%
         \write\mywrite{#2 (#3): page \thepage, position (%
             \dimtomm{\zposx{#2-ll}sp},
@@ -362,6 +383,16 @@ def packages_and_macros():
     \usepackage{enumitem} % To resume an enumeration.
     \setenumerate[0]{label=\protect\AutoQCMcircled{\arabic*}}
     \AddEverypageHook{\CustomHeader}
+
+    \newlength{\AutoQCMTabLength}
+    \newcommand{\AutoQCMTab}[2]{%
+      \settowidth{\AutoQCMTabLength}{#1{}#2}
+      \ifdim \AutoQCMTabLength<\textwidth%
+      \begin{tabular}{l@{\,\,}l}#1&#2\end{tabular}%
+      \else%
+      \begin{tabularx}{\linewidth}{l@{\,\,}X}#1&#2\end{tabularx}%
+      \fi%
+    }
     """]
 
 # https://tex.stackexchange.com/questions/37297/how-to-get-element-position-in-latex
