@@ -1,11 +1,12 @@
 from math import degrees, atan
+import builtins
 
 from PIL import Image
 from numpy import array
 
 
 from square_detection import test_square_color, find_black_square, \
-                             eval_square_color, find_black_rectangle, \
+                             eval_square_color,  \
                              find_lonely_square, color2debug
 from config_reader import read_config
 from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM)
@@ -22,6 +23,224 @@ ANSI_CYAN = "\u001B[1;36m";
 ANSI_WHITE = "\u001B[37m";
 ANSI_BOLD = "\u001B[1m";
 ANSI_REVERSE = "\u001B[45m";
+
+CORNERS = frozenset(('tl', 'tr', 'bl', 'br'))
+
+
+def round(f, n=None):
+    # PEP3141 compatible round() implementation.
+    # round(f) should return an integer, but the problem is
+    # __builtin__.round(f) doesn't return an int if type(f) is np.float64.
+    # See: https://github.com/numpy/numpy/issues/11810
+    return (int(builtins.round(f)) if n is None else round(f))
+
+
+def transform(pic, transformation, *args, **kw):
+    "Return a transformed version of `pic` and its matrix."
+    # cf. http://stackoverflow.com/questions/5252170/specify-image-filling-color-when-rotating-in-python-with-pil-and-setting-expand
+    rgba = pic.convert('RGBA')
+    rgba = getattr(rgba, transformation)(*args, **kw)
+    white = Image.new('RGBA', rgba.size, (255, 255, 255, 255))
+    out = Image.composite(rgba, white, rgba)
+    pic = out.convert(pic.mode)
+    return pic, array(pic)/255.
+
+
+
+def find_corner_square(m, size, corner, h, w, tolerance, whiteness):
+    L, l = m.shape
+    if corner[0] == 't':
+        i0, i1 = 0, h - 1
+    else:
+        i0, i1 = L - h, L - 1
+    if corner[1] == 'l':
+        j0, j1 = 0, w - 1
+    else:
+        j0, j1 = l - h, l - 1
+    m = m[i0:i1,j0:j1]
+    i, j = find_lonely_square(m, size, error=tolerance, gray_level=whiteness)
+    return i0 +i, j0 + j
+
+
+
+def detect_four_squares(m, square_size, cm):
+    h = w = round(2*(1 + SQUARE_SIZE_IN_CM)*cm)
+    tolerance = 0.4
+    whiteness = 0.4
+    # Make a mutable copy of frozenset CORNERS.
+    corners = set(CORNERS)
+    positions = {}
+    n = 0
+    give_up = False
+    while len(positions) < 4 and not give_up:
+        for corner in CORNERS:
+            try:
+                i, j = find_corner_square(m, square_size, corner, h, w, tolerance, whiteness)
+                # ~ color2debug(m, (i, j), (i + square_size, j + square_size), display=False)
+                positions[corner] = i, j
+                corners.remove(corner)
+            except LookupError:
+                pass
+        give_up = True
+        if tolerance < 0.8:
+            tolerance += 0.02
+            give_up = False
+        if whiteness < 0.7:
+            whiteness += 0.01
+            give_up = False
+        if h < 4*cm and len(positions) < 3:
+            h += 4
+            give_up = False
+        # ~ if input(len(positions)) == 'd':
+            # ~ color2debug(m)
+
+    # If one calibration square is missing (a corner of the sheet is
+    # folded for example), it will be generated from the others.
+
+    for corner in CORNERS:
+        if corner not in positions:
+            tb, lr = corner
+            positions[corner] = (positions[tb + ('r' if lr == 'l' else 'r')][0],
+                                 positions[('t' if tb == 'b' else 'b') + lr][1])
+            # For example: positions['bl'] = positions['br'][0], positions['tl'][1]
+    i1 = round((positions['tl'][0] + positions['tr'][0])/2)
+    i2 = round((positions['bl'][0] + positions['br'][0])/2)
+    j1 = round((positions['tl'][1] + positions['bl'][1])/2)
+    j2 = round((positions['tr'][1] + positions['br'][1])/2)
+
+    return positions, (i1, j1), (i2, j2)
+
+
+
+def find_ID_band(m, i, j1, j2, square_size):
+    "Return the top left corner (coordinates in pixels) of the ID band first square."
+    margin = 4
+    i1, i2 = i - margin, i + square_size + margin
+    j1, j2 = j1 + 3*square_size, j2 - 2*square_size
+    color2debug(m, (i1, j1), (i2, j2), display=False)
+    search_area = m[i1:i2, j1:j2]
+    i3, j3 = find_black_square(search_area, size=square_size,
+                            error=0.3, mode='c', debug=False).__next__()
+    return i1 + i3, j1 + j3
+
+
+
+def calibrate(pic, m):
+    u"Detect picture resolution and ensure correct orientation."
+    # Ensure that the picture orientation is portrait, not landscape.
+    L, l = m.shape
+    print(f'Picture dimensions : {L}px x {l}px.')
+
+    if L < l:
+        pic, m = transform(pic, 'transpose', method=Image.ROTATE_90)
+        L, l = m.shape
+
+    assert l <= L
+
+    # Calculate resolution (DPI and DPCM).
+    cm = m.shape[1]/21
+    # Unit conversion: 1 inch = 2.54 cm
+    print(f"Detect dpi:  {2.54*cm}")
+
+    # Evaluate approximatively squares size using image dpi.
+    # Square size is equal to SQUARE_SIZE_IN_CM in theory, but this vary
+    # in practice depending on printer and scanner parameters (margins...).
+    square_size = round(SQUARE_SIZE_IN_CM*cm)
+
+    # Detect the four squares at the top left, top right, bottom left
+    # and bottom right corners of the page.
+    # This squares will be used to calibrate picture more precisely.
+
+    #   1 cm                         1 cm
+    #   <->                          <->
+    #   ┌╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴┐↑
+    #   |                              |↓ 1 cm
+    #   |  ■                        ■  |
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   ┊                              ┊
+    #   |  ■                        ■  |
+    #   |                              |↑
+    #   └╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴┘↓ 1 cm
+    #
+
+
+    # Detection algorithm is quite naive:
+    # We'll search for a square alternatively in the four corners,
+    # extending the search area and beeing more tolerant if needed.
+
+    positions, *_ = detect_four_squares(m, square_size, cm)
+    print(positions)
+
+    # Now, let's detect the rotation.
+    (i1, j1), (i2, j2) = positions['tl'], positions['tr']
+    rotation_h1 = atan((i2 - i1)/(j2 - j1))
+    (i1, j1), (i2, j2) = positions['bl'], positions['br']
+    rotation_h2 = atan((i2 - i1)/(j2 - j1))
+    rotation_h = degrees(.5*(rotation_h1 + rotation_h2))
+    print("Detected rotation (h): %s degrees." % round(rotation_h, 4))
+
+    (i1, j1), (i2, j2) = positions['tl'], positions['bl']
+    rotation_v1 = atan((j1 - j2)/(i2 - i1))
+    (i1, j1), (i2, j2) = positions['tr'], positions['br']
+    rotation_v2 = atan((j1 - j2)/(i2 - i1))
+    rotation_v = degrees(.5*(rotation_h1 + rotation_h2))
+    print("Detected rotation (v): %s degrees." % round(rotation_v, 4))
+
+    # Rotate page.
+    # (rotation_v should be a bit more precise than rotation_h).
+    rotation = (rotation_h + 1.5*rotation_v)/2.5
+    print(f'Rotate picture: {round(rotation, 4)}°')
+    pic, m = transform(pic, 'rotate', rotation, resample=Image.BICUBIC, expand=True)
+
+    # Redetect calibration squares.
+    positions, (i1, j1), (i2, j2) = detect_four_squares(m, square_size, cm)
+
+
+    try:
+        i3, j3 = find_ID_band(m, i1, j1, j2, square_size)
+    except StopIteration:
+        # Orientation probably incorrect.
+        print('Reversed page detected: 180° rotation.')
+        pic, m = transform(pic, 'transpose', method=Image.ROTATE_180)
+        # Redetect calibration squares.
+        positions, (i1, j1), (i2, j2) = detect_four_squares(m, square_size, cm)
+        try:
+            i3, j3 = find_ID_band(m, i1, j1, j2, square_size)
+        except StopIteration:
+            print("ERROR: Can't find identification band, displaying search areas in red.")
+            print(i1, j1, i2, j2)
+            color2debug(m)
+            raise RuntimeError("Can't find identification band !")
+
+
+    # Distance between the (top left corners of the) left and right squares is:
+    # 21 cm - 2 cm (margin left and margin right) - SQUARE_SIZE_IN_CM (1 square)
+    h_pixels_per_mm = (j2 - j1)/(190 - 10*SQUARE_SIZE_IN_CM)
+    # Distance between the (top left corners of the) top and bottom squares is:
+    # 29.7 cm - 2 cm (margin left and margin right) - SQUARE_SIZE_IN_CM (1 square)
+    v_pixels_per_mm = (i2 - i1)/(277 - 10*SQUARE_SIZE_IN_CM)
+
+
+    print(positions)
+    for c, (i, j) in positions.items():
+        color2debug(m, (i, j), (i + square_size, j + square_size), display=False)
+    color2debug(m, (i3, j3), (i3 + square_size, j3 + square_size), display=False)
+    # ~ color2debug(m)
+    # ~ input('- pause -')
+
+    return m, h_pixels_per_mm, v_pixels_per_mm, positions['tl'], (i3, j3)
+
 
 
 def scan_picture(filename, config):
@@ -46,9 +265,6 @@ def scan_picture(filename, config):
     # Convert to grayscale picture.
     pic = Image.open(filename).convert('L')
     m = array(pic)/255.
-    #~ while True:
-        #~ print(eval(input('>>>'), globals(), locals()))
-    #~ m = convert_png_to_gray(m)
 
     # ------------------------------------------------------------------
     #                          CONFIGURATION
@@ -62,166 +278,62 @@ def scan_picture(filename, config):
     n_students = len(students)
     ids = config['ids']
 
+
     # ------------------------------------------------------------------
     #                          CALIBRATION
     # ------------------------------------------------------------------
-    rotation_set = False
-    flip_set = False
-    step = 0
-    while True:
-        step += 1
-        print(f"Calibration: step {step}")
-        # Evaluate approximatively squares size using image dpi.
-        # Square size is equal to SQUARE_SIZE_IN_CM in theory, but this vary
-        # in practice depending on printer and scanner configuration.
-        # Unit conversion: 1 inch = 2.54 cm
-        dpi = 2.54*m.shape[1]/21
-        print("Detect dpi: %s" % dpi)
-        square_size = int(round(SQUARE_SIZE_IN_CM*dpi/2.54))
-        #~ print("Square size 1st estimation (pixels): %s" % square_size)
 
-        #~ print("Squares list:\n" + str(detect_all_squares(m, square_size, 0.5)))
+    m, h_pixels_per_mm, v_pixels_per_mm, (TOP, LEFT), (i, j) = calibrate(pic, m)
+    pixels_per_mm = (h_pixels_per_mm + 1.5*v_pixels_per_mm)/2.5
 
-        # Detecting the top 2 squares (at the top left and the top right of the
-        # page) to calibrate. Since square size is not known precisely,
-        # keep a high error rate for now.
-        maxi = maxj = maxj0 = int(round(2*(1 + SQUARE_SIZE_IN_CM)*dpi/2.54))
-        # First, search the top left black square.
-        while True:
-            #~ color2debug(m, (0, 0), (maxi, maxj), color=(0,255,0), display=True)
-            try:
-                #~ i1, j1 = find_black_square(m[:maxi,:maxj], size=square_size, error=0.5).__next__()
-                i1, j1 = find_lonely_square(m[:maxi,:maxj], size=square_size, error=0.5)
-                #~ color2debug(m, (i1, j1), (i1 + square_size, j1 + square_size), color=(255,255,0), display=True)
-                break
-            except (StopIteration, TypeError):
-                # Top left square not found.
-                # Expand search area, mostly vertically (expanding to much
-                # horizontally may induce false positives, because of the QR code).
-                print('Adjusting search area...')
-                maxi += square_size
-                if maxj < maxj0 + 4*square_size:
-                    maxj += square_size//2
+    # We should now have an accurate value for square size.
+    f_square_size = SQUARE_SIZE_IN_CM*pixels_per_mm*10
+    square_size = round(f_square_size)
+    print("Square size final value (pixels): %s (%s)" % (square_size, f_square_size))
 
-        # Search now for the top right black square.
-        minj = minj0 = int(round((20 - 2*(1 + SQUARE_SIZE_IN_CM))*dpi/2.54))
-        while True:
-            try:
-                #~ color2debug(m, (0, minj), (maxi, None), color=(0,255,0), display=True)
-                i2, j2 = find_lonely_square(m[:maxi,minj:], size=square_size, error=0.5)
-                j2 += minj
-                break
-            except (StopIteration, TypeError):
-                # Top right square not found.
-                # Expand search area, mostly vertically (expanding to much
-                # horizontally may induce false positives, because of the QR code).
-                print('Adjusting search area...')
-                maxi += square_size
-                if minj > minj0 - 4*square_size:
-                    minj -= square_size//2
+    f_cell_size = CELL_SIZE_IN_CM*pixels_per_mm*10
+    cell_size = round(f_cell_size)
 
-        #~ print("Top left square at (%s,%s)." % (i1, j1))
-        #~ print("Top right square at (%s,%s)." % (i2, j2))
+    # Henceforth, we can convert LaTeX position to pixel with a good precision.
+    def xy2ij(x, y):
+        '''Convert (x, y) position (mm) to pixels (i,j).
 
-        #~ # Control top squares position:
-        #~ color2debug((i1, j1), (i1 + square_size, j1 + square_size))
-        #~ color2debug((i2, j2), (i2 + square_size, j2 + square_size))
-
-        #~ # Control top squares alignement after rotation:
-        #~ if i == 2:
-            #~ color2debug((i1, j1), (i1, j2 + square_size))
-
-        if not rotation_set:
-            rotation_set = True
-            # Detect rotation, and rotate picture if needed.
-            rotation = atan((i2 - i1)/(j2 - j1))
-            print("Detect rotation: %s degrees." % degrees(round(rotation, 4)))
-            # cf. http://stackoverflow.com/questions/5252170/specify-image-filling-color-when-rotating-in-python-with-pil-and-setting-expand
-            rgba = pic.convert('RGBA')
-            rgba = rgba.rotate(degrees(rotation), resample=Image.BICUBIC, expand=True)
-            white = Image.new('RGBA', rgba.size, (255, 255, 255, 255))
-            out = Image.composite(rgba, white, rgba)
-            pic = out.convert(pic.mode)
-            m = array(pic)/255.
-            continue
-
-        # From there, we assume that the rotation is negligable.
-
-        # We will now evaluate squares size more precisely (printers or scanner
-        # margins may result in a picture a bit scaled).
-        # On the top of the paper sheet, there are two squares, one at the top left
-        # and the other at the top right.
-        # This is the top of the sheet:
-        #                               1 cm
-        #                                <->
-        #   ┌╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴┐↑
-        #   |                              |↓ 1 cm
-        #   |  ■                        ■  |
-        #
-        # Distance between the top left corners of the top left and top right squares is:
-        # 21 cm - 2 cm (margin left and margin right) - SQUARE_SIZE_IN_CM (1 square)
-        pixels_per_cm = (j2 - j1)/(19 - SQUARE_SIZE_IN_CM)
-        # We should now have an accurate value for square size.
-        f_square_size = SQUARE_SIZE_IN_CM*pixels_per_cm
-        square_size = int(round(f_square_size))
-        print("Square size final value (pixels): %s (%s)" % (square_size, f_square_size))
+        (x, y) is the position from the bottom left of the page in mm,
+        as given by LaTeX.
+        (i, j) is the position in pixels, where i is the line and j the
+        column, starting from the top left of the image.
+        '''
+        i = (287 - y)*v_pixels_per_mm + TOP
+        j = (x - 10)*h_pixels_per_mm + LEFT
+        return (round(i), round(j))
 
 
-        # ------------------------------------------------------------------
-        #                      READ IDENTIFIER
-        # ------------------------------------------------------------------
-        # Now, detect the home made "QR code".
-        # This code is made of a band of 16 black or white squares
-        # (the first one is always black and is only used to detect the band).
-        # ■■□■□■□■■□□□■□□■ = 0b100100011010101 =  21897
-        # 2**15 = 32768 different values.
-
-        # Restrict search area to avoid detecting anything else, like students names list.
-        imin = i1 - square_size//2
-        imax = i1 + (3*square_size)//2
-        try:
-            i3, j3 = find_black_square(m[imin:imax,maxj:minj], size=square_size,
-                                       error=0.3, mode='c', debug=False).__next__()
-            # Orientation seems to be OK, quit calibration phase.
-            break
-        except StopIteration:
-            if not flip_set:
-                flip_set = True
-                rgba = pic.convert('RGBA')
-                rgba = rgba.transpose(method=Image.ROTATE_180)
-                white = Image.new('RGBA', rgba.size, (255, 255, 255, 255))
-                out = Image.composite(rgba, white, rgba)
-                pic = out.convert(pic.mode)
-                m = array(pic)/255.
-                continue
-            print("ERROR: Can't find identification band, displaying search area in red.")
-            color2debug(m, (imin, minj), (imax, maxj))
-            raise RuntimeError("Can't find identification band !")
-
-    i3 += imin
-    j3 += maxj
-    #~ print("Identification band starts at (%s, %s)" % (i3, j3))
-    #~ color2debug((i3, j3), (i3 + square_size, j3), color=(0,255,0), display=False)
-    #~ color2debug((i3, j3), (i3, j3 + square_size), color=(0,255,0), display=False)
-
-    # (i3, j3) is the top left corner of the ID band.
+    # ------------------------------------------------------------------
+    #                      READ IDENTIFIER
+    # ------------------------------------------------------------------
+    # Now, detect the home made "QR code".
+    # This code is made of a band of 16 black or white squares
+    # (the first one is always black and is only used to detect the band).
+    # ■■□■□■□■■□□□■□□■ = 0b100100011010101 =  21897
+    # 2**15 = 32768 different values.
 
     identifier = 0
     # Test the color of the 15 following squares,
     # and interpret it as a binary number.
-    j = j3
+
     for k in range(24):
-        j = int(round(j3 + (k + 1)*f_square_size))
-        #~ if k%2:
-            #~ color2debug((i3, j), (i3 + square_size, j + square_size), display=False)
-        #~ else:
-            #~ color2debug((i3, j), (i3 + square_size, j + square_size), color=(0,0,255), display=False)
-        if test_square_color(m, i3, j, square_size, proportion=0.5, gray_level=0.5):
+        j_ = round(j + (k + 1)*f_square_size)
+        if k%2:
+            color2debug(m, (i, j_), (i + square_size, j_ + square_size), display=False)
+        else:
+            color2debug(m, (i, j_), (i + square_size, j_ + square_size), color=(0,0,255), display=False)
+        if test_square_color(m, i, j_, square_size, proportion=0.5, gray_level=0.5):
             identifier += 2**k
             #~ print((k, (i3, j)), " -> black")
         #~ else:
             #~ print((k, (i3, j)), " -> white")
-    #~ color2debug()
+
+    color2debug(m)
     # Nota: If necessary (although this is highly unlikely !), one may extend protocol
     # by adding a second band (or more !), starting with a black square.
     # This function will test if a black square is present below the first one ;
@@ -233,33 +345,12 @@ def scan_picture(filename, config):
     identifier = identifier//256
     print("Identifier read: %s" % identifier)
 
-    # Exclude the codebar and top squares from the search area.
-    # If rotation correction was well done, we should have i1 ≃ i2 ≃ i3.
-    # Anyway, it's safer to take the max of them.
-    vpos = max(i1, i2, i3) + 2*square_size
 
 
-    # For now, we can convert LaTeX position to pixel with a good precision.
-    f_cell_size = CELL_SIZE_IN_CM*pixels_per_cm
-    cell_size = int(round(f_cell_size))
-    yshift = i1 - pixels_per_cm
-    xshift = j1 - pixels_per_cm
-    TOP = i1
-    LEFT = j1
+    # ~ yshift = i1 - pixels_per_cm
+    # ~ xshift = j1 - pixels_per_cm
     # ~ color2debug(m, (TOP, LEFT), (TOP + square_size, LEFT + square_size))
 
-    def xy2ij(x, y):
-        '''Convert (x, y) position (mm) to pixels (i,j).
-
-        (x, y) is the position from the bottom left of the page in mm,
-        as given by LaTeX.
-        (i, j) is the position in pixels, where i is the line and j the
-        column, starting from the top left of the image.
-        '''
-        pixels_per_mm = pixels_per_cm/10
-        i = (287 - y)*pixels_per_mm + TOP
-        j = (x - 10)*pixels_per_mm + LEFT
-        return (int(round(i)), int(round(j)))
 
     # ~ i, j = xy2ij(10, 10) # Top-left corner
     # ~ color2debug(m, (i, j), (i + cell_size, j + cell_size))
@@ -286,6 +377,11 @@ def scan_picture(filename, config):
             # (just like in next section),
             # instead of scanning a large area to detect first black square.
 
+            # Exclude the codebar and top squares from the search area.
+            # If rotation correction was well done, we should have i1 ≃ i2 ≃ i3.
+            # Anyway, it's safer to take the max of them.
+            vpos = TOP + 2*square_size
+
             student_number = None
             search_area = m[vpos:vpos + 4*square_size,:]
             i, j0 = find_black_square(search_area, size=square_size, error=0.3, mode='c').__next__()
@@ -294,7 +390,7 @@ def scan_picture(filename, config):
 
             l = []
             for k in range(1, n_students + 1):
-                j = int(round(j0 + 2*k*f_square_size))
+                j = round(j0 + 2*k*f_square_size)
                 l.append(test_square_color(search_area, i, j, square_size))
                 #~ if k > 15:
                     #~ print(l)
@@ -320,7 +416,7 @@ def scan_picture(filename, config):
         #
         elif ids:
             ID_length, max_digits, digits = set_up_ID_table(ids)
-            height = ID_length*cell_size
+            # ~ height = ID_length*cell_size
 
             i0, j0 = xy2ij(*config['ID-table-pos'])
 
@@ -332,7 +428,7 @@ def scan_picture(filename, config):
             student_ID = ''
             for n in range(ID_length):
                 # Top of the row.
-                i = int(round(i0 + n*f_cell_size))
+                i = round(i0 + n*f_cell_size)
                 black_cells = []
                 # If a cell is black enough, a couple (indice_of_blackness, digit)
                 # will be appended to the list `cells`.
@@ -342,10 +438,10 @@ def scan_picture(filename, config):
                 # and the second blackest.
                 for k, d in enumerate(sorted(digits[n])):
                     # Left ot the cell.
-                    j = int(round(j0 + (k + 1)*f_cell_size))
+                    j = round(j0 + (k + 1)*f_cell_size)
                     # ~ val = eval_square_color(m, i, j, cell_size)
                     # ~ print(d, val)
-                    # ~ color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
+                    color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
                     # ~ color2debug(m, (i + 2, j + 2), (i - 2 + cell_size, j - 2+ cell_size), color=(1,1,0))
                     if test_square_color(m, i, j, cell_size):
                         blackness = eval_square_color(m, i, j, cell_size)
@@ -403,10 +499,19 @@ def scan_picture(filename, config):
 
     for ((question, answers), correct_answers) in zip(boxes.items(),
                                          config['answers'][identifier]):
+        # ~ q = '-'
+        # ~ while q:
+            # ~ try:
+                # ~ q = input('>>>')
+                # ~ print(eval(q))
+            # ~ except:
+                # ~ pass
+
         question = int(question)
         print(f'{ANSI_CYAN}• Question {question}{ANSI_RESET}')
         proposed = set()
         correct = set(correct_answers)
+        print('correct:', correct)
         for answer, infos in answers.items():
             answer = int(answer)
             i, j = xy2ij(*infos['pos'])
@@ -414,9 +519,11 @@ def scan_picture(filename, config):
             # Remove borders of the square when testing,
             # since it may induce false positives.
 
-            # ~ color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
+            color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
             if (test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.2, gray_level=0.65) or
-                    test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.4, gray_level=0.75)):
+                    test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.4, gray_level=0.75) or
+                    test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.45, gray_level=0.8) or
+                    test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.5, gray_level=0.85)):
                 c = '■'
                 # ~ is_ok = infos['correct']
                 is_ok = (answer in correct)
@@ -457,7 +564,7 @@ def scan_picture(filename, config):
         print(f'\n  {color}Rating: {color}{earn:g}{ANSI_RESET}\n')
         score += earn
 
-    # ~ color2debug(m, (0,0), (0,0), display=True)
+    color2debug(m, (0,0), (0,0), display=True)
     print(f'\nScore: {ANSI_REVERSE}{score:g}{ANSI_RESET}\n')
 
     return {'ID': identifier, 'page': page, 'name': student_name, 'score': score}

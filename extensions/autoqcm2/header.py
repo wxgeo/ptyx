@@ -1,13 +1,12 @@
 from string import ascii_letters
 import csv
-import re
 import sys
 from os.path import abspath, dirname, isabs, join
 
 script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 sys.path.insert(0, script_path)
-from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM,
-                         MARGIN_RIGHT_IN_CM, PAPER_FORMAT, PAPER_FORMATS,
+from parameters import (CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM, # SQUARE_SIZE_IN_CM,
+                         MARGIN_RIGHT_IN_CM, PAPER_FORMAT, # PAPER_FORMATS,
                          MARGIN_BOTTOM_IN_CM, MARGIN_TOP_IN_CM
                         )
 

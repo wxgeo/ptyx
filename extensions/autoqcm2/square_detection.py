@@ -5,7 +5,19 @@ from os.path import join
 from numpy import array, nonzero, transpose
 from PIL import Image
 
-
+COLORS = {'red':        (255, 0, 0),
+          'green':      (0, 255, 0),
+          'blue':       (0, 255, 0),
+          'yellow':     (255, 255, 0),
+          'magenta':    (255, 0, 255),
+          'cyan':       (0, 255, 255),
+          'white':      (255, 255, 255),
+          'black':      (0, 0, 0),
+          'orange':     (255, 128, 0),
+          'purple':     (128, 128, 0),
+          'purple':     (128, 128, 0),
+          }
+# See also: https://pypi.org/project/webcolors/
 
 
 def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4, mode='l', debug=False):
@@ -26,8 +38,12 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
     indicating black squares top left corner.
 
     """
+    # ~ color2debug(matrix)
     # First, convert grayscale image to black and white.
+    if debug:
+        color2debug(matrix, display=True)
     m = array(matrix, copy=False) < gray_level
+
     # Black pixels are represented by False, white ones by True.
     #pic_height, pic_width = m.shape
     per_line = (1 - error)*width
@@ -48,12 +64,14 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
         # Avoid to detect an already found square.
         if debug:
             print("Black pixel found at %s, %s" % (i, j))
-            #~ color2debug(matrix, (i,j), (i + 2,j + 2), color=(255,0,255), fill=True)
+        # ~ color2debug(m.astype(float), (i, j), (i + width, j + height), color=(255,0,255))
         if any((li_min <= i <= li_max and co_min <= j <= co_max)
                 for (li_min, li_max, co_min, co_max) in to_avoid):
             continue
         assert m[i, j] == 1
         total = m[i:i+height, j:j+width].sum()
+        # ~ print(f'Black pixels ratio: {total}/{width*height} ; Min: {goal}.')
+        # ~ input('- pause -')
 #        print("Detection: %s found (minimum was %s)." % (total, goal))
         if total >= goal:
             #~ print("\nBlack square found at (%s,%s)." % (i, j))
@@ -143,8 +161,8 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
             yield (i, j)
 
 
-def find_black_square(matrix, size, **kw):
-    return find_black_rectangle(matrix, width=size, height=size, **kw)
+def find_black_square(matrix, size, error=.4, gray_level=.4, **kw):
+    return find_black_rectangle(matrix, width=size, height=size, error=error, gray_level=gray_level, **kw)
 
 
 def detect_all_squares(matrix, size=50, error=0.30):
@@ -190,10 +208,18 @@ def eval_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=Fals
 
 
 
-def find_lonely_square(m, size, error):
-    "Find a black square surrounded by a white area."
+def find_lonely_square(m, size, error=.4, gray_level=.4):
+    """Find a black square surrounded by a white area.
+
+    - `size` is the length of the edge (in pixels).
+    - `error` is the ratio of white pixels allowed in the black square.
+    - `gray_level` is the level above which a pixel is considered to be white.
+       If it is set to 0, only black pixels will be considered black ; if it
+       is close to 1 (max value), almost all pixels are considered black
+       except white ones (for which value is 1.).
+    """
     s = size
-    for i, j in find_black_square(m, s, error=0.4):
+    for i, j in find_black_square(m, s, error, gray_level):
         # Test if all surrounding squares are white.
         # (If not, it could be a false positive, caused by a stain
         # or by some student writing.)
@@ -202,7 +228,7 @@ def find_lonely_square(m, size, error):
                                    (i, j - s), (i, j + s),
                                    (i + s, j - s), (i + s, j), (i + s, j + s)]):
             return i, j
-
+    raise LookupError("No lonely black square in the search area.")
 
 
 
@@ -230,6 +256,7 @@ def color2debug(array, from_=None, to_=None, color=(255, 0, 0), display=True, fi
     - Left-draging the picture with mouse inside feh removes bluring/anti-aliasing,
       making visual debugging a lot easier.
     """
+    color = COLORS.get(color, color)
     ID = id(array)
     if ID not in _d:
         # Load image only if not loaded previously.

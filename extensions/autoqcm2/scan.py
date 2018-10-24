@@ -23,9 +23,9 @@
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-from os.path import (isdir, isfile, join as joinpath, expanduser, abspath,
+from os.path import (isdir, isfile, join, expanduser, abspath,
                      dirname, basename)
-from os import listdir, mkdir
+from os import listdir, mkdir, rename
 from shutil import rmtree
 import subprocess
 import argparse
@@ -34,7 +34,7 @@ import sys
 
 # File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
 script_path = dirname(abspath(sys._getframe().f_code.co_filename))
-sys.path.insert(0, joinpath(script_path, '../..'))
+sys.path.insert(0, join(script_path, '../..'))
 
 from header import answers_and_score
 from compilation import make_file, join_files
@@ -65,26 +65,49 @@ def search_by_extension(directory, ext):
         raise RuntimeError('Several `%s` file found in that directory (%s) ! '
             'Keep one and delete all others (or rename their extensions).'
             % (ext, directory))
-    return joinpath(directory, names[0])
+    return join(directory, names[0])
 
 
-def extract_pictures(pdf_path, dest, page=None):
+
+def _extract_pictures(pdf_path, dest, page=None):
     "Extract all pictures from pdf file in given `dest` directory. "
-    print('Extracting all images from pdf, please wait...')
-    cmd = ["pdfimages", "-all", pdf_path, joinpath(dest, 'pic')]
+    cmd = ["pdfimages", "-all", pdf_path, join(dest, 'pic')]
     if page is not None:
         p = str(page)
         cmd = cmd[:1] + ['-f', p, '-l', p] + cmd[1:]
     #~ print(cmd)
     subprocess.run(cmd, stdout=subprocess.PIPE)
 
-def convert_pdf_to_png(pdf_path, dest, page=None):
+def _export_pdf_to_jpg(pdf_path, dest, page=None):
     print('Convert PDF to PNG, please wait...')
     cmd = ['gs', '-dNOPAUSE', '-dBATCH', '-sDEVICE=jpeg', '-r200',
-           '-sOutputFile=' + joinpath(dest, 'page-%03d.jpg'), pdf_path]
+           '-sOutputFile=' + join(dest, 'page-%03d.jpg'), pdf_path]
     if page is not None:
         cmd = cmd[:1] + ["-dFirstPage=%s" % page, "-dLastPage=%s" % page] + cmd[1:]
     subprocess.run(cmd, stdout=subprocess.PIPE)
+
+
+def pdf2pic(*pdf_files, dest, page=None):
+    "Clear `dest` folder, then extract of pages of the pdf files inside."
+    rmtree(dest)
+    mkdir(dest)
+    tmp_dir = join(dest, '.tmp')
+    for i, pdf in enumerate(pdf_files):
+        print(f'Extracting all images from {basename(pdf)!r}, please wait...')
+        rmtree(tmp_dir, ignore_errors=True)
+        mkdir(tmp_dir)
+        _extract_pictures(pdf, tmp_dir, page)
+        # PDF may contain special files (OCR...) we can't handle.
+        # In that case, we will rasterize pdf.
+        pics = listdir(tmp_dir)
+        if not all(any(f.endswith(ext) for ext in PIC_EXTS) for f in pics):
+            rmtree(tmp_dir)
+            mkdir(tmp_dir)
+            _export_pdf_to_jpg(pdf, tmp_dir, args.page)
+        for pic in pics:
+            rename(join(tmp_dir, pic), join(dest, f'f{i}-{pic}'))
+    rmtree(tmp_dir)
+
 
 
 def number_of_pages(pdf_path):
@@ -152,17 +175,19 @@ if __name__ == '__main__':
     # Following options can't be used simultaneously.
     group.add_argument("-p", "--page", metavar="P", type=int,
                                         help="Read only page P of pdf file.")
-    group.add_argument("-s", "--skip-pages", metavar="P", type=int, nargs='+', default=[],
-                                        help="Skip page P of pdf file.")
+    group.add_argument("-sk", "--skip", "--skip-pages", metavar="P", type=int, nargs='+', default=[],
+                                        help="Skip page(s) P [P ...] of pdf file.")
     parser.add_argument("-n", "--names", metavar="CSV_FILENAME", type=str,
                                         help="Read names from file CSV_FILENAME.")
     parser.add_argument("-P", "--print", action='store_true',
                         help='Print scores and solutions on default printer.')
-    parser.add_argument("-m", '-M', "--mail", metavar="CSV_file",
+    parser.add_argument("-m", "--mail", metavar="CSV_file",
                                                 help='Mail scores and solutions.')
     parser.add_argument("--reset", action="store_true", help='Delete `scan` directory.')
     parser.add_argument("-d", "--dir", type=str,
-                            help='Specify a directory with write permission.')
+                        help='Specify a directory with write permission.')
+    parser.add_argument("-s", "--scan", "--scan-dir", type=str, metavar='DIR',
+                        help='Specify the directory where the scanned tests can be found.')
     parser.add_argument("--hide-scores", action='store_true',
                 help="Print only answers, not scores, in generated pdf files.")
     args = parser.parse_args()
@@ -192,15 +217,18 @@ if __name__ == '__main__':
         # Generate the paths
         # ------------------
 
+        INPUT_DIR = args.scan or join(DIR, 'scan')
+
+        # `.scan` directory is used to write intermediate files.
         # Directory tree:
-        # scan/
-        # scan/pic -> pictures extracted from the pdf
-        # scan/cfg/more_infos.csv -> missing students names.
-        # scan/scores.csv
-        SCAN_DIR = joinpath(args.dir or DIR, 'scan')
-        CFG_DIR = joinpath(SCAN_DIR, 'cfg')
-        PIC_DIR = joinpath(SCAN_DIR, 'pic')
-        PDF_DIR = joinpath(SCAN_DIR, 'pdf')
+        # .scan/
+        # .scan/pic -> pictures extracted from the pdf
+        # .scan/cfg/more_infos.csv -> missing students names.
+        # .scan/scores.csv
+        SCAN_DIR = join(args.dir or DIR, '.scan')
+        CFG_DIR = join(SCAN_DIR, 'cfg')
+        PIC_DIR = join(SCAN_DIR, 'pic')
+        PDF_DIR = join(SCAN_DIR, 'pdf')
 
         if args.reset and isdir(SCAN_DIR):
             rmtree(SCAN_DIR)
@@ -211,9 +239,9 @@ if __name__ == '__main__':
                 mkdir(directory)
 
         base_name = basename(search_by_extension(DIR, '.ptyx'))[:-5]
-        scan_pdf_path = search_by_extension(DIR, '.scan.pdf')
-        scores_pdf_path = joinpath(PDF_DIR, '%s-scores' % base_name)
-        data_path = joinpath(CFG_DIR, 'data.csv')
+        # ~ scan_pdf_path = search_by_extension(DIR, '.scan.pdf')
+        scores_pdf_path = join(PDF_DIR, '%s-scores' % base_name)
+        data_path = join(CFG_DIR, 'data.csv')
 
         # Print scores and solutions (a first scan must have been done earlier).
         if args.print:
@@ -249,20 +277,17 @@ if __name__ == '__main__':
         else:
             passed_names = None
 
+        # Extract images from all the PDF files of the input directory.
+        # If images are already cached in `.scan` directory, this step will be skipped.
+        pdf_files = [join(INPUT_DIR, name) for name in listdir(INPUT_DIR) if name.endswith('.pdf')]
+        total_page_number = sum(number_of_pages(pdf) for pdf in pdf_files)
 
-        # Extract all images from pdf.
-        if len(listdir(PIC_DIR)) != number_of_pages(scan_pdf_path):
-            extract_pictures(scan_pdf_path, PIC_DIR, args.page)
-
-        pics = listdir(PIC_DIR)
-        if not all(any(f.endswith(ext) for ext in PIC_EXTS) for f in pics):
-            rmtree(PIC_DIR)
-            mkdir(PIC_DIR)
-            convert_pdf_to_png(scan_pdf_path, PIC_DIR, args.page)
+        if len(listdir(PIC_DIR)) != total_page_number or args.page:
+            pdf2pic(*pdf_files, dest=PIC_DIR, page=args.page)
 
         # Read manually entered informations (if any).
         more_infos = {} # sheet_id: name
-        cfg_path = joinpath(CFG_DIR, 'more_infos.csv')
+        cfg_path = join(CFG_DIR, 'more_infos.csv')
         if isfile(cfg_path):
             with open(cfg_path, 'r', newline='') as csvfile:
                 reader = csv.reader(csvfile)
@@ -303,7 +328,7 @@ if __name__ == '__main__':
         for i, pic in enumerate(pic_list):
             if args.page is not None and args.page != i + 1:
                 continue
-            if i + 1 in args.skip_pages:
+            if i + 1 in args.skip:
                 continue
             print('-------------------------------------------------------')
             print('Page', i + 1)
@@ -312,7 +337,7 @@ if __name__ == '__main__':
             # 1) Extract all the data of an image
             #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
-            pic_path = joinpath(PIC_DIR, pic)
+            pic_path = join(PIC_DIR, pic)
             pic_data = scan_picture(pic_path, config)
             #...........................................................
             # `pic_data` FORMAT: {'ID': (int) ID of the test,
@@ -362,7 +387,11 @@ if __name__ == '__main__':
                     else:
                         name = read_name_manually(pic_path, config, msg=name)
                         more_infos[ID] = name
-
+                        # Keep track of manually entered information (will be useful
+                        # if `scan.py` has to be run again later !)
+                        with open(cfg_path, 'a', newline='') as csvfile:
+                            writerow = csv.writer(csvfile).writerow
+                            writerow([str(ID), name])
 
                 # (c) A name must not appear twice
                 #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
@@ -394,13 +423,6 @@ if __name__ == '__main__':
         # Time to synthetize & store all those informations !
         # ---------------------------------------------------
 
-        # Keep track of manually entered information (will be useful
-        # if `scan.py` has to be run again later !)
-        with open(cfg_path, 'w', newline='') as csvfile:
-            writerow = csv.writer(csvfile).writerow
-            for sheet_id, name in more_infos.items():
-                writerow([str(sheet_id), name])
-
         # Names list should be empty now.
         if passed_names:
             raise RuntimeError(f'Too many names in {args.names!r} !')
@@ -409,7 +431,7 @@ if __name__ == '__main__':
         # Generate CSV file with results.
         scores = {d['name']: d['score'] for d in data.values()}
         #~ print(scores)
-        scores_path = joinpath(SCAN_DIR, 'scores.csv')
+        scores_path = join(SCAN_DIR, 'scores.csv')
         print(f'{ANSI_CYAN}SCORES (/{MAX_SCORE:g}):{ANSI_RESET}')
         with open(scores_path, 'w', newline='') as csvfile:
             writerow = csv.writer(csvfile).writerow
@@ -428,7 +450,7 @@ if __name__ == '__main__':
             #~ identifier, answers, name, score, students, ids
             name = d['name']
             score = d['score']
-            path = joinpath(PDF_DIR, '%s-%s-corr.score' % (base_name, ID))
+            path = join(PDF_DIR, '%s-%s-corr.score' % (base_name, ID))
             pdf_paths.append(path)
             print('Generating pdf file for student %s (subject %s, score %s)...'
                                                     % (name, ID, score))
