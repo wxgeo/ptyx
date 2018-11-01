@@ -565,7 +565,7 @@ class LatexGenerator:
                 # Nodes are either numbered, or have a name.
                 # Numbered nodes correspond to command arguments. Those should
                 # have been processed before, and not be passed to _parse_children().
-                assert isinstance(child.name, str)
+                assert isinstance(child.name, str), child.name
 
                 self.parse_node(child)
 

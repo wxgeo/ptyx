@@ -8,7 +8,7 @@ from numpy import array
 from square_detection import test_square_color, find_black_square, \
                              eval_square_color,  \
                              find_lonely_square, color2debug
-from config_reader import read_config
+from config_parser import load
 from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM)
 from header import set_up_ID_table
 
@@ -25,6 +25,12 @@ ANSI_BOLD = "\u001B[1m";
 ANSI_REVERSE = "\u001B[45m";
 
 CORNERS = frozenset(('tl', 'tr', 'bl', 'br'))
+CORNER_NAMES = {'tl': 'top-left', 'tr': 'top-right', 'bl': 'bottom-left',
+                'br': 'bottom-right'}
+
+#TODO: calibrate grayscale too.
+#At the bottom of the page, display 5 squares:
+# Black - Gray - Light gray - White - Light gray - Gray - Black
 
 
 def round(f, n=None):
@@ -32,7 +38,7 @@ def round(f, n=None):
     # round(f) should return an integer, but the problem is
     # __builtin__.round(f) doesn't return an int if type(f) is np.float64.
     # See: https://github.com/numpy/numpy/issues/11810
-    return (int(builtins.round(f)) if n is None else round(f))
+    return (int(builtins.round(f)) if n is None else builtins.round(f, n))
 
 
 def transform(pic, transformation, *args, **kw):
@@ -57,26 +63,29 @@ def find_corner_square(m, size, corner, h, w, tolerance, whiteness):
         j0, j1 = 0, w - 1
     else:
         j0, j1 = l - h, l - 1
-    m = m[i0:i1,j0:j1]
-    i, j = find_lonely_square(m, size, error=tolerance, gray_level=whiteness)
+    area = m[i0:i1,j0:j1]
+    i, j = find_lonely_square(area, size, error=tolerance, gray_level=whiteness)
     return i0 +i, j0 + j
 
 
 
-def detect_four_squares(m, square_size, cm):
+def detect_four_squares(m, square_size, cm, debug=False):
     h = w = round(2*(1 + SQUARE_SIZE_IN_CM)*cm)
     tolerance = 0.4
     whiteness = 0.4
     # Make a mutable copy of frozenset CORNERS.
     corners = set(CORNERS)
     positions = {}
-    n = 0
     give_up = False
     while len(positions) < 4 and not give_up:
         for corner in CORNERS:
             try:
                 i, j = find_corner_square(m, square_size, corner, h, w, tolerance, whiteness)
-                # ~ color2debug(m, (i, j), (i + square_size, j + square_size), display=False)
+                # We may have only detected a part of the square by restricting
+                # the search area, so extend search by the size of the square.
+                i, j = find_corner_square(m, square_size, corner, h + square_size,
+                                          w + square_size, tolerance, whiteness)
+                color2debug(m, (i, j), (i + square_size, j + square_size), display=False)
                 positions[corner] = i, j
                 corners.remove(corner)
             except LookupError:
@@ -88,8 +97,9 @@ def detect_four_squares(m, square_size, cm):
         if whiteness < 0.7:
             whiteness += 0.01
             give_up = False
-        if h < 4*cm and len(positions) < 3:
+        if h < 4*cm:
             h += 4
+            w += 2
             give_up = False
         # ~ if input(len(positions)) == 'd':
             # ~ color2debug(m)
@@ -97,16 +107,52 @@ def detect_four_squares(m, square_size, cm):
     # If one calibration square is missing (a corner of the sheet is
     # folded for example), it will be generated from the others.
 
+    if len(positions) < 3:
+        color2debug(m)
+        raise RuntimeError('Only 2 squares found, calibration failed !')
+
+    # If there are 4 squares, and one is less dark than the others,
+    # let's drop it and use only the 3 darkers.
+    # (The 4th square will be generated again using the position of the 3 others).
+
+    if len(positions) == 4:
+        darkness = {}
+        for corner, position in positions.items():
+            darkness[corner] = eval_square_color(m, *position, square_size)
+
+        lighter_corner = min(darkness, key=darkness.get)
+        if darkness[lighter_corner] < 0.55:
+            print(f'Removing {CORNER_NAMES[lighter_corner]} corner (too light !)')
+            del positions[lighter_corner]
+
+
     for corner in CORNERS:
         if corner not in positions:
-            tb, lr = corner
-            positions[corner] = (positions[tb + ('r' if lr == 'l' else 'r')][0],
-                                 positions[('t' if tb == 'b' else 'b') + lr][1])
+            print(f'Warning: {CORNER_NAMES[corner]} corner not found.\n'
+                   'Its position will be deduced from the 3 other corners.')
+            V, H = corner # 'b' 'r'
+            nV, nH = ('t' if V == 'b' else 'b'), ('l' if H == 'r' else 'r')
+            # This is the opposite corner of the missing one.
+            i0, j0 = positions[nV + nH]
+            i1, j1 = positions[nV + H]
+            i2, j2 = positions[V + nH]
+            i = i2 + (i1 - i0)
+            j = j2 + (j1 - j0)
+
+            # Calculate the last corner (ABCD parallelogram <=> Vec{AB} = \Vec{DC})
+            positions[corner] = (i, j)
+            color2debug(m, (i, j), (i + square_size, j + square_size), color="cyan", display=False)
+
             # For example: positions['bl'] = positions['br'][0], positions['tl'][1]
     i1 = round((positions['tl'][0] + positions['tr'][0])/2)
     i2 = round((positions['bl'][0] + positions['br'][0])/2)
     j1 = round((positions['tl'][1] + positions['bl'][1])/2)
     j2 = round((positions['tr'][1] + positions['br'][1])/2)
+
+    if debug:
+        color2debug(m, (i1, j1), (i2, j2), color='green')
+    else:
+        color2debug()
 
     return positions, (i1, j1), (i2, j2)
 
@@ -114,7 +160,7 @@ def detect_four_squares(m, square_size, cm):
 
 def find_ID_band(m, i, j1, j2, square_size):
     "Return the top left corner (coordinates in pixels) of the ID band first square."
-    margin = 4
+    margin = square_size
     i1, i2 = i - margin, i + square_size + margin
     j1, j2 = j1 + 3*square_size, j2 - 2*square_size
     color2debug(m, (i1, j1), (i2, j2), display=False)
@@ -125,7 +171,7 @@ def find_ID_band(m, i, j1, j2, square_size):
 
 
 
-def calibrate(pic, m):
+def calibrate(pic, m, debug=False):
     u"Detect picture resolution and ensure correct orientation."
     # Ensure that the picture orientation is portrait, not landscape.
     L, l = m.shape
@@ -140,7 +186,7 @@ def calibrate(pic, m):
     # Calculate resolution (DPI and DPCM).
     cm = m.shape[1]/21
     # Unit conversion: 1 inch = 2.54 cm
-    print(f"Detect dpi:  {2.54*cm}")
+    print(f"Detect pixels/cm: {cm} (dpi: {2.54*cm})")
 
     # Evaluate approximatively squares size using image dpi.
     # Square size is equal to SQUARE_SIZE_IN_CM in theory, but this vary
@@ -179,7 +225,8 @@ def calibrate(pic, m):
     # We'll search for a square alternatively in the four corners,
     # extending the search area and beeing more tolerant if needed.
 
-    positions, *_ = detect_four_squares(m, square_size, cm)
+
+    positions, *_ = detect_four_squares(m, square_size, cm, debug=debug)
     print(positions)
 
     # Now, let's detect the rotation.
@@ -194,7 +241,7 @@ def calibrate(pic, m):
     rotation_v1 = atan((j1 - j2)/(i2 - i1))
     (i1, j1), (i2, j2) = positions['tr'], positions['br']
     rotation_v2 = atan((j1 - j2)/(i2 - i1))
-    rotation_v = degrees(.5*(rotation_h1 + rotation_h2))
+    rotation_v = degrees(.5*(rotation_v1 + rotation_v2))
     print("Detected rotation (v): %s degrees." % round(rotation_v, 4))
 
     # Rotate page.
@@ -203,8 +250,18 @@ def calibrate(pic, m):
     print(f'Rotate picture: {round(rotation, 4)}°')
     pic, m = transform(pic, 'rotate', rotation, resample=Image.BICUBIC, expand=True)
 
+    (i1, j1), (i2, j2) = positions['tl'], positions['br']
+    # Distance between the (top left corners of the) left and right squares is:
+    # 21 cm - 2 cm (margin left and margin right) - SQUARE_SIZE_IN_CM (1 square)
+    h_pixels_per_mm = (j2 - j1)/(190 - 10*SQUARE_SIZE_IN_CM)
+    # Distance between the (top left corners of the) top and bottom squares is:
+    # 29.7 cm - 2 cm (margin left and margin right) - SQUARE_SIZE_IN_CM (1 square)
+    v_pixels_per_mm = (i2 - i1)/(277 - 10*SQUARE_SIZE_IN_CM)
+    cm = 10*(h_pixels_per_mm + 1.5*v_pixels_per_mm)/2.5
+    print(f"Detect pixels/cm: {cm}")
+
     # Redetect calibration squares.
-    positions, (i1, j1), (i2, j2) = detect_four_squares(m, square_size, cm)
+    positions, (i1, j1), (i2, j2) = detect_four_squares(m, square_size, cm, debug=debug)
 
 
     try:
@@ -214,7 +271,7 @@ def calibrate(pic, m):
         print('Reversed page detected: 180° rotation.')
         pic, m = transform(pic, 'transpose', method=Image.ROTATE_180)
         # Redetect calibration squares.
-        positions, (i1, j1), (i2, j2) = detect_four_squares(m, square_size, cm)
+        positions, (i1, j1), (i2, j2) = detect_four_squares(m, square_size, cm, debug=debug)
         try:
             i3, j3 = find_ID_band(m, i1, j1, j2, square_size)
         except StopIteration:
@@ -230,36 +287,42 @@ def calibrate(pic, m):
     # Distance between the (top left corners of the) top and bottom squares is:
     # 29.7 cm - 2 cm (margin left and margin right) - SQUARE_SIZE_IN_CM (1 square)
     v_pixels_per_mm = (i2 - i1)/(277 - 10*SQUARE_SIZE_IN_CM)
+    cm = (h_pixels_per_mm + 1.5*v_pixels_per_mm)/2.5
 
 
     print(positions)
     for c, (i, j) in positions.items():
         color2debug(m, (i, j), (i + square_size, j + square_size), display=False)
     color2debug(m, (i3, j3), (i3 + square_size, j3 + square_size), display=False)
-    # ~ color2debug(m)
+    if debug:
+        color2debug(m)
+    else:
+        color2debug()
     # ~ input('- pause -')
 
     return m, h_pixels_per_mm, v_pixels_per_mm, positions['tl'], (i3, j3)
 
 
 
-def scan_picture(filename, config):
+def scan_picture(filename, config, manual_verification=False, debug=False):
     """Scan picture and return page identifier and list of answers for each question.
 
-    - filename is a path pointing to a PNG file.
-    - config is either a path poiting to a config file, or a dictionnary
-    containing the following keys:
-      * n_questions is the number of questions
-      * n_answers is the number of answers per question.
-      * n_students is the number of students
+    - `filename` is a path pointing to a PNG file.
+    - `config` is either a path poiting to a config file, or a dictionnary
+      containing the configuration (generated from a config file).
+    - if `manual_verification` is set to True, the picture will be displayed
+      with the interpretation done by this algorithm: checkboxes considered
+      blackened by student will be shown in cyan, and all the other ones will be
+      shown in red.
 
-    Return the following tuple:
-      * int identifier: identifier of the sheet
-      * list answers: a list of lists of booleans
-      * str student_name: the name of the student if found, or None
-      * int score: the score of the student.
-      * list students: list of students names (str). May be empty.
-      * list ids: list of students ID (int). May be empty.
+    Return the following dictionnary:
+    {'ID': int, 'page': int, 'name': str, 'answered': dict, 'matrix': array}
+      * `ID`: identifier of the test
+      * `page`: page of the test
+      * `name`: student name
+      * `answered`: the answer selected by the student for each question
+        of the test. Format: {question_number: {set of answers numbers}}
+      * `matrix`: an array representing the current picture.
     """
 
     # Convert to grayscale picture.
@@ -271,7 +334,7 @@ def scan_picture(filename, config):
     # ------------------------------------------------------------------
     # Load configuration.
     if isinstance(config, str):
-        config = read_config(config)
+        config = load(config)
     # ~ n_questions = config['questions']
     # ~ n_answers = config['answers (max)']
     students = config['students']
@@ -283,7 +346,7 @@ def scan_picture(filename, config):
     #                          CALIBRATION
     # ------------------------------------------------------------------
 
-    m, h_pixels_per_mm, v_pixels_per_mm, (TOP, LEFT), (i, j) = calibrate(pic, m)
+    m, h_pixels_per_mm, v_pixels_per_mm, (TOP, LEFT), (i, j) = calibrate(pic, m, debug=debug)
     pixels_per_mm = (h_pixels_per_mm + 1.5*v_pixels_per_mm)/2.5
 
     # We should now have an accurate value for square size.
@@ -333,7 +396,7 @@ def scan_picture(filename, config):
         #~ else:
             #~ print((k, (i3, j)), " -> white")
 
-    color2debug(m)
+    # ~ color2debug(m)
     # Nota: If necessary (although this is highly unlikely !), one may extend protocol
     # by adding a second band (or more !), starting with a black square.
     # This function will test if a black square is present below the first one ;
@@ -418,7 +481,7 @@ def scan_picture(filename, config):
             ID_length, max_digits, digits = set_up_ID_table(ids)
             # ~ height = ID_length*cell_size
 
-            i0, j0 = xy2ij(*config['ID-table-pos'])
+            i0, j0 = xy2ij(*config['id-table-pos'])
 
             #~ color2debug(m, (imin + i0, j0), (imin + i0 + height, j0 + cell_size), color=(0,255,0))
             # ~ color2debug(m, (i0, j0), (i0 + cell_size, j0 + cell_size), color=(0,255,0))
@@ -426,6 +489,8 @@ def scan_picture(filename, config):
             # Scan grid row by row. For each row, the darker cell is retrieved,
             # and the associated caracter is appended to the ID.
             student_ID = ''
+            all_ID_are_of_the_same_length = (len(set(len(ID) for ID in ids)) == 1)
+
             for n in range(ID_length):
                 # Top of the row.
                 i = round(i0 + n*f_cell_size)
@@ -436,18 +501,26 @@ def scan_picture(filename, config):
                 # cell of the row will be a to be the one checked by the student,
                 # as long as there is enough difference between the blackest
                 # and the second blackest.
-                for k, d in enumerate(sorted(digits[n])):
+                digits_for_nth_caracter = sorted(digits[n])
+                if all_ID_are_of_the_same_length and len(digits_for_nth_caracter) == 1:
+                    # No need to read, there is no choice for this caracter !
+                    student_ID += digits_for_nth_caracter.pop()
+                    continue
+                for k, d in enumerate(digits_for_nth_caracter):
                     # Left ot the cell.
                     j = round(j0 + (k + 1)*f_cell_size)
                     # ~ val = eval_square_color(m, i, j, cell_size)
                     # ~ print(d, val)
-                    color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
+
                     # ~ color2debug(m, (i + 2, j + 2), (i - 2 + cell_size, j - 2+ cell_size), color=(1,1,0))
-                    if test_square_color(m, i, j, cell_size):
+                    if test_square_color(m, i, j, cell_size, gray_level=.8):
                         blackness = eval_square_color(m, i, j, cell_size)
                         black_cells.append((blackness, d))
                         print('Found:', d, blackness)
                         # ~ color2debug(m, (imin + i, j), (imin + i + cell_size, j + cell_size))
+                        color2debug(m, (i, j), (i + cell_size, j + cell_size), color='cyan', display=False)
+                    else:
+                        color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
                 if black_cells:
                     black_cells.sort(reverse=True)
                     print(black_cells)
@@ -462,7 +535,7 @@ def scan_picture(filename, config):
                 student_name = ids[student_ID]
             else:
                 print("Warning: invalid student id '%s' !" % student_ID)
-
+                # ~ color2debug(m)
 
 
         else:
@@ -478,12 +551,13 @@ def scan_picture(filename, config):
     # ------------------------------------------------------------------
 
     try:
-        boxes = config['boxes'][identifier - 1][page]
+        boxes = config['boxes'][identifier][page]
     except KeyError:
         raise KeyError(f'ID {identifier!r} - page {page!r} not found in config file !')
 
-    score = 0
+    ordering = config['ordering'][identifier]
     mode = config['mode']
+    correct_answers = config['correct_answers']
 
     # Detect the answers.
     print('\n=== Reading answers ===')
@@ -497,75 +571,55 @@ def scan_picture(filename, config):
     # Using the config file to obtain correct answers list allows some easy customization
     # after the test was generated (this is useful if some tests questions were flawed).
 
-    for ((question, answers), correct_answers) in zip(boxes.items(),
-                                         config['answers'][identifier]):
-        # ~ q = '-'
-        # ~ while q:
-            # ~ try:
-                # ~ q = input('>>>')
-                # ~ print(eval(q))
-            # ~ except:
-                # ~ pass
+    answered = {}
+    for key, pos in boxes.items():
+        # ~ should_have_answered = set() # for debuging only.
+        i, j = xy2ij(*pos)
+        q, a = key[1:].split('-')
+        # Now, we have to take care of the shuffling, to find the number
+        # of the correct answers.
+        q = q0 = int(q)
+        #XXX: answers should start at 1, not 0 (like questions) for coherence.
+        a = a0 = int(a) + 1
+        # `q0` and `a0` keep track of apparent question and answers numbers,
+        # which will be used on output to make debuging easier.
+        # Find "real" question number, ie. question number before shuffling.
+        q = ordering['questions'][q - 1]
+        # Find "real" answer number, ie. question number before shuffling.
+        a = ordering['answers'][q][a - 1]
 
-        question = int(question)
-        print(f'{ANSI_CYAN}• Question {question}{ANSI_RESET}')
-        proposed = set()
-        correct = set(correct_answers)
-        print('correct:', correct)
-        for answer, infos in answers.items():
-            answer = int(answer)
-            i, j = xy2ij(*infos['pos'])
+        answer_is_correct = (a in correct_answers)
+        # ~ if answer_is_correct:
+            # ~ should_have_answered.add(a0)
 
-            # Remove borders of the square when testing,
-            # since it may induce false positives.
 
+        if q not in answered:
+            answered[q] = set()
+            print(f'\n{ANSI_CYAN}• Question {q0}{ANSI_RESET}')
+
+        if (test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.2, gray_level=0.65) or
+                test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.4, gray_level=0.75) or
+                test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.45, gray_level=0.8) or
+                test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.5, gray_level=0.85)):
+            c = '■'
+            is_ok = (a in correct_answers[q])
+            answered[q].add(a)
+            color2debug(m, (i, j), (i + cell_size, j + cell_size), color='cyan', thickness=2, display=False)
+        else:
+            c = '□'
+            is_ok = (a not in correct_answers[q])
             color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
-            if (test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.2, gray_level=0.65) or
-                    test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.4, gray_level=0.75) or
-                    test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.45, gray_level=0.8) or
-                    test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.5, gray_level=0.85)):
-                c = '■'
-                # ~ is_ok = infos['correct']
-                is_ok = (answer in correct)
-                proposed.add(answer)
-            else:
-                c = '□'
-                # ~ is_ok = not infos['correct']
-                is_ok = (answer not in correct)
+        print(f"  {'' if is_ok else ANSI_YELLOW}{c} {a}  {ANSI_RESET}", end='\t')
+        # ~ print('\nCorrect answers:', should_have_answered)
+    print()
 
-            print(f"  {'' if is_ok else ANSI_YELLOW}{c} {answer + 1}  {ANSI_RESET}", end='\t')
 
-        # *** Calculate score ***
-        # Nota: most of the time, there should be only one correct answer.
-        # Anyway, this code intends to deal with cases where there are more
-        # than one correct answer too.
-        # If mode is set to 'all', student must check *all* correct propositions ;
-        # if not, answer will be considered incorrect. But if mode is set to
-        # 'some', then student has only to check a subset of correct propositions
-        # for his answer to be considered correct.
-        if mode == 'all':
-            ok = (correct == proposed)
-        elif mode == 'some':
-            # Answer is valid if and only if :
-            # (proposed ≠ ∅ and proposed ⊆ correct) or (proposed = correct = ∅)
-            ok = (proposed and proposed.issubset(correct)) or (not proposed and not correct)
-        else:
-            raise RuntimeError('Invalid mode (%s) !' % mode)
+    # ~ color2debug(m, (0,0), (0,0), display=True)
+    # ~ print(f'\nScore: {ANSI_REVERSE}{score:g}{ANSI_RESET}\n')
+    if debug or manual_verification:
+        color2debug(m)
+    else:
+        color2debug()
 
-        if ok:
-            earn = config['correct']
-            color = ANSI_GREEN
-        elif not proposed:
-            earn = config['skipped']
-            color = ANSI_YELLOW
-        else:
-            earn = config['incorrect']
-            color = ANSI_RED
-        print(f'\n  {color}Rating: {color}{earn:g}{ANSI_RESET}\n')
-        score += earn
-
-    color2debug(m, (0,0), (0,0), display=True)
-    print(f'\nScore: {ANSI_REVERSE}{score:g}{ANSI_RESET}\n')
-
-    return {'ID': identifier, 'page': page, 'name': student_name, 'score': score}
+    return {'ID': identifier, 'page': page, 'name': student_name, 'answered': answered, 'matrix': m}
 

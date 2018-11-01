@@ -2,7 +2,7 @@ import subprocess
 import tempfile
 from os.path import join
 
-from numpy import array, nonzero, transpose
+from numpy import array, nonzero, transpose, interp
 from PIL import Image
 
 COLORS = {'red':        (255, 0, 0),
@@ -18,6 +18,10 @@ COLORS = {'red':        (255, 0, 0),
           'purple':     (128, 128, 0),
           }
 # See also: https://pypi.org/project/webcolors/
+
+
+def total_grayness(m):
+    return interp(m, [0,0.2,0.8,1], [0, 0.1, 0.9, 1]).sum()
 
 
 def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4, mode='l', debug=False):
@@ -189,8 +193,9 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=Fals
     return square.sum() > proportion*size**2 and core.sum() > proportion*(size - 4)**2
 
 
-def eval_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=False):
+def eval_square_color(m, i, j, size, _debug=False):
     """Return an indice of blackness, which is a float in range (0, 1).
+    The bigger the float, the darker the square.
 
     The indice is useful to compare several squares, and find the blacker one.
     Note that the core of the square is considered the more important part to assert
@@ -199,12 +204,16 @@ def eval_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=Fals
     (i, j) is top left corner of the square, where i is line number
     and j is column number.
     """
-    square = m[i:i+size, j:j+size]
+    # Warning: pixels outside the sheet shouldn't be considered black !
+    # Since we're doing a sum, 0 should represent white and 1 black,
+    # so as if a part of the square is outside the sheet, it is considered
+    # white, not black ! This explain the `1 - m[...]` below.
+    square = 1 - m[i:i+size, j:j+size]
     # Test also the core of the square, since borders may induce false
     # positives.
     core = square[2:-2,2:-2]
     # ~ print(core.sum()/(size - 4)**2)
-    return 1 - (3*core.sum()/(size - 4)**2 + square.sum()/size**2)/4
+    return (3*core.sum()/(size - 4)**2 + square.sum()/size**2)/4
 
 
 
@@ -232,7 +241,8 @@ def find_lonely_square(m, size, error=.4, gray_level=.4):
 
 
 
-def color2debug(array, from_=None, to_=None, color=(255, 0, 0), display=True, fill=False, _d={}):
+def color2debug(array=None, from_=None, to_=None, color='red',
+                display=True, thickness=1, fill=False, _d={}):
     """Display picture with a red (by default) rectangle for debuging.
 
     `array` is an array containing the image data (image must be gray mode,
@@ -256,6 +266,9 @@ def color2debug(array, from_=None, to_=None, color=(255, 0, 0), display=True, fi
     - Left-draging the picture with mouse inside feh removes bluring/anti-aliasing,
       making visual debugging a lot easier.
     """
+    if array is None:
+        _d.clear()
+        return
     color = COLORS.get(color, color)
     ID = id(array)
     if ID not in _d:
@@ -275,19 +288,30 @@ def color2debug(array, from_=None, to_=None, color=(255, 0, 0), display=True, fi
         pix = rgb.load()
         imin, imax = int(min(i1, i2)), int(max(i1, i2))
         jmin, jmax = int(min(j1, j2)), int(max(j1, j2))
+
+        def set_pix(i, j, color):
+            "Set safely pixel color (if `i` or `j` is incorrect, do nothing)."
+            if 0 <= i < height and 0 <= j < width:
+                pix[j, i] = color
+
         if fill:
             for i in range(imin, imax + 1):
                 for j in range(jmin, jmax + 1):
-                    pix[j, i] = color
+                    set_pix(i, j, color)
         else:
             # left and right sides of rectangle
             for i in range(imin, imax + 1):
-                for j in (jmin, jmax):
-                    pix[j, i] = color
+                for j in range(jmin, jmin + thickness):
+                    set_pix(i, j, color)
+                for j in range(jmax + 1 - thickness, jmax + 1):
+                    set_pix(i, j, color)
             # top and bottom sides of rectangle
             for j in range(jmin, jmax + 1):
-                for i in (imin, imax):
-                    pix[j, i] = color
+                for i in range(imin, imin + thickness):
+                    set_pix(i, j, color)
+                for i in range(imax + 1 - thickness, imax + 1):
+                    set_pix(i, j, color)
+
     if display:
         if subprocess.call(['which', 'feh']) != 0:
             raise RuntimeError('The `feh` command is not found, please '
@@ -295,7 +319,7 @@ def color2debug(array, from_=None, to_=None, color=(255, 0, 0), display=True, fi
         with tempfile.TemporaryDirectory() as tmpdirname:
             path = join(tmpdirname, 'test.png')
             rgb.save(path)
-            subprocess.run(["feh", path])
+            subprocess.run(["feh", "-F", path])
             input('-- pause --')
         del _d[ID]
 

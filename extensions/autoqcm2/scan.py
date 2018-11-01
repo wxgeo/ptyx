@@ -38,10 +38,10 @@ sys.path.insert(0, join(script_path, '../..'))
 
 from header import answers_and_score
 from compilation import make_file, join_files
-from config_reader import read_config
+from config_parser import load
 from scan_pic import scan_picture
 
-from scan_pic import ANSI_YELLOW, ANSI_RESET, ANSI_CYAN
+from scan_pic import ANSI_YELLOW, ANSI_RESET, ANSI_CYAN, ANSI_GREEN, ANSI_RED, color2debug
 
 
 PIC_EXTS = ('.jpg', '.jpeg', '.png')
@@ -123,18 +123,21 @@ def number_of_pages(pdf_path):
     return int(l[l.index('Pages:') + 1])
 
 
-def read_name_manually(pic_path, config, msg='', default=None):
+def read_name_manually(matrix, config, msg='', default=None):
     ids = config['ids']
     if msg:
         decoration = max(len(line) for line in msg.split('\n'))*'-'
         print(decoration)
         print(msg)
         print(decoration)
-    print('Please read manually the name, then enter it below.')
-    subprocess.run(["display", "-resize", "1920x1080", pic_path])
+    print('Name can not be read automatically.')
+    print('Please read the name on the picture which will be displayed now.')
+    input('-- Press enter --')
+#    subprocess.run(["display", "-resize", "1920x1080", pic_path])
     #TODO: use first letters of students name to find student.
     #(ask again if not found, or if several names match first letters)
     while True:
+        color2debug(matrix[0:700,:])
         name = input('Student name or ID:').strip()
         if not name:
             if default is None:
@@ -184,6 +187,11 @@ if __name__ == '__main__':
     parser.add_argument("-m", "--mail", metavar="CSV_file",
                                                 help='Mail scores and solutions.')
     parser.add_argument("--reset", action="store_true", help='Delete `scan` directory.')
+    parser.add_argument("--picture", metavar="P", type=str,
+                        help='Scan only given picture (useful for debugging).')
+    parser.add_argument("--manual-verification", action="store_true", help="For each "
+                        "page scanned, display a picture of the interpretation by "
+                        "the detection algorithm.")
     parser.add_argument("-d", "--dir", type=str,
                         help='Specify a directory with write permission.')
     parser.add_argument("-s", "--scan", "--scan-dir", type=str, metavar='DIR',
@@ -193,283 +201,372 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    if any(args.path.endswith(ext) for ext in PIC_EXTS):
-        # This is used for debuging (it allows to test pages one by one).
-        configfile = search_by_extension(dirname(abspath(args.path)), '.autoqcm.config')
-        config = read_config(configfile)
-        print(config)
-        data = scan_picture(abspath(expanduser(args.path)), config)
-        print(data)
-
-    else:
-        # This is the usual case: tests are stored in only one big pdf file ;
-        # we will process all these pdf pages.
-
-        # First, detect pdf file.
-        # NB: file extension must be `.scan.pdf`.
-        DIR = abspath(expanduser(args.path))
+    DIR = abspath(expanduser(args.path))
+    if not isdir(DIR):
+        DIR = dirname(DIR)
         if not isdir(DIR):
-            DIR = dirname(DIR)
-            if not isdir(DIR):
-                raise FileNotFoundError('%s does not seem to be a directory !' % DIR)
+            raise FileNotFoundError('%s does not seem to be a directory !' % DIR)
 
-        # ------------------
-        # Generate the paths
-        # ------------------
+    if args.picture:
+        # f1-pic-003.jpg (page 25)
+        # f12-pic-005.jpg
+        # f12-pic-003.jpg
+        # f12-pic-004.jpg
+        # f12-pic-013.jpg
+        # f7-pic-013.jpg
+        # f9-pic-004.jpg
+        # f9-pic-005.jpg
+        # f13-pic-002.jpg
+        if not any(args.picture.endswith(ext) for ext in PIC_EXTS):
+            raise TypeError('Allowed picture extensions: ' + ', '.join(PIC_EXTS))
+        # This is used for debuging (it allows to test pages one by one).
+        configfile = search_by_extension(DIR, '.autoqcm.config.json')
+        config = load(configfile)
+        # ~ print(config)
+        pic_data = scan_picture(abspath(expanduser(args.picture)), config, debug=True)
+        # Keeping matrix would made output unreadable !
+        pic_data.pop('matrix')
+        print(pic_data)
+        sys.exit(0)
 
-        INPUT_DIR = args.scan or join(DIR, 'scan')
+    # This is the usual case: tests are stored in only one big pdf file ;
+    # we will process all these pdf pages.
 
-        # `.scan` directory is used to write intermediate files.
-        # Directory tree:
-        # .scan/
-        # .scan/pic -> pictures extracted from the pdf
-        # .scan/cfg/more_infos.csv -> missing students names.
-        # .scan/scores.csv
-        SCAN_DIR = join(args.dir or DIR, '.scan')
-        CFG_DIR = join(SCAN_DIR, 'cfg')
-        PIC_DIR = join(SCAN_DIR, 'pic')
-        PDF_DIR = join(SCAN_DIR, 'pdf')
 
-        if args.reset and isdir(SCAN_DIR):
-            rmtree(SCAN_DIR)
+    # ------------------
+    # Generate the paths
+    # ------------------
 
-        for directory in (SCAN_DIR, CFG_DIR, PIC_DIR, PDF_DIR):
-            print(directory)
-            if not isdir(directory):
-                mkdir(directory)
+    INPUT_DIR = args.scan or join(DIR, 'scan')
 
-        base_name = basename(search_by_extension(DIR, '.ptyx'))[:-5]
-        # ~ scan_pdf_path = search_by_extension(DIR, '.scan.pdf')
-        scores_pdf_path = join(PDF_DIR, '%s-scores' % base_name)
-        data_path = join(CFG_DIR, 'data.csv')
+    # `.scan` directory is used to write intermediate files.
+    # Directory tree:
+    # .scan/
+    # .scan/pic -> pictures extracted from the pdf
+    # .scan/cfg/more_infos.csv -> missing students names.
+    # .scan/scores.csv
+    SCAN_DIR = join(args.dir or DIR, '.scan')
+    CFG_DIR = join(SCAN_DIR, 'cfg')
+    PIC_DIR = join(SCAN_DIR, 'pic')
+    PDF_DIR = join(SCAN_DIR, 'pdf')
 
-        # Print scores and solutions (a first scan must have been done earlier).
-        if args.print:
-            #TODO: test this section.
-            if not isfile(data_path):
-                raise RuntimeError('Data file not found ! Run ./scan.py once before.')
-            print('\nPREPARING TO PRINT SCORES...')
-            print("Insert test papers in printer (to print score and solutions on other side).")
-            with open(data_path, 'r', newline='') as csvfile:
-                reader = csv.reader(csvfile)
-                for i, row in enumerate(reader):
-                    identifier, name, score = row
-                    print('Student:', name, '(subject number: %s, score %s)' % (identifier, score))
-                    input('-pause- (Press ENTER to process, CTRL^C to quit)')
-                    subprocess.run(["lp", "-P %s" % (i + 1), "-o sides=one-sided",
-                                    scores_pdf_path], stdout=subprocess.PIPE)
-            sys.exit()
-        elif args.mail:
-            #TODO
-            pass
+    if args.reset and isdir(SCAN_DIR):
+        rmtree(SCAN_DIR)
 
-        # Read configuration file.
-        configfile = search_by_extension(DIR, '.autoqcm.config')
-        config = read_config(configfile)
-        #~ print(config)
+    for directory in (SCAN_DIR, CFG_DIR, PIC_DIR, PDF_DIR):
+        print(directory)
+        if not isdir(directory):
+            mkdir(directory)
 
-        # Maximal score = (number of questions)x(score when answer is correct)
-        MAX_SCORE = config['questions']*config['correct']
+    base_name = basename(search_by_extension(DIR, '.ptyx'))[:-5]
+    # ~ scan_pdf_path = search_by_extension(DIR, '.scan.pdf')
+    scores_pdf_path = join(PDF_DIR, '%s-scores' % base_name)
+    data_path = join(CFG_DIR, 'data.csv')
 
-        if args.names is not None:
-            with open(args.names, newline='') as csvfile:
-                passed_names = [' '.join(row) for row in csv.reader(csvfile) if row and row[0]]
+    # Print scores and solutions (a first scan must have been done earlier).
+    if args.print:
+        #TODO: test this section.
+        if not isfile(data_path):
+            raise RuntimeError('Data file not found ! Run ./scan.py once before.')
+        print('\nPREPARING TO PRINT SCORES...')
+        print("Insert test papers in printer (to print score and solutions on other side).")
+        with open(data_path, 'r', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            for i, row in enumerate(reader):
+                identifier, name, score = row
+                print('Student:', name, '(subject number: %s, score %s)' % (identifier, score))
+                input('-pause- (Press ENTER to process, CTRL^C to quit)')
+                subprocess.run(["lp", "-P %s" % (i + 1), "-o sides=one-sided",
+                                scores_pdf_path], stdout=subprocess.PIPE)
+        sys.exit()
+    elif args.mail:
+        #TODO
+        pass
+
+    # Read configuration file.
+    configfile = search_by_extension(DIR, '.autoqcm.config.json')
+    config = load(configfile)
+    #~ print(config)
+
+    # Maximal score = (number of questions)x(score when answer is correct)
+    MAX_SCORE = 0
+    default = config['correct']['default']
+    for q in config['correct_answers']:
+        MAX_SCORE += config['correct'].get(q, default)
+
+    if args.names is not None:
+        with open(args.names, newline='') as csvfile:
+            passed_names = [' '.join(row) for row in csv.reader(csvfile) if row and row[0]]
+    else:
+        passed_names = None
+
+    # Extract images from all the PDF files of the input directory.
+    # If images are already cached in `.scan` directory, this step will be skipped.
+    pdf_files = [join(INPUT_DIR, name) for name in listdir(INPUT_DIR) if name.endswith('.pdf')]
+    total_page_number = sum(number_of_pages(pdf) for pdf in pdf_files)
+
+    if len(listdir(PIC_DIR)) != total_page_number or args.page:
+        pdf2pic(*pdf_files, dest=PIC_DIR, page=args.page)
+
+    # Read manually entered informations (if any).
+    more_infos = {} # sheet_id: name
+    cfg_path = join(CFG_DIR, 'more_infos.csv')
+    if isfile(cfg_path):
+        with open(cfg_path, 'r', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                sheet_id, name = row
+                more_infos[int(sheet_id)] = name
+            print("Retrieved infos:", more_infos)
+
+
+    # ---------------------------------------
+    # Extract informations from the pictures.
+    # ---------------------------------------
+
+    index = {}
+    # `index` is used to retrieve the data associated with a name.
+    # FORMAT: {name: test ID}
+
+    pic_list = sorted(f for f in listdir(PIC_DIR)
+                    if any(f.lower().endswith(ext) for ext in PIC_EXTS))
+
+    already_seen = set()
+    # Set `already_seen` will contain all seen (ID, page) couples.
+    # It is used to catch an hypothetic scanning problem:
+    # we have to be sure that the same page on the same test is not seen
+    # twice.
+    data = {}
+    # Dict `data` will collect data from all scanned tests.
+    #...............................................................
+    # FORMAT: {ID: {'pages': (set) the pages seen,
+    #               'answers': ({int: set}) the answers of the student for each question,
+    #               'score': (float) the test score,
+    #               'name': (str) the student name,
+    #               'pic': (str) image full path,
+    #               },
+    #           ...
+    #          }
+    #...............................................................
+
+    for i, pic in enumerate(pic_list):
+        if args.page is not None and args.page != i + 1:
+            continue
+        if i + 1 in args.skip:
+            continue
+        print('-------------------------------------------------------')
+        print('Page', i + 1)
+        print('File:', pic)
+
+        # 1) Extract all the data of an image
+        #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+
+        pic_path = join(PIC_DIR, pic)
+        pic_data = scan_picture(pic_path, config, manual_verification=args.manual_verification)
+        #...........................................................
+        # `pic_data` FORMAT: {'ID': (int) ID of the test,
+        #                     'page': (int) page number (for the test),
+        #                     'name': (str) student name,
+        #                     'answered': (dict={int:set}) score,
+        #                     }
+        #...........................................................
+
+        ID = pic_data['ID']
+        p = pic_data['page']
+        if (ID, p) not in already_seen:
+            already_seen.add((ID, p))
         else:
-            passed_names = None
+            raise ValueError(f'Page {p} of test #{ID} seen twice !')
 
-        # Extract images from all the PDF files of the input directory.
-        # If images are already cached in `.scan` directory, this step will be skipped.
-        pdf_files = [join(INPUT_DIR, name) for name in listdir(INPUT_DIR) if name.endswith('.pdf')]
-        total_page_number = sum(number_of_pages(pdf) for pdf in pdf_files)
+        # 2) Gather data
+        #    ‾‾‾‾‾‾‾‾‾‾‾
+        d = data.setdefault(ID, {'pages': set(), 'score': 0,
+                                 'name': more_infos.get(ID, ''),
+                                 'answered': {},
+                                 'score': 0})
+        d['pages'].add(pic_data['page'])
+        d['pic'] = pic_path
+        for q in pic_data['answered']:
+            ans = d['answered'].setdefault(q, set())
+            ans |= pic_data['answered'][q]
 
-        if len(listdir(PIC_DIR)) != total_page_number or args.page:
-            pdf2pic(*pdf_files, dest=PIC_DIR, page=args.page)
+        # 3) 1st page of the test => retrieve the student name
+        #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+        if p == 1:
+            # (a) The first page should contain the name
+            #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
+            # However, if the name was already set (using `more_infos`),
+            # don't overwrite it.
+            if not d['name']:
+                d['name'] = pic_data['name']
 
-        # Read manually entered informations (if any).
-        more_infos = {} # sheet_id: name
-        cfg_path = join(CFG_DIR, 'more_infos.csv')
-        if isfile(cfg_path):
-            with open(cfg_path, 'r', newline='') as csvfile:
-                reader = csv.reader(csvfile)
-                for row in reader:
-                    sheet_id, name = row
-                    more_infos[int(sheet_id)] = name
-                print("Retrieved infos:", more_infos)
-
-
-        # ---------------------------------------
-        # Extract informations from the pictures.
-        # ---------------------------------------
-
-        index = {}
-        # `index` is used to retrieve the data associated with a name.
-        # FORMAT: {name: test ID}
-
-        pic_list = sorted(f for f in listdir(PIC_DIR)
-                        if any(f.lower().endswith(ext) for ext in PIC_EXTS))
-
-        already_seen = set()
-        # Set `already_seen` will contain all seen (ID, page) couples.
-        # It is used to catch an hypothetic scanning problem:
-        # we have to be sure that the same page on the same test is not seen
-        # twice.
-        data = {}
-        # Dict `data` will collect data from all scanned tests.
-        #...............................................................
-        # FORMAT: {ID: {'npages': (int) the number of pages seen,
-        #               'score': (float) the test score,
-        #               'name': (str) the student name,
-        #               'pic': (str) image full path,
-        #               },
-        #           ...
-        #          }
-        #...............................................................
-
-        for i, pic in enumerate(pic_list):
-            if args.page is not None and args.page != i + 1:
-                continue
-            if i + 1 in args.skip:
-                continue
-            print('-------------------------------------------------------')
-            print('Page', i + 1)
-            print('File:', pic)
-
-            # 1) Extract all the data of an image
-            #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-
-            pic_path = join(PIC_DIR, pic)
-            pic_data = scan_picture(pic_path, config)
-            #...........................................................
-            # `pic_data` FORMAT: {'ID': (int) ID of the test,
-            #                     'page': (int) page number (for the test),
-            #                     'name': (str) student name,
-            #                     'score': (float) score,
-            #                     }
-            #...........................................................
-
-            ID = pic_data['ID']
-            p = pic_data['page']
-            if (ID, p) not in already_seen:
-                already_seen.add((ID, p))
-            else:
-                raise ValueError(f'Page {p} of test #{ID} seen twice !')
-
-            # 2) Gather data
-            #    ‾‾‾‾‾‾‾‾‾‾‾
-            d = data.setdefault(ID, {'npages': 0, 'score': 0,
-                                     'name': more_infos.get(ID, '')})
-            d['npages'] += 1
-            d['score'] += pic_data['score']
-            d['pic'] = pic_path
-
-            # 3) 1st page of the test => retrieve the student name
-            #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-            if p == 1:
-                # (a) The first page should contain the name
-                #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
-                # However, if the name was already set (using `more_infos`),
-                # don't overwrite it.
-                if not d['name']:
-                    d['name'] = pic_data['name']
-
-                name = d['name']
-
-                # (b) Update name manually if it was not found
-                #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
-
-                if not name:
-                    # (i) Test if names were passed as command line arguments.
-                    if passed_names is not None:
-                        if not passed_names:
-                            raise RuntimeError(f'Not enough names in {args.names} !')
-                        name = args.names.pop(0)
-                    # (ii) If not, ask user for the name.
-                    else:
-                        name = read_name_manually(pic_path, config, msg=name)
-                        more_infos[ID] = name
-                        # Keep track of manually entered information (will be useful
-                        # if `scan.py` has to be run again later !)
-                        with open(cfg_path, 'a', newline='') as csvfile:
-                            writerow = csv.writer(csvfile).writerow
-                            writerow([str(ID), name])
-
-                # (c) A name must not appear twice
-                #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
-
-                while name in index:
-                    print(f"Test #{index[name]}: {name}")
-                    print(f'Test #{ID}: {name}')
-                    msg = f'Error : 2 tests for same student ({name}) !\n' \
-                          "Please modify at least one name (enter nothing to keep a name)."
-                    # Remove twin name from index, and get the corresponding previous test ID.
-                    ID0 = index.pop(name)
-                    # Ask for a new name.
-                    name0 = read_name_manually(data[ID0]['pic'], config, msg, default=name)
-                    # Update all infos.
-                    index[name0] = ID0
-                    more_infos[ID0] = name0
-                    data[ID0]['name'] = name0
-                    # Ask for a new name for new test too.
-                    name = read_name_manually(pic_path, config, default=name)
-                    # Update infos
-                    more_infos[ID] = name
-
-                assert name, 'Name should not be left empty at this stage !'
-                index[name] = ID
-                d['name'] = name
-
-
-        # ---------------------------------------------------
-        # Time to synthetize & store all those informations !
-        # ---------------------------------------------------
-
-        # Names list should be empty now.
-        if passed_names:
-            raise RuntimeError(f'Too many names in {args.names!r} !')
-
-
-        # Generate CSV file with results.
-        scores = {d['name']: d['score'] for d in data.values()}
-        #~ print(scores)
-        scores_path = join(SCAN_DIR, 'scores.csv')
-        print(f'{ANSI_CYAN}SCORES (/{MAX_SCORE:g}):{ANSI_RESET}')
-        with open(scores_path, 'w', newline='') as csvfile:
-            writerow = csv.writer(csvfile).writerow
-            for name in sorted(scores):
-                print(f' - {name}: {scores[name]:g}')
-                writerow([name, scores[name]])
-        mean = round(sum(scores.values())/len(scores.values()), 2)
-        print(f'{ANSI_YELLOW}Mean: {mean:g}/{MAX_SCORE:g}{ANSI_RESET}')
-        print(f"\nResults stored in {scores_path}\n")
-
-
-
-        # Generate pdf files, with the score and the table of correct answers for each test.
-        pdf_paths = []
-        for ID, d in data.items():
-            #~ identifier, answers, name, score, students, ids
             name = d['name']
-            score = d['score']
-            path = join(PDF_DIR, '%s-%s-corr.score' % (base_name, ID))
-            pdf_paths.append(path)
-            print('Generating pdf file for student %s (subject %s, score %s)...'
-                                                    % (name, ID, score))
-            latex = answers_and_score(config, name, ID,
-                            (score if not args.hide_scores else None), MAX_SCORE)
-            make_file(path, plain_latex=latex,
-                                remove=True,
-                                formats=['pdf'],
-                                quiet=True,
-                                )
-        join_files(scores_pdf_path, pdf_paths, remove_all=True, compress=True)
 
-        # Generate an hidden CSV file for printing or mailing results later.
-        with open(data_path, 'w', newline='') as csvfile:
-            writerow = csv.writer(csvfile).writerow
-            for ID, d in data.items():
-                #~ (identifier, answers, name, score, students, ids)
-                writerow([ID, d['name'], d['score']])
-        print("Data file generated for printing or mailing later.")
+            # (b) Update name manually if it was not found
+            #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
+
+            if not name:
+                # (i) Test if names were passed as command line arguments.
+                if passed_names is not None:
+                    if not passed_names:
+                        raise RuntimeError(f'Not enough names in {args.names} !')
+                    name = args.names.pop(0)
+                # (ii) If not, ask user for the name.
+                else:
+                    name = read_name_manually(pic_data['matrix'], config, msg=name)
+                    more_infos[ID] = name
+                    # Keep track of manually entered information (will be useful
+                    # if `scan.py` has to be run again later !)
+                    with open(cfg_path, 'a', newline='') as csvfile:
+                        writerow = csv.writer(csvfile).writerow
+                        writerow([str(ID), name])
+
+            # (c) A name must not appear twice
+            #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
+
+            while name in index:
+                print(f"Test #{index[name]}: {name}")
+                print(f'Test #{ID}: {name}')
+                msg = f'Error : 2 tests for same student ({name}) !\n' \
+                      "Please modify at least one name (enter nothing to keep a name)."
+                # Remove twin name from index, and get the corresponding previous test ID.
+                ID0 = index.pop(name)
+                # Ask for a new name.
+                name0 = read_name_manually(data[ID0]['pic'], config, msg, default=name)
+                # Update all infos.
+                index[name0] = ID0
+                more_infos[ID0] = name0
+                data[ID0]['name'] = name0
+                # Ask for a new name for new test too.
+                name = read_name_manually(pic_path, config, default=name)
+                # Update infos
+                more_infos[ID] = name
+
+            assert name, 'Name should not be left empty at this stage !'
+            index[name] = ID
+            d['name'] = name
+
+    # ---------------------------
+    # Test integrity
+    # ---------------------------
+    # For every test:
+    # - all pages must have been scanned,
+    # - all questions must have been seen.
+
+    questions = set(config['correct_answers'])
+    for ID in data:
+        diff = questions - set(data[ID]['answered'])
+        if diff:
+            raise RuntimeError(f"Test {ID}: question(s) ${', '.join(diff)} not seen !")
+        # All tests may not have the same number of pages, since
+        # page breaking will occur at a different place for each test.
+        pages = set(config['boxes'])
+        diff = pages - data[ID]['pages']
+        if diff:
+            raise RuntimeError(f"Test {ID}: page(s) ${', '.join(diff)} not seen !")
+
+
+
+    # ---------------------------
+    # Calculate scores
+    # ---------------------------
+
+    # Nota: most of the time, there should be only one correct answer.
+    # Anyway, this code intends to deal with cases where there are more
+    # than one correct answer too.
+    # If mode is set to 'all', student must check *all* correct propositions ;
+    # if not, answer will be considered incorrect. But if mode is set to
+    # 'some', then student has only to check a subset of correct propositions
+    # for his answer to be considered correct.
+
+    default_mode = config['mode']['default']
+    default_correct = config['correct']['default']
+    default_incorrect = config['incorrect']['default']
+    default_skipped = config['skipped']['default']
+
+    for ID in data:
+        d = data[ID]
+        for q in d['answered']:
+            answered = set(d['answered'][q])
+            correct_ones = set(config['correct_answers'][q])
+            mode = config['mode'].get(q, default_mode)
+
+            if mode == 'all':
+                ok = (answered == correct_ones)
+            elif mode == 'some':
+                # Answer is valid if and only if :
+                # (proposed ≠ ∅ and proposed ⊆ correct) or (proposed = correct = ∅)
+                ok = ((answered and answered.issubset(correct_ones))
+                       or (not answered and not correct_ones))
+            elif mode == 'skip':
+                print(f'Question {q} skipped...')
+                continue
+            else:
+                raise RuntimeError('Invalid mode (%s) !' % mode)
+        if ok:
+            earn = config['correct'].get(q, default_correct)
+            color = ANSI_GREEN
+        elif not answered:
+            earn = config['skipped'].get(q, default_skipped)
+            color = ANSI_YELLOW
+        else:
+            earn = config['incorrect'].get(q, default_incorrect)
+            color = ANSI_RED
+        print(f'\n  {color}Rating: {color}{earn:g}{ANSI_RESET}\n')
+        data[ID]['score'] += earn
+
+
+    # ---------------------------------------------------
+    # Time to synthetize & store all those informations !
+    # ---------------------------------------------------
+
+    # Names list should be empty now.
+    if passed_names:
+        raise RuntimeError(f'Too many names in {args.names!r} !')
+
+
+    # Generate CSV file with results.
+    scores = {d['name']: d['score'] for d in data.values()}
+    #~ print(scores)
+    scores_path = join(SCAN_DIR, 'scores.csv')
+    print(f'{ANSI_CYAN}SCORES (/{MAX_SCORE:g}):{ANSI_RESET}')
+    with open(scores_path, 'w', newline='') as csvfile:
+        writerow = csv.writer(csvfile).writerow
+        for name in sorted(scores):
+            print(f' - {name}: {scores[name]:g}')
+            writerow([name, scores[name]])
+    mean = round(sum(scores.values())/len(scores.values()), 2)
+    print(f'{ANSI_YELLOW}Mean: {mean:g}/{MAX_SCORE:g}{ANSI_RESET}')
+    print(f"\nResults stored in {scores_path}\n")
+
+
+
+    # Generate pdf files, with the score and the table of correct answers for each test.
+    pdf_paths = []
+    for ID, d in data.items():
+        #~ identifier, answers, name, score, students, ids
+        name = d['name']
+        score = d['score']
+        path = join(PDF_DIR, '%s-%s-corr.score' % (base_name, ID))
+        pdf_paths.append(path)
+        print('Generating pdf file for student %s (subject %s, score %s)...'
+                                                % (name, ID, score))
+        latex = answers_and_score(config, name, ID,
+                        (score if not args.hide_scores else None), MAX_SCORE)
+        make_file(path, plain_latex=latex,
+                            remove=True,
+                            formats=['pdf'],
+                            quiet=True,
+                            )
+    join_files(scores_pdf_path, pdf_paths, remove_all=True, compress=True)
+
+    # Generate an hidden CSV file for printing or mailing results later.
+    with open(data_path, 'w', newline='') as csvfile:
+        writerow = csv.writer(csvfile).writerow
+        for ID, d in data.items():
+            #~ (identifier, answers, name, score, students, ids)
+            writerow([ID, d['name'], d['score']])
+    print("Data file generated for printing or mailing later.")
 
 
 

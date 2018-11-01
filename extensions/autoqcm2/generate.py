@@ -1,15 +1,9 @@
-from string import ascii_letters
-import csv
-import re
 import sys
 from os.path import join as abspath, dirname
 
 script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 sys.path.insert(0, script_path)
-from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM,
-                         MARGIN_RIGHT_IN_CM, PAPER_FORMAT, PAPER_FORMATS,
-                         MARGIN_BOTTOM_IN_CM, MARGIN_TOP_IN_CM
-                        )
+
 
 
 
@@ -126,6 +120,7 @@ def generate_ptyx_code(text):
     levels = ('ROOT', 'QCM', 'SECTION', 'QUESTION_BLOCK', 'ANSWERS')
     stack = StaticStack(levels)
 
+
     def begin(level, **kw):
 
         # Keep track of previous level: this is useful to know if a question block
@@ -187,6 +182,7 @@ def generate_ptyx_code(text):
         #~ if tag == 'QUESTION_BLOCK':
             #~ begin('NEW_QUESTION')
 
+
     def close(level):
         """Close `level` (and any opened upper one).
 
@@ -227,6 +223,8 @@ def generate_ptyx_code(text):
     before_QCM = True
     is_header = False
     header = ['#QCM_HEADER{']
+    question_num = 0
+    correct_answers = {}
 
     # Don't use ASK_ONLY: if one insert Python code here, it would be removed
     # silently when generating the pdf files with the answers !
@@ -275,10 +273,13 @@ def generate_ptyx_code(text):
                 begin('QUESTION_BLOCK', shuffle=(line[0]=='*'))
             code.append('#ITEM % pick a version') # pick a block.
 
-            code.append('#NEW_QUESTION')
+            question_num += 1
+            code.append(f'#NEW_QUESTION{{{question_num}}}')
+            correct_answers[question_num] = []
+            answer_num = 0
             code.append(line[2:])
 
-        elif line.startswith('#L_ANSWERS{'):
+        elif line.startswith('#L_ANSWERS'):
             # End question.
             # (Usually, questions are closed when seeing answers, ie. lines
             # introduced by '-' or '+').
@@ -306,8 +307,11 @@ def generate_ptyx_code(text):
                 code.append('#SHUFFLE % (answers)')
 
             code.append('#ITEM % shuffling answers')
-            iscorrect = (line[0] == '+')
-            code.append('#NEW_ANSWER{%s}' % iscorrect)
+            answer_num += 1
+            code.append(f'#NEW_ANSWER{{{answer_num}}}')
+            if line[0] == '+':
+                # This is a correct answer.
+                correct_answers[question_num].append(answer_num)
 
             code.append('#PROPOSED_ANSWER %s#END' % line[2:])
 
@@ -326,7 +330,7 @@ def generate_ptyx_code(text):
 
     code.append(r'\cleardoublepage')
     code.append(r'\end{document}')
-    return '\n'.join(code)
+    return '\n'.join(code), correct_answers
 
 
 

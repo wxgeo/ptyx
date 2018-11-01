@@ -185,6 +185,14 @@ def students_checkboxes(names, _n_student=None):
 
 
 def set_up_ID_table(ids):
+    """Given a list of IDs (str), return:
+    - the length of an ID (or of the longest one if they are not of the same size),
+    - the maximal number of different digits in an ID caracter,
+    - a list of sets corresponding to the different digits used for each ID caracter.
+
+    >>> set_up_ID_table(['18', '19', '20', '21'])
+    (2, 4, [{1, 2}, {8, 9, 0, 1}])
+     """
     ID_length = max(len(iD) for iD in ids)
     # On crée la liste de l'ensemble des valeurs possibles pour chaque chiffre.
     digits = [set() for i in range(ID_length)]
@@ -366,13 +374,13 @@ def packages_and_macros():
         \strip@pt\dimexpr 0.351459804\dimexpr#1\relax\relax%
     }
     \makeatother
-    \newcommand{\checkBox}[3]{%
+    \newcommand{\checkBox}[2]{%
         \begin{tikzpicture}[baseline=-12pt,color=black, fill=#1, thick]
             \draw (0,0)
                 node {\zsavepos{#2-ll}}
                 rectangle (.5,-.5);
         \end{tikzpicture}%
-        \write\mywrite{#2 (#3): page \thepage, position (%
+        \write\mywrite{#2: p\thepage, (%
             \dimtomm{\zposx{#2-ll}sp},
             \dimtomm{\zposy{#2-ll}sp})%
         }%

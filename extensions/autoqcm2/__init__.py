@@ -69,10 +69,10 @@ from .generate import generate_ptyx_code
 from .header import packages_and_macros, ID_band, extract_ID_NAME_from_csv, \
                     extract_NAME_from_csv, student_ID_table, \
                     students_checkboxes
+from .config_parser import dump
 from .. import extended_python
 import randfunc
 from utilities import print_sympy_expr
-
 
 def test_singularity_and_append(code, l, question):
     _code_ = code.strip()
@@ -107,9 +107,10 @@ def test_singularity_and_append(code, l, question):
 # ------------------
 
 def _parse_QCM_tag(self, node):
-    self.autoqcm_correct_answers = []
-    self.n_questions = 0
-    self.n_max_answers = 0
+    # ~ self.autoqcm_correct_answers = []
+    self.autoqcm_data['ordering'][self.NUM] = {'questions': [], 'answers': {}}
+#    self.autoqcm_data['answers'] = {}
+    # ~ self.autoqcm_data['question_num'] =
     self._parse_children(node.children)
 
 def _parse_ANSWERS_BLOCK_tag(self, node):
@@ -118,14 +119,15 @@ def _parse_ANSWERS_BLOCK_tag(self, node):
     self.write('\n\\end{flushleft}\n\\end{minipage}')
 
 def _parse_END_QCM_tag(self, node):
-    data = self.autoqcm_data
-    context = self.context
-    n = context['NUM']
-    data['answers'][n] = self.autoqcm_correct_answers
+    pass
+#    data = self.autoqcm_data
+#    context = self.context
+#    n = context['NUM']
+#    data['answers'][n] = self.autoqcm_correct_answers
     # Those are supposed to have same value for each test,
     # so we don't save test number:
-    data['n_questions'] = len(self.autoqcm_correct_answers)
-    data['n_max_answers'] = self.n_max_answers
+#    data['n_questions'] = len(self.autoqcm_correct_answers)
+#    data['n_max_answers'] = self.n_max_answers
 
     # Now, we know the number of questions and of answers per question for
     # the whole MCQ, so we can generate the table for the answers.
@@ -144,16 +146,20 @@ def _parse_END_QCM_tag(self, node):
 
 
 def _parse_NEW_QUESTION_tag(self, node):
-    self.autoqcm_correct_answers.append([])
-    self.autoqcm_answer_number = 0
+    n = int(node.arg(0))
+    self.autoqcm_question_number = n
+    # This list is used to test that the same answer is not proposed twice.
     self.auto_qcm_answers = []
+    data = self.autoqcm_data['ordering'][self.NUM]
+    data['questions'].append(n)
+    data['answers'][n] = []
     self.context['APPLY_TO_ANSWERS'] = None
     # This is used to improve message error when an error occured.
     self.current_question = l = []
     def remember_last_question(code, l):
         l.append(code)
         return code
-    self._parse_children(node.children, function=partial(remember_last_question, l=l))
+    self._parse_children(node.children[1:], function=partial(remember_last_question, l=l))
 
 
 # ~ def _parse_TABLE_FOR_ANSWERS_tag(self, node):
@@ -220,32 +226,32 @@ def _parse_PROPOSED_ANSWER_tag(self, node):
         # ~ self.n_max_answers = self.autoqcm_answer_number
 
 def _parse_NEW_ANSWER_tag(self, node):
-    is_correct = (node.arg(0) == 'True')
-    _add_check_box(self, is_correct)
+    k = int(node.arg(0))
+    n = self.autoqcm_question_number
+    data = self.autoqcm_data['ordering'][self.NUM]
+    data['answers'][n].append(k)
+    _add_check_box(self, n, k)
 
 
-def _add_check_box(self, is_correct):
+def _add_check_box(self, n, k):
     # ~ # Add counter for each answer.
     # ~ self.write(r'\stepcounter{answerNumber}')
     # When the pdf with solutions will be generated, incorrect answers
     # will be preceded by a white square, while correct ones will
     # be preceded by a gray one.
-    # Question number
-    q = len(self.autoqcm_correct_answers)
-    # Answer number
-    a = self.autoqcm_answer_number
+    is_correct = (k in self.autoqcm_data['correct_answers'][n])
     self.write(r'\AutoQCMTab{')
-    cb_id = f'Q{q}-{a}'
+    cb_id = f'Q{n}-{k}'
     if self.context.get('WITH_ANSWERS') and not is_correct:
-        self.write(r'\checkBox{white}{%s}{%s}' % (cb_id, is_correct))
+        self.write(r'\checkBox{white}{%s}' % cb_id)
     else:
-        self.write(r'\checkBox{gray}{%s}{%s}' % (cb_id, is_correct))
+        self.write(r'\checkBox{gray}{%s}' % cb_id)
     self.write(r'}{')
-    if is_correct:
-        self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
-    self.autoqcm_answer_number += 1
-    if self.autoqcm_answer_number > self.n_max_answers:
-        self.n_max_answers = self.autoqcm_answer_number
+#    if is_correct:
+#        self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
+#    self.autoqcm_answer_number += 1
+#    if self.autoqcm_answer_number > self.n_max_answers:
+#        self.n_max_answers = self.autoqcm_answer_number
 
 
 def _parse_L_ANSWERS_tag(self, node):
@@ -327,16 +333,16 @@ def _parse_QCM_HEADER_tag(self, node):
                 else:
                     vals = val.split()
                 vals = sorted(vals, key=float)
-                self.autoqcm_data['correct'] = vals[-1]
+                self.autoqcm_data['correct']['default'] = vals[-1]
                 assert 1 <= len(vals) <= 3, 'One must provide between 1 and 3 scores '\
                         '(for correct answers, incorrect answers and no answer at all).'
                 if len(vals) >= 2:
-                    self.autoqcm_data['incorrect'] = vals[0]
+                    self.autoqcm_data['incorrect']['default'] = vals[0]
                     if len(vals) >= 3:
-                        self.autoqcm_data['skipped'] = vals[1]
+                        self.autoqcm_data['skipped']['default'] = vals[1]
 
             elif key == 'mode':
-                self.autoqcm_data['mode'] = val
+                self.autoqcm_data['mode']['default'] = val
 
             elif key in ('names', 'name', 'students', 'student') and not WITH_ANSWERS:
                 # val must be the path of a CSV file.
@@ -416,7 +422,7 @@ def main(text, compiler):
     text = extended_python.main(text, compiler)
     # For efficiency, update only for last tag.
     compiler.add_new_tag('QCM', (0, 0, ['END_QCM']), _parse_QCM_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('NEW_QUESTION', (0, 0, ['@END', '@END_QUESTION']), _parse_NEW_QUESTION_tag, 'autoqcm', update=False)
+    compiler.add_new_tag('NEW_QUESTION', (1, 0, ['@END', '@END_QUESTION']), _parse_NEW_QUESTION_tag, 'autoqcm', update=False)
     compiler.add_new_tag('NEW_ANSWER', (1, 0, None), _parse_NEW_ANSWER_tag, 'autoqcm', update=False)
     compiler.add_new_tag('END_QCM', (0, 0, None), _parse_END_QCM_tag, 'autoqcm', update=False)
     compiler.add_new_tag('QCM_HEADER', (1, 0, None), _parse_QCM_HEADER_tag, 'autoqcm', update=False)
@@ -424,63 +430,53 @@ def main(text, compiler):
     compiler.add_new_tag('ANSWERS_BLOCK', (0, 0, ['@END']), _parse_ANSWERS_BLOCK_tag, 'autoqcm', update=False)
     compiler.add_new_tag('L_ANSWERS', (2, 0, None), _parse_L_ANSWERS_tag, 'autoqcm', update=False)
     compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), _parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
-    code = generate_ptyx_code(text)
-    # Some tags may use cache, for code which don't change between two successive compilation.
+    code, correct_answers = generate_ptyx_code(text)
+    # Some tags use cache, for code which don't change between two successive compilation.
+    # (Typically, this is used for (most of) the header).
     compiler.latex_generator.autoqcm_cache = {}
     # Default configuration:
-    compiler.latex_generator.autoqcm_data = {'answers': {},
+    compiler.latex_generator.autoqcm_data = {
+            'mode': {'default': 'some'},
+            'correct': {'default': 1},
+            'incorrect': {'default': 0},
+            'skipped': {'default': 0},
+            'correct_answers': correct_answers, # {1: [4], 2:[1,5], ...}
             'students': [],
+            'id-table-pos': None,
             'ids': {},
-            'correct': 1,
-            'incorrect': 0,
-            'skipped': 0,
-            'mode': 'some',
+            'ordering': {}, # {NUM: {'questions': [2,1,3...], 'answers': {1: [2,1,3...], ...}}, ...}
+            'boxes': {}, # {NUM: {'tag': 'p4, (23.456, 34.667)', ...}, ...}
             }
     assert isinstance(code, str)
     return code
 
 
 def close(compiler):
-    g = compiler.latex_generator
-    answers = sorted(g.autoqcm_data['answers'].items())
-    l = []
-    l.append('MODE: %s' % g.autoqcm_data['mode'])
-    l.append('CORRECT: %s' % g.autoqcm_data['correct'])
-    l.append('INCORRECT: %s' % g.autoqcm_data['incorrect'])
-    l.append('SKIPPED: %s' % g.autoqcm_data['skipped'])
-    l.append('QUESTIONS: %s' % g.autoqcm_data['n_questions'])
-    l.append('ANSWERS (MAX): %s' % g.autoqcm_data['n_max_answers'])
-    # ~ l.append('FLIP: %s' % g.autoqcm_data['flip'])
-    l.append('SEED: %s' % compiler.state['seed'])
-    for n, correct_answers in answers:
-        l.append(f'*** ANSWERS (TEST {n}) ***')
-        for i, nums in enumerate(correct_answers):
-            # Format: question -> correct answers
-            # For example: 1 -> 1,3,4
-            l.append('%s -> %s' % (i + 1, ','.join(str(j + 1) for j in nums)))
-
-    l.append('*** STUDENTS LIST ***')
-    for name in g.autoqcm_data['students']:
-        l.append(name)
-
-    l.append('*** IDS LIST ***')
-    for id_, name in g.autoqcm_data['ids'].items():
-        l.append('%s: %s' % (id_, name))
-
+    autoqcm_data = compiler.latex_generator.autoqcm_data
     path = compiler.state['path']
     folder = dirname(path)
     name = basename(path)
-    for n in range(len(answers)):
+    id_table_pos = None
+    for n in autoqcm_data['ordering']:
         # XXX: what if files are not auto-numbered, but a list
         # of names is provided to Ptyx instead ?
         # (cf. command line options).
-        filename = f'{name[:-5]}-{n + 1}.pos'
+        filename = f'{name[:-5]}-{n}.pos'
         full_path = join(folder, '.compile', name, filename)
+        d = autoqcm_data['boxes'][n] = {}
         with open(full_path) as f:
-            l.append(f'*** BOXES (TEST {n}) ***')
-            l.append(f.read())
+            for line in f:
+                k, v = line.split(': ', 1)
+                k = k.strip()
+                if k == 'ID-table':
+                    if id_table_pos is None:
+                        id_table_pos = [float(s.strip('() \n')) for s in v.split(',')]
+                        autoqcm_data['id-table-pos'] = id_table_pos
+                    continue
+                page, x, y = [s.strip('p() \n') for s in v.split(',')]
+                d.setdefault(page, {})[k] = [float(x), float(y)]
 
-    config_file = path + '.autoqcm.config'
-    with open(config_file, 'w') as f:
-        f.write('\n'.join(l))
+
+    config_file = path + '.autoqcm.config.json'
+    dump(config_file, autoqcm_data)
 
