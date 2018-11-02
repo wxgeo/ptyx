@@ -137,7 +137,8 @@ def read_name_manually(matrix, config, msg='', default=None):
     #TODO: use first letters of students name to find student.
     #(ask again if not found, or if several names match first letters)
     while True:
-        color2debug(matrix[0:700,:])
+        L, l = matrix.shape
+        color2debug(matrix[0:int(3/4*l),:])
         name = input('Student name or ID:').strip()
         if not name:
             if default is None:
@@ -151,7 +152,7 @@ def read_name_manually(matrix, config, msg='', default=None):
                 print('Unknown ID.')
                 continue
         print("Name: %s" % name)
-        if input("Is it correct ? (Y/n)") in ("N", "n"):
+        if input("Is it correct ? (Y/n)").lower() not in ("y", "yes", ""):
             continue
         if name:
             break
@@ -376,7 +377,43 @@ if __name__ == '__main__':
         if (ID, p) not in already_seen:
             already_seen.add((ID, p))
         else:
-            raise ValueError(f'Page {p} of test #{ID} seen twice !')
+            print(f'Error: Page {p} of test #{ID} seen twice '
+                        f'(in "{data[ID]["pic"]}" and "{pic_path}") !')
+            while True:
+                print('What must we do ?')
+                print('- See pictures (s)')
+                print('- Keep only first one (f)')
+                print('- Keep only last one (l)')
+                print('- Modify this test ID and enter student name (m)')
+                print('  (This will not modify correction)')
+                print('Hint: options f/l are useful if the same page was '
+                      'scanned twice, option m if the same test was given '
+                      'to 2 different students.')
+
+                ans = input('Answer:')
+                if ans in ('l', 'f'):
+                    break
+                elif ans == 'm':
+                    ID = input('Enter some digits as new test ID:')
+                    ans = input(f'New ID: {ID!r}. Is it correct (Y/n) ?')
+                    if not ans.isdecimal():
+                        print('ID must only contain digits.')
+                    elif ans.lower() in ("y", "yes", ""):
+                        pic_data['name'] = ''
+                        # Have a negative ID to avoid conflict with existing ID.
+                        pic_data['ID'] = -int(ID)
+                        break
+                elif ans == 's':
+                    with tempfile.TemporaryDirectory() as tmpdirname:
+                        path = join(tmpdirname, 'test.png')
+                        # https://stackoverflow.com/questions/39141694/how-to-display-multiple-images-in-unix-command-line
+                        subprocess.run(["convert", data[ID]["pic"], pic_path, "-append", path])
+                        subprocess.run(["feh", "-F", path])
+                        input('-- pause --')
+            if ans == 'f':
+                continue
+            # if ans == 'l', do nothing.
+
 
         # 2) Gather data
         #    ‾‾‾‾‾‾‾‾‾‾‾
@@ -460,7 +497,7 @@ if __name__ == '__main__':
             raise RuntimeError(f"Test {ID}: question(s) ${', '.join(diff)} not seen !")
         # All tests may not have the same number of pages, since
         # page breaking will occur at a different place for each test.
-        pages = set(config['boxes'])
+        pages = set(config['boxes'][ID])
         diff = pages - data[ID]['pages']
         if diff:
             raise RuntimeError(f"Test {ID}: page(s) ${', '.join(diff)} not seen !")

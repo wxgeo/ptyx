@@ -1,8 +1,8 @@
-from math import degrees, atan
+from math import degrees, atan, hypot
 import builtins
 
 from PIL import Image
-from numpy import array
+from numpy import array, flipud, fliplr, dot
 
 
 from square_detection import test_square_color, find_black_square, \
@@ -53,26 +53,53 @@ def transform(pic, transformation, *args, **kw):
 
 
 
-def find_corner_square(m, size, corner, h, w, tolerance, whiteness):
+def find_corner_square(m, size, corner, tolerance, whiteness):
     L, l = m.shape
-    if corner[0] == 't':
-        i0, i1 = 0, h - 1
-    else:
-        i0, i1 = L - h, L - 1
-    if corner[1] == 'l':
-        j0, j1 = 0, w - 1
-    else:
-        j0, j1 = l - h, l - 1
-    area = m[i0:i1,j0:j1]
-    i, j = find_lonely_square(area, size, error=tolerance, gray_level=whiteness)
-    return i0 +i, j0 + j
+    V, H = corner
+    if V == 'b':
+        m = flipud(m)
+    if H == 'r':
+        m = fliplr(m)
+    area = m[:L//4,:l//4]
+    positions = find_lonely_square(area, size, error=tolerance, gray_level=whiteness)
+    def norm(ij):
+        return l*ij[0] + L*ij[1]
+    try:
+        i, j = min(positions, key=norm)
+    except ValueError:
+        raise LookupError(f"No lonely black square in {CORNER_NAMES[corner]} corner !")
+    if V == 'b':
+        i = L - 1 - i - size
+    if H == 'r':
+        j = l - 1 - j - size
+    return i, j, norm((i, j))
 
 
+def orthogonal(corner, positions):
+    V, H = corner
+    corner1 = V + ('l' if H == 'r' else 'r')
+    corner2 = ('t' if V == 'b' else 'b') + H
+    i, j = positions[corner]
+    i1, j1 = positions[corner1]
+    i2, j2 = positions[corner2]
+    v1 = i1 - i, j1 - j
+    v2 = i2 - i, j2 - j
+    cos_a = dot(v1, v2)/(hypot(*v1)*hypot(*v2))
+    return abs(cos_a) < 0.06
 
-def detect_four_squares(m, square_size, cm, debug=False):
+
+def area_opposite_corners(positions):
+    i1 = round((positions['tl'][0] + positions['tr'][0])/2)
+    i2 = round((positions['bl'][0] + positions['br'][0])/2)
+    j1 = round((positions['tl'][1] + positions['bl'][1])/2)
+    j2 = round((positions['tr'][1] + positions['br'][1])/2)
+    return (i1, j1), (i2, j2)
+
+
+def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=False):
     h = w = round(2*(1 + SQUARE_SIZE_IN_CM)*cm)
     tolerance = 0.4
-    whiteness = 0.4
+    whiteness = 0.45
     # Make a mutable copy of frozenset CORNERS.
     corners = set(CORNERS)
     positions = {}
@@ -80,11 +107,11 @@ def detect_four_squares(m, square_size, cm, debug=False):
     while len(positions) < 4 and not give_up:
         for corner in CORNERS:
             try:
-                i, j = find_corner_square(m, square_size, corner, h, w, tolerance, whiteness)
-                # We may have only detected a part of the square by restricting
-                # the search area, so extend search by the size of the square.
-                i, j = find_corner_square(m, square_size, corner, h + square_size,
-                                          w + square_size, tolerance, whiteness)
+                i, j, norm = find_corner_square(m, square_size, corner, tolerance, whiteness)
+                # ~ # We may have only detected a part of the square by restricting
+                # ~ # the search area, so extend search by the size of the square.
+                # ~ i, j = find_corner_square(m, square_size, corner, h + square_size,
+                                          # ~ w + square_size, tolerance, whiteness)
                 color2debug(m, (i, j), (i + square_size, j + square_size), display=False)
                 positions[corner] = i, j
                 corners.remove(corner)
@@ -96,10 +123,6 @@ def detect_four_squares(m, square_size, cm, debug=False):
             give_up = False
         if whiteness < 0.7:
             whiteness += 0.01
-            give_up = False
-        if h < 4*cm:
-            h += 4
-            w += 2
             give_up = False
         # ~ if input(len(positions)) == 'd':
             # ~ color2debug(m)
@@ -115,15 +138,45 @@ def detect_four_squares(m, square_size, cm, debug=False):
     # let's drop it and use only the 3 darkers.
     # (The 4th square will be generated again using the position of the 3 others).
 
+    for V in 'tb':
+        if positions[f'{V}r'][0] - positions[f'{V}l'][0] > max_alignment_error_cm*cm:
+            print("Warning: Horizontal alignment problem in corners squares !")
+            debug = True
+    for H in 'lr':
+        if positions[f'b{H}'][1] - positions[f't{H}'][1] > max_alignment_error_cm*cm:
+            print("Warning: Vertical alignment problem in corners squares !")
+            debug = True
+
+    # Try to detect false positives.
+    if len(positions) == 4:
+        # If only one corner is orthogonal, the opposite corner must be wrong.
+        n = 0
+        for corner in positions:
+            if orthogonal(corner, positions):
+                n += 1
+                orthogonal_corner = corner
+        if n == 1:
+            V, H = orthogonal_corner
+            opposite_corner = ('t' if V == 'b' else 'b') + ('l' if H == 'r' else 'r')
+            print(f'Removing {CORNER_NAMES[opposite_corner]} corner (not orthogonal !)')
+            del positions[opposite_corner]
+
+
     if len(positions) == 4:
         darkness = {}
         for corner, position in positions.items():
             darkness[corner] = eval_square_color(m, *position, square_size)
 
         lighter_corner = min(darkness, key=darkness.get)
-        if darkness[lighter_corner] < 0.55:
+        if darkness[lighter_corner] < 0.4:
             print(f'Removing {CORNER_NAMES[lighter_corner]} corner (too light !)')
             del positions[lighter_corner]
+
+    if len(positions) == 4:
+        if n < 3:
+            color2debug(m)
+            print('n =', n)
+            raise RuntimeError("Something wrong with the corners !")
 
 
     for corner in CORNERS:
@@ -144,17 +197,16 @@ def detect_four_squares(m, square_size, cm, debug=False):
             color2debug(m, (i, j), (i + square_size, j + square_size), color="cyan", display=False)
 
             # For example: positions['bl'] = positions['br'][0], positions['tl'][1]
-    i1 = round((positions['tl'][0] + positions['tr'][0])/2)
-    i2 = round((positions['bl'][0] + positions['br'][0])/2)
-    j1 = round((positions['tl'][1] + positions['bl'][1])/2)
-    j2 = round((positions['tr'][1] + positions['br'][1])/2)
+
+
+    ij1, ij2 = area_opposite_corners(positions)
 
     if debug:
-        color2debug(m, (i1, j1), (i2, j2), color='green')
+        color2debug(m, ij1, ij2, color='green')
     else:
         color2debug()
 
-    return positions, (i1, j1), (i2, j2)
+    return positions, ij1, ij2
 
 
 
@@ -225,8 +277,8 @@ def calibrate(pic, m, debug=False):
     # We'll search for a square alternatively in the four corners,
     # extending the search area and beeing more tolerant if needed.
 
-
-    positions, *_ = detect_four_squares(m, square_size, cm, debug=debug)
+    # First pass, to detect rotation.
+    positions, *_ = detect_four_squares(m, square_size, cm, max_alignment_error_cm=2, debug=debug)
     print(positions)
 
     # Now, let's detect the rotation.
@@ -270,8 +322,21 @@ def calibrate(pic, m, debug=False):
         # Orientation probably incorrect.
         print('Reversed page detected: 180° rotation.')
         pic, m = transform(pic, 'transpose', method=Image.ROTATE_180)
+        L, l = m.shape
+        p = positions
+        for corner in p:
+            i, j = p[corner]
+            i = L - 1 - i - square_size
+            j = l - 1 - j - square_size
+            V, H = corner
+            p[corner] = i, j
+            color2debug(m, (i, j), (i + square_size, j + square_size), display=False)
+        # Replace each tag by the opposite (top-left -> bottom-right).
+        p['tl'], p['bl'], p['br'], p['tr'] = p['br'], p['tr'], p['tl'], p['bl']
+        # ~ color2debug(m)
+        (i1, j1), (i2, j2) = area_opposite_corners(positions)
         # Redetect calibration squares.
-        positions, (i1, j1), (i2, j2) = detect_four_squares(m, square_size, cm, debug=debug)
+        # ~ positions, (i1, j1), (i2, j2) = detect_four_squares(m, square_size, cm, debug=debug)
         try:
             i3, j3 = find_ID_band(m, i1, j1, j2, square_size)
         except StopIteration:
@@ -598,17 +663,18 @@ def scan_picture(filename, config, manual_verification=False, debug=False):
             print(f'\n{ANSI_CYAN}• Question {q0}{ANSI_RESET}')
 
         if (test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.2, gray_level=0.65) or
-                test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.4, gray_level=0.75) or
-                test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.45, gray_level=0.8) or
-                test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.5, gray_level=0.85)):
+                # ~ test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.4, gray_level=0.75) or
+                # ~ test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.45, gray_level=0.8) or
+                test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.4, gray_level=0.90) or
+                test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.6, gray_level=0.95)):
             c = '■'
             is_ok = (a in correct_answers[q])
             answered[q].add(a)
-            color2debug(m, (i, j), (i + cell_size, j + cell_size), color='cyan', thickness=2, display=False)
+            color2debug(m, (i, j), (i + cell_size, j + cell_size), color='blue', thickness=5, display=False)
         else:
             c = '□'
             is_ok = (a not in correct_answers[q])
-            color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
+            color2debug(m, (i, j), (i + cell_size, j + cell_size), thickness=2, display=False)
         print(f"  {'' if is_ok else ANSI_YELLOW}{c} {a}  {ANSI_RESET}", end='\t')
         # ~ print('\nCorrect answers:', should_have_answered)
     print()

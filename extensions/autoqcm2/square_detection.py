@@ -7,14 +7,13 @@ from PIL import Image
 
 COLORS = {'red':        (255, 0, 0),
           'green':      (0, 255, 0),
-          'blue':       (0, 255, 0),
+          'blue':       (0, 0, 255),
           'yellow':     (255, 255, 0),
           'magenta':    (255, 0, 255),
           'cyan':       (0, 255, 255),
           'white':      (255, 255, 255),
           'black':      (0, 0, 0),
           'orange':     (255, 128, 0),
-          'purple':     (128, 128, 0),
           'purple':     (128, 128, 0),
           }
 # See also: https://pypi.org/project/webcolors/
@@ -218,7 +217,7 @@ def eval_square_color(m, i, j, size, _debug=False):
 
 
 def find_lonely_square(m, size, error=.4, gray_level=.4):
-    """Find a black square surrounded by a white area.
+    """Find all black squares surrounded by a white area.
 
     - `size` is the length of the edge (in pixels).
     - `error` is the ratio of white pixels allowed in the black square.
@@ -226,6 +225,8 @@ def find_lonely_square(m, size, error=.4, gray_level=.4):
        If it is set to 0, only black pixels will be considered black ; if it
        is close to 1 (max value), almost all pixels are considered black
        except white ones (for which value is 1.).
+
+    Return an iterator.
     """
     s = size
     for i, j in find_black_square(m, s, error, gray_level):
@@ -236,13 +237,13 @@ def find_lonely_square(m, size, error=.4, gray_level=.4):
                     for i_, j_ in [(i - s, j - s), (i - s, j), (i - s, j + s),
                                    (i, j - s), (i, j + s),
                                    (i + s, j - s), (i + s, j), (i + s, j + s)]):
-            return i, j
-    raise LookupError("No lonely black square in the search area.")
+            yield (i, j)
+    # ~ raise LookupError("No lonely black square in the search area.")
 
 
 
 def color2debug(array=None, from_=None, to_=None, color='red',
-                display=True, thickness=1, fill=False, _d={}):
+                display=True, thickness=2, fill=False, _d={}):
     """Display picture with a red (by default) rectangle for debuging.
 
     `array` is an array containing the image data (image must be gray mode,
