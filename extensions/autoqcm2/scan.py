@@ -165,7 +165,9 @@ def read_name_manually(matrix, config, msg='', default=None):
 
 ########################################################################
 #                                                                      #
+#                                                                      #
 #                             MAIN SCRIPT                              #
+#                                                                      #
 #                                                                      #
 ########################################################################
 
@@ -190,9 +192,12 @@ if __name__ == '__main__':
     parser.add_argument("--reset", action="store_true", help='Delete `scan` directory.')
     parser.add_argument("--picture", metavar="P", type=str,
                         help='Scan only given picture (useful for debugging).')
-    parser.add_argument("--manual-verification", action="store_true", help="For each "
-                        "page scanned, display a picture of the interpretation by "
-                        "the detection algorithm.")
+    group2 = parser.add_mutually_exclusive_group()
+    group2.add_argument("--never-ask", action="store_false", dest='manual_verification', default=None,
+                        help="Always assume algorithm is right, never ask user in case of ambiguity.")
+    group2.add_argument("--manual-verification", action="store_true", default=None,
+                        help="For each page scanned, display a picture of "
+                        "the interpretation by the detection algorithm.")
     parser.add_argument("-d", "--dir", type=str,
                         help='Specify a directory with write permission.')
     parser.add_argument("-s", "--scan", "--scan-dir", type=str, metavar='DIR',
@@ -227,7 +232,8 @@ if __name__ == '__main__':
         pic_path = abspath(expanduser(args.picture))
         if not isfile(pic_path):
             pic_path = join(DIR, '.scan', 'pic', args.picture)
-        pic_data = scan_picture(pic_path, config, manual_verification=True)
+        verify = (args.manual_verification is not False)
+        pic_data = scan_picture(pic_path, config, manual_verification=verify)
         # Keeping matrix would made output unreadable !
         pic_data.pop('matrix')
         print(pic_data)
@@ -292,11 +298,7 @@ if __name__ == '__main__':
     config = load(configfile)
     #~ print(config)
 
-    # Maximal score = (number of questions)x(score when answer is correct)
-    MAX_SCORE = 0
-    default = config['correct']['default']
-    for q in config['correct_answers']:
-        MAX_SCORE += config['correct'].get(q, default)
+
 
     if args.names is not None:
         with open(args.names, newline='') as csvfile:
@@ -524,7 +526,14 @@ if __name__ == '__main__':
     default_incorrect = config['incorrect']['default']
     default_skipped = config['skipped']['default']
 
+    # Maximal score = (number of questions)x(score when answer is correct)
+    MAX_SCORE = 0
+    for q in config['correct_answers']:
+        if config['mode'].get(q, default_mode) != 'skip':
+            MAX_SCORE += config['correct'].get(q, default_correct)
+
     for ID in data:
+        print(f'Test {ID} - {data[ID]["name"]}')
         d = data[ID]
         for q in d['answered']:
             answered = set(d['answered'][q])
@@ -543,17 +552,17 @@ if __name__ == '__main__':
                 continue
             else:
                 raise RuntimeError('Invalid mode (%s) !' % mode)
-        if ok:
-            earn = config['correct'].get(q, default_correct)
-            color = ANSI_GREEN
-        elif not answered:
-            earn = config['skipped'].get(q, default_skipped)
-            color = ANSI_YELLOW
-        else:
-            earn = config['incorrect'].get(q, default_incorrect)
-            color = ANSI_RED
-        print(f'\n  {color}Rating: {color}{earn:g}{ANSI_RESET}\n')
-        data[ID]['score'] += earn
+            if ok:
+                earn = config['correct'].get(q, default_correct)
+                color = ANSI_GREEN
+            elif not answered:
+                earn = config['skipped'].get(q, default_skipped)
+                color = ANSI_YELLOW
+            else:
+                earn = config['incorrect'].get(q, default_incorrect)
+                color = ANSI_RED
+            print(f'\n  {color}Rating: {color}{earn:g}{ANSI_RESET}\n')
+            d['score'] += earn
 
 
     # ---------------------------------------------------

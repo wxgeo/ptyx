@@ -131,7 +131,7 @@ def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=Fal
     # If one calibration square is missing (a corner of the sheet is
     # folded for example), it will be generated from the others.
 
-    if len(positions) < 3:
+    if len(positions) <= 2:
         color2debug(m)
         raise RuntimeError('Only 2 squares found, calibration failed !')
 
@@ -174,7 +174,7 @@ def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=Fal
             del positions[lighter_corner]
 
     if len(positions) == 4:
-        if n < 3:
+        if n <= 2:
             color2debug(m)
             print('n =', n)
             raise RuntimeError("Something wrong with the corners !")
@@ -370,16 +370,18 @@ def calibrate(pic, m, debug=False):
 
 
 
-def scan_picture(filename, config, manual_verification=False, debug=False):
+def scan_picture(filename, config, manual_verification=None, debug=False):
     """Scan picture and return page identifier and list of answers for each question.
 
     - `filename` is a path pointing to a PNG file.
     - `config` is either a path poiting to a config file, or a dictionnary
       containing the configuration (generated from a config file).
-    - if `manual_verification` is set to True, the picture will be displayed
+    - `manual_verification` is set to `True`, the picture will be displayed
       with the interpretation done by this algorithm: checkboxes considered
       blackened by student will be shown in cyan, and all the other ones will be
-      shown in red.
+      shown in red. If it is set to `None` (default), the user will be asked
+      for manual verification only if recommanded. If it is set to `False`,
+      user will never be bothered.
 
     Return the following dictionnary:
     {'ID': int, 'page': int, 'name': str, 'answered': dict, 'matrix': array}
@@ -685,7 +687,7 @@ def scan_picture(filename, config, manual_verification=False, debug=False):
             answered[q].add(a)
 
             if not test_square(proportion=0.4, gray_level=0.9):
-                manual_verification = True
+                manual_verification = (manual_verification is not False)
                 color_square(color='green', thickness=5)
             else:
                 color_square(color='blue', thickness=5)
@@ -694,7 +696,7 @@ def scan_picture(filename, config, manual_verification=False, debug=False):
             c = '□'
             is_ok = (a not in correct_answers[q])
             if test_square(proportion=0.2, gray_level=0.95):
-                manual_verification = True
+                manual_verification = (manual_verification is not False)
                 color_square(thickness=2, color='magenta')
             else:
                 color_square(thickness=2)
@@ -715,7 +717,7 @@ def scan_picture(filename, config, manual_verification=False, debug=False):
         if a not in answered[q] and blackness[(q, a)] > ceil:
             print('False negative detected', (q, a))
             # This is probably a false negative, but we'd better verify manually.
-            manual_verification = True
+            manual_verification = (manual_verification is not False)
             answered[q].add(a)
             # Change box color for manual verification.
             i, j = positions[(q, a)]
@@ -728,8 +730,8 @@ def scan_picture(filename, config, manual_verification=False, debug=False):
         if a in answered[q] and blackness[(q, a)] < floor:
             print('False positive detected', (q, a))
             # This is probably a false positive, but we'd better verify manually.
-            manual_verification = True
-            answered[q] -= {a}
+            manual_verification = (manual_verification is not False)
+            answered[q].discard(a)
             # Change box color for manual verification.
             i, j = positions[(q, a)]
             color2debug(m, (i, j), (i + cell_size, j + cell_size), color='magenta', thickness=5, display=False)
@@ -737,7 +739,7 @@ def scan_picture(filename, config, manual_verification=False, debug=False):
 
     # ~ color2debug(m, (0,0), (0,0), display=True)
     # ~ print(f'\nScore: {ANSI_REVERSE}{score:g}{ANSI_RESET}\n')
-    if debug or manual_verification:
+    if debug or (manual_verification is True):
         color2debug(m)
     else:
         color2debug()

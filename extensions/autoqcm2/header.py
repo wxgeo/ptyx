@@ -9,7 +9,7 @@ from parameters import (CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM, # SQUARE_SIZE_IN_CM,
                          MARGIN_RIGHT_IN_CM, PAPER_FORMAT, # PAPER_FORMATS,
                          MARGIN_BOTTOM_IN_CM, MARGIN_TOP_IN_CM
                         )
-
+from config_parser import correct_answers
 
 
 
@@ -244,34 +244,25 @@ def student_ID_table(ids):
 
 
 
-def table_for_answers(questions, answers, correct_answers=(), flip=False, options={}):
+def table_for_answers(config, ID=None):
     """Generate the table where students select correct answers.
 
-    `questions` is either a list (or any iterable) of questions numbers,
-    or an integer n (questions number will be automatically generated then:
-    1, 2, 3, ..., n).
-
-    `answers` is either a list (or any iterable) of questions numbers,
-    or an integer n≤26 (answers identifiers will be automatically generated then:
-    a, b, c, ...).
-
-    `correct_answers` is a list of correct answers for each questions (so,
-    it's a list of lists of integers).
-    For example, `[[0, 2], [3], []]` means that the correct answers for question 1
-    were the answers number 1 and 3 (`[0, 2]`), while the only correct answer for question 2
-    was number 4 (`[3]`) and question 3 had no correct answer at all (`[]`).
-
-    If `flip` is True, rows and columns will be inverted. This may gain some place
-    if there are more answers per question than questions.
-
-    `options` is a dict whom keys are tuples (line, column) and values are tikz options
-    to be passed to corresponding cell in the table for answers.
+    - `config` is a dict generated when compiling test.
+    - `ID` is the student ID if correct answers should be shown.
+      If `ID` is `None` (default), the table will be blank.
     """
     content = []
     write = content.append
 
     # Generate the table where students will answer.
     tkzoptions = ['scale=%s' % CELL_SIZE_IN_CM]
+    
+    d = config['ordering'][1 if ID is None else ID]
+    questions = d['questions']
+    answers = d['answers']
+    n_questions = len(questions)
+    n_max_answers = max(len(l) for l in answers.values())
+    flip = (n_max_answers > n_questions)
     if flip:
         tkzoptions.extend(['x={(0cm,-1cm)}', 'y={(-1cm,0cm)}'])
 
@@ -279,57 +270,48 @@ def table_for_answers(questions, answers, correct_answers=(), flip=False, option
         \begin{tikzpicture}[%s]
         \draw[thin,fill=black] (-1,0) rectangle (0,1);""" % (','.join(tkzoptions)))
 
-    if isinstance(questions, int):
-        assert questions > 0
-        questions = range(1, questions + 1)
-
-    # Not all iterables have a .__len__() method, so calculate it.
-    n_questions = 0
-
-    for x1, name in enumerate(questions):
+    for x1 in range(n_questions):
         x2=x1 + 1
         x3=.5*(x1 + x2)
-        write(r"""\draw[ultra thin] ({x1},0) rectangle ({x2},1) ({x3},0.5) node {{{name}}};""".format(**locals()))
-        n_questions += 1
+        write(fr"\draw[ultra thin] ({x1},0) rectangle ({x2},1) ({x3},0.5) "
+              fr"node {{{x1 + 1}}};")
 
-    if isinstance(answers, int):
-        assert answers > 0
-        answers = ascii_letters[:answers]
+    # Find correct answers numbers for each question.
+    if ID is not None:
+        correct_ans = correct_answers(config, ID)
 
     i = -1
-    for i, name in enumerate(answers):
+    for i in range(n_max_answers):
+        name = ascii_letters[i]
         y1 = -i
         y2 = y1 - 1
         y3 = .5*(y1 + y2)
-        write(r"""
-            \draw[ultra thin] (-1,{y1}) rectangle (0,{y2}) (-0.5,{y3}) node {{{name}}};""".format(**locals()))
+        write("\n" 
+              fr"\draw[ultra thin] (-1,{y1}) rectangle (0,{y2}) (-0.5,{y3}) "
+              fr"node {{{name}}};")
         for j in range(n_questions):
-            opt = options.get((i, j), "")
             x1 = j
             x2 = x1 + 1
-            if j < len(correct_answers):
-                if i in correct_answers[j]:
-                    opt = 'fill=gray,' + opt
-            write(r"""\draw [ultra thin,{opt}] ({x1},{y1}) rectangle ({x2},{y2});""".format(**locals()))
+            opt = ''
+            if ID is not None and i + 1 in correct_ans[j + 1]:
+                opt = 'fill=gray'
+            write(fr"\draw [ultra thin,{opt}] ({x1},{y1}) rectangle ({x2},{y2});")
 
-    n_answers = i + 1
-
-    write(r'''\draw [thick] (-1,1) rectangle ({x2},{y2});
-              %\draw [thick] (-1,0) -- ({x2},0);
-              '''.format(**locals()))
-
+    write(fr"\draw [thick] (-1,1) rectangle ({x2},{y2});" "\n")
+#              %\draw [thick] (-1,0) -- ({x2},0);
+             
     for i in range(0, x2):
-        write(r'''\draw [thick] ({i},1) -- ({i},{y2});
-              '''.format(**locals()))
+        write(fr"\draw [thick] ({i},1) -- ({i},{y2});" "\n")
 
-    write(r"""\end{tikzpicture}\hfill\hfill\hfil
-        """)
+    write(r"\end{tikzpicture}\hfill\hfill\hfil" "\n")
 
     return '\n'.join(content)
 
 
 
 def packages_and_macros():
+    "Generate LaTeX default header (loading LaTeX packages and defining some custom macros)."
+    # https://tex.stackexchange.com/questions/37297/how-to-get-element-position-in-latex
     paper_format = f'{PAPER_FORMAT.lower()}paper'
     # LaTeX header is in two part, so as user may insert some customization here.
     return [fr"""\documentclass[{paper_format},twoside,10pt]{{article}}
@@ -353,7 +335,7 @@ def packages_and_macros():
     \newcounter{{answerNumber}}
     \renewcommand{{\thesubsection}}{{\Alph{{subsection}}}}
     """,
-    # Custom packages will be loaded here
+    # <Custom packages will be loaded just here.>
     r"""\usepackage{inputenc}
     \usepackage{ragged2e}
     \usepackage{geometry}
@@ -402,16 +384,14 @@ def packages_and_macros():
     }
     """]
 
-# https://tex.stackexchange.com/questions/37297/how-to-get-element-position-in-latex
 
 
 def answers_and_score(config, name, identifier, score, max_score):
     "Generate plain LaTeX code corresponding to score and correct answers."
-    table = table_for_answers(config['questions'], config['answers (max)'],
-             correct_answers=config['answers'][identifier], flip=config.get('flip'))
+    table = table_for_answers(config, identifier)
     if score is not None:
         score = \
-            '''\begin{tikzpicture}
+            r'''\begin{tikzpicture}
             \node[draw,very thick,rectangle, rounded corners,red!70!black] (0,0) {
             \begin{Large}
             Score~: %(score)s/%(max_score)s
@@ -423,8 +403,9 @@ def answers_and_score(config, name, identifier, score, max_score):
     right = MARGIN_RIGHT_IN_CM
     top = MARGIN_TOP_IN_CM
     bottom = MARGIN_BOTTOM_IN_CM
+    paper = PAPER_FORMAT
     return (r"""
-    \documentclass[{paper_format},10pt]{article}
+    \documentclass[%(paper)s,10pt]{article}
     \usepackage[utf8]{inputenc}
     \usepackage[document]{ragged2e}
     \usepackage{nopageno}
