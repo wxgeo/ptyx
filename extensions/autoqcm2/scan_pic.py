@@ -1,5 +1,6 @@
 from math import degrees, atan, hypot
 import builtins
+from functools import partial
 
 from PIL import Image
 from numpy import array, flipud, fliplr, dot
@@ -637,6 +638,10 @@ def scan_picture(filename, config, manual_verification=False, debug=False):
     # after the test was generated (this is useful if some tests questions were flawed).
 
     answered = {}
+    # Store blackness of checkboxes, to help detect false positives
+    # and false negatives.
+    blackness = {}
+    positions = {}
     for key, pos in boxes.items():
         # ~ should_have_answered = set() # for debuging only.
         i, j = xy2ij(*pos)
@@ -657,27 +662,77 @@ def scan_picture(filename, config, manual_verification=False, debug=False):
         # ~ if answer_is_correct:
             # ~ should_have_answered.add(a0)
 
+        test_square = partial(test_square_color, m, i + 3, j + 3, cell_size - 7)
+        color_square = partial(color2debug, m, (i, j),
+                               (i + cell_size, j + cell_size), display=False)
 
         if q not in answered:
             answered[q] = set()
             print(f'\n{ANSI_CYAN}• Question {q0}{ANSI_RESET}')
 
-        if (test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.2, gray_level=0.65) or
+        # The following will be used to detect false positives or false negatives later.
+        blackness[(q, a)] = eval_square_color(m, i + 3, j + 3, cell_size - 7)
+        positions[(q, a)] = (i, j)
+
+        if (test_square(proportion=0.2, gray_level=0.65) or
                 # ~ test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.4, gray_level=0.75) or
                 # ~ test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.45, gray_level=0.8) or
-                test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.4, gray_level=0.90) or
-                test_square_color(m, i + 3, j + 3, cell_size - 7, proportion=0.6, gray_level=0.95)):
+                test_square(proportion=0.4, gray_level=0.90) or
+                test_square(proportion=0.6, gray_level=0.95)):
+            # The student has checked this box.
             c = '■'
             is_ok = (a in correct_answers[q])
             answered[q].add(a)
-            color2debug(m, (i, j), (i + cell_size, j + cell_size), color='blue', thickness=5, display=False)
+
+            if not test_square(proportion=0.4, gray_level=0.9):
+                manual_verification = True
+                color_square(color='green', thickness=5)
+            else:
+                color_square(color='blue', thickness=5)
         else:
+            # This box was left unchecked.
             c = '□'
             is_ok = (a not in correct_answers[q])
-            color2debug(m, (i, j), (i + cell_size, j + cell_size), thickness=2, display=False)
+            if test_square(proportion=0.2, gray_level=0.95):
+                manual_verification = True
+                color_square(thickness=2, color='magenta')
+            else:
+                color_square(thickness=2)
+
         print(f"  {'' if is_ok else ANSI_YELLOW}{c} {a}  {ANSI_RESET}", end='\t')
         # ~ print('\nCorrect answers:', should_have_answered)
     print()
+
+    # Test now for false negatives and false positives.
+
+    # First, try to detect false negatives.
+    # If a checkbox considered unchecked is notably darker than the others,
+    # it is probably checked after all (and if not, it will most probably be catched
+    # with false positives in next section).
+    # Add 0.03 to 1.5*mean, in case mean is almost 0.
+    ceil = 1.5*sum(blackness.values())/len(blackness) + 0.03
+    for (q, a) in blackness:
+        if a not in answered[q] and blackness[(q, a)] > ceil:
+            print('False negative detected', (q, a))
+            # This is probably a false negative, but we'd better verify manually.
+            manual_verification = True
+            answered[q].add(a)
+            # Change box color for manual verification.
+            i, j = positions[(q, a)]
+            color2debug(m, (i, j), (i + cell_size, j + cell_size), color='green', thickness=5, display=False)
+
+    # If a checkbox is tested as checked, but is much lighter than the darker one,
+    # it is very probably a false positive.
+    floor = max(.2*max(blackness.values()), max(blackness.values()) - 0.3)
+    for (q, a) in blackness:
+        if a in answered[q] and blackness[(q, a)] < floor:
+            print('False positive detected', (q, a))
+            # This is probably a false positive, but we'd better verify manually.
+            manual_verification = True
+            answered[q] -= {a}
+            # Change box color for manual verification.
+            i, j = positions[(q, a)]
+            color2debug(m, (i, j), (i + cell_size, j + cell_size), color='magenta', thickness=5, display=False)
 
 
     # ~ color2debug(m, (0,0), (0,0), display=True)

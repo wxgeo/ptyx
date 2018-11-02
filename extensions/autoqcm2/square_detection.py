@@ -194,7 +194,7 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=Fals
 
 def eval_square_color(m, i, j, size, _debug=False):
     """Return an indice of blackness, which is a float in range (0, 1).
-    The bigger the float, the darker the square.
+    The bigger the float returned, the darker the square.
 
     The indice is useful to compare several squares, and find the blacker one.
     Note that the core of the square is considered the more important part to assert

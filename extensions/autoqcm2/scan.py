@@ -24,7 +24,7 @@
 
 
 from os.path import (isdir, isfile, join, expanduser, abspath,
-                     dirname, basename)
+                     dirname, basename, isfile)
 from os import listdir, mkdir, rename
 from shutil import rmtree
 import subprocess
@@ -224,7 +224,10 @@ if __name__ == '__main__':
         configfile = search_by_extension(DIR, '.autoqcm.config.json')
         config = load(configfile)
         # ~ print(config)
-        pic_data = scan_picture(abspath(expanduser(args.picture)), config, debug=True)
+        pic_path = abspath(expanduser(args.picture))
+        if not isfile(pic_path):
+            pic_path = join(DIR, '.scan', 'pic', args.picture)
+        pic_data = scan_picture(pic_path, config, manual_verification=True)
         # Keeping matrix would made output unreadable !
         pic_data.pop('matrix')
         print(pic_data)
@@ -384,25 +387,25 @@ if __name__ == '__main__':
                 print('- See pictures (s)')
                 print('- Keep only first one (f)')
                 print('- Keep only last one (l)')
-                print('- Modify this test ID and enter student name (m)')
-                print('  (This will not modify correction)')
-                print('Hint: options f/l are useful if the same page was '
-                      'scanned twice, option m if the same test was given '
-                      'to 2 different students.')
+                # ~ print('- Modify this test ID and enter student name (m)')
+                # ~ print('  (This will not modify correction)')
+                # ~ print('Hint: options f/l are useful if the same page was '
+                      # ~ 'scanned twice, option m if the same test was given '
+                      # ~ 'to 2 different students.')
 
                 ans = input('Answer:')
                 if ans in ('l', 'f'):
                     break
-                elif ans == 'm':
-                    ID = input('Enter some digits as new test ID:')
-                    ans = input(f'New ID: {ID!r}. Is it correct (Y/n) ?')
-                    if not ans.isdecimal():
-                        print('ID must only contain digits.')
-                    elif ans.lower() in ("y", "yes", ""):
-                        pic_data['name'] = ''
-                        # Have a negative ID to avoid conflict with existing ID.
-                        pic_data['ID'] = -int(ID)
-                        break
+                # ~ elif ans == 'm':
+                    # ~ ID = input('Enter some digits as new test ID:')
+                    # ~ ans = input(f'New ID: {ID!r}. Is it correct (Y/n) ?')
+                    # ~ if not ans.isdecimal():
+                        # ~ print('ID must only contain digits.')
+                    # ~ elif ans.lower() in ("y", "yes", ""):
+                        # ~ pic_data['name'] = ''
+                        # ~ # Have a negative ID to avoid conflict with existing ID.
+                        # ~ pic_data['ID'] = -int(ID)
+                        # ~ break
                 elif ans == 's':
                     with tempfile.TemporaryDirectory() as tmpdirname:
                         path = join(tmpdirname, 'test.png')
