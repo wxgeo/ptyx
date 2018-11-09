@@ -497,6 +497,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     # ------------------------------------------------------------------
 
     student_name = ''
+    student_ID = ''
 
     if page == 1:
         # Read student name directly
@@ -556,7 +557,6 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
             # Scan grid row by row. For each row, the darker cell is retrieved,
             # and the associated caracter is appended to the ID.
-            student_ID = ''
             all_ID_are_of_the_same_length = (len(set(len(ID) for ID in ids)) == 1)
 
             for n in range(ID_length):
