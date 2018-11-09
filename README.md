@@ -13,11 +13,11 @@ Since it uses sympy library, pTyX has symbolic calculus abilities too.
 Installation
 ------------
 Obviously, pTyX needs a working Python installation.
-Currently, pTyX has been tested on Python 2.6 and 2.7 only.
+Python version 3.6 (at least) is required for pTyX to run.
 
 pTyX also needs a working LaTeX installation. Command *pdflatex* must be available in your terminal.
 
-pTyX needs some python libraries :
+Though not required, the following python libraries are recommanded :
 * sympy : http://sympy.org/en/index.html
 * geophar : https://github.com/wxgeo/geophar/archive/master.zip
 
@@ -64,6 +64,12 @@ A special *write()* command is avalaible, to generate on the flow latex code fro
     write('%s - %s = %s\\' % (a, b, a - b))
     #END
 
+To access any python variable outside python code scope, simply add an hashtag before the variable name. 
 
+Any valid python expression can also be evaluated this way, using syntax #{python_expr}.
+  
+    $#a\mul#b=#{a*b}$
+
+However, pTyX has also reserved tags, like conditionals statements #IF, #ELSE, #ENDIF...
 
 (More to come...)

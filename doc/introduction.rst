@@ -1,16 +1,16 @@
 ====================
-Introduction to PtYx
+Introduction to pTyX
 ====================
 
 -------------
-What's PtYx ?
+What's pTyX ?
 -------------
 
-PtYx is a LaTeX precompilator, written in Python.
+pTyX is a LaTeX precompilator, written in Python.
 
 Typically, a .ptyx file is a LaTeX template with python code snippets inside.
 
-One single PtYx file may generate many latex documents, with different values.
+One single pTyX file may generate many latex documents, with different values.
 
 If pdftex is installed, you can generate directly .pdf files instead.
 
@@ -20,13 +20,13 @@ If pdftex is installed, you can generate directly .pdf files instead.
 Usage case
 ----------
 
-I use PtYx mainly to generate easily exercices with random values.
+I use pTyX mainly to generate easily exercices with random values.
 
 Since I'm a (quite paranoaic) math teacher, I use it in exams :
 in one run, I generate several different problem statements and the corresponding
 corrections.
 
-Since it uses sympy library, PtYx has symbolic calculus abilities too.
+Since it uses sympy library, pTyX has symbolic calculus abilities too.
 
 
 ------------
@@ -59,7 +59,7 @@ Search for the following lines, and edit them according to your own path::
 Let's start with an example
 ---------------------------
 
-PtYx file specification
+pTyX file specification
 -----------------------
 A ptyx file is essentially a LaTeX file, with a .ptyx extension,
 (optionally) some custom commands, and embedded python code.
