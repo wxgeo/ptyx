@@ -461,7 +461,10 @@ def close(compiler):
         # XXX: what if files are not auto-numbered, but a list
         # of names is provided to Ptyx instead ?
         # (cf. command line options).
-        filename = f'{name[:-5]}-{n}.pos'
+        if len(autoqcm_data['ordering']) == 1:
+            filename = f'{name[:-5]}.pos'
+        else:
+            filename = f'{name[:-5]}-{n}.pos'
         full_path = join(folder, '.compile', name, filename)
         d = autoqcm_data['boxes'][n] = {}
         with open(full_path) as f:
