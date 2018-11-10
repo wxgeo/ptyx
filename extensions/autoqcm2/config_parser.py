@@ -66,19 +66,49 @@ def load(path):
     return decodejs(js)
 
 
+def real2apparent(q, a, config, ID):
+    """Return apparent question number and answer number.
+
+    By "apparent", it means question and answer numbers as they
+    will appear in the PDF file, after shuffling questions and answers.
+
+    Arguments `q` and `a` are real question and answer numbers, that is
+    the ones before questions and answers were shuffled."""
+    questions = config['ordering'][ID]['questions']
+    answers = config['ordering'][ID]['answers']
+    # Apparent question number (ie. after shuffling).
+    # Attention, list index 0 correspond to first question is numbered 1, corresponding to .
+    q1 = questions.index(q) + 1
+    a1 = answers[q].index(a) + 1
+    return (q1, a1)
+
+
+def apparent2real(q, a, config, ID):
+    "Return real question number and answer number."
+    questions = config['ordering'][ID]['questions']
+    answers = config['ordering'][ID]['answers']
+    # Real question number (ie. before shuffling).
+    # Attention, first question is numbered 1, corresponding to list index 0.
+    q1 = questions[q - 1]
+    # Real answer number (ie. before shuffling).
+    a1 = answers[q1][a - 1]
+    return (q1, a1)
+
+
+
 def correct_answers(config, ID):
     'Return a dict containing the set of the correct answers for each question for test `ID`.'
-    
+
     questions = config['ordering'][ID]['questions']
     answers = config['ordering'][ID]['answers']
     correct_answers = {}
     for i, q in enumerate(questions):
         # i + 1 is the 'apparent' question number.
-        # q is the 'real' question number, ie. the question number before shuffling. 
+        # q is the 'real' question number, ie. the question number before shuffling.
         corr = correct_answers[i + 1] = set()
         for j, a in enumerate(answers[q]):
             # j + 1 is the 'apparent' answer number.
-            # a is the 'real' answer number, ie. the answer number before shuffling. 
+            # a is the 'real' answer number, ie. the answer number before shuffling.
             if a in config['correct_answers'][q]:
                 corr.add(j + 1)
     return correct_answers

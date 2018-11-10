@@ -9,7 +9,7 @@ from numpy import array, flipud, fliplr, dot
 from square_detection import test_square_color, find_black_square, \
                              eval_square_color,  \
                              find_lonely_square, color2debug
-from config_parser import load
+from config_parser import load, real2apparent
 from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM)
 from header import set_up_ID_table
 
@@ -448,7 +448,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     # ■■□■□■□■■□□□■□□■ = 0b100100011010101 =  21897
     # 2**15 = 32768 different values.
 
-    identifier = 0
+    test_ID = 0
     # Test the color of the 15 following squares,
     # and interpret it as a binary number.
 
@@ -459,7 +459,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
         else:
             color2debug(m, (i, j_), (i + square_size, j_ + square_size), color=(0,0,255), display=False)
         if test_square_color(m, i, j_, square_size, proportion=0.5, gray_level=0.5):
-            identifier += 2**k
+            test_ID += 2**k
             #~ print((k, (i3, j)), " -> black")
         #~ else:
             #~ print((k, (i3, j)), " -> white")
@@ -471,10 +471,10 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     # if so, the second band will be joined with the first
     # (allowing 2**30 = 1073741824 different values), and so on.
 
-    page = identifier%256
+    page = test_ID%256
     print("Page read: %s" % page)
-    identifier = identifier//256
-    print("Identifier read: %s" % identifier)
+    test_ID = test_ID//256
+    print("Test ID read: %s" % test_ID)
 
 
 
@@ -619,11 +619,11 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     # ------------------------------------------------------------------
 
     try:
-        boxes = config['boxes'][identifier][page]
+        boxes = config['boxes'][test_ID][page]
     except KeyError:
-        raise KeyError(f'ID {identifier!r} - page {page!r} not found in config file !')
+        raise KeyError(f'ID {test_ID!r} - page {page!r} not found in config file !')
 
-    ordering = config['ordering'][identifier]
+    ordering = config['ordering'][test_ID]
     mode = config['mode']
     correct_answers = config['correct_answers']
 
@@ -648,21 +648,15 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
         # ~ should_have_answered = set() # for debuging only.
         i, j = xy2ij(*pos)
         q, a = key[1:].split('-')
-        # Now, we have to take care of the shuffling, to find the number
-        # of the correct answers.
-        q = q0 = int(q)
-        #XXX: answers should start at 1, not 0 (like questions) for coherence.
-        a = a0 = int(a) + 1
+        # `q` and `a` are real questions and answers numbers, that is,
+        # questions and answers numbers before shuffling.
+        q = int(q)
+        a = int(a)
         # `q0` and `a0` keep track of apparent question and answers numbers,
         # which will be used on output to make debuging easier.
-        # Find "real" question number, ie. question number before shuffling.
-        q = ordering['questions'][q - 1]
-        # Find "real" answer number, ie. question number before shuffling.
-        a = ordering['answers'][q][a - 1]
+        q0, a0 = real2apparent(q, a, config, test_ID)
 
         answer_is_correct = (a in correct_answers)
-        # ~ if answer_is_correct:
-            # ~ should_have_answered.add(a0)
 
         test_square = partial(test_square_color, m, i + 3, j + 3, cell_size - 7)
         color_square = partial(color2debug, m, (i, j),
@@ -670,7 +664,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
         if q not in answered:
             answered[q] = set()
-            print(f'\n{ANSI_CYAN}• Question {q0}{ANSI_RESET}')
+            print(f'\n{ANSI_CYAN}• Question {q0}{ANSI_RESET} (Q{q})')
 
         # The following will be used to detect false positives or false negatives later.
         blackness[(q, a)] = eval_square_color(m, i + 3, j + 3, cell_size - 7)
@@ -744,5 +738,5 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     else:
         color2debug()
 
-    return {'ID': identifier, 'page': page, 'name': student_name, 'answered': answered, 'matrix': m}
+    return {'ID': test_ID, 'page': page, 'name': student_name, 'answered': answered, 'matrix': m}
 
