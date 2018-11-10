@@ -1,7 +1,7 @@
 from string import ascii_letters
 import csv
 import sys
-from os.path import abspath, dirname, isabs, join
+from os.path import abspath, dirname, isabs, join, expanduser
 
 script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 sys.path.insert(0, script_path)
@@ -118,6 +118,7 @@ def extract_ID_NAME_from_csv(csv_path, script_path):
 
     Return a dictionnary containing the students ID and corresponding names.
     """
+    csv_path = expanduser(csv_path)
     if not isabs(csv_path):
         csv_path = abspath(join(dirname(script_path), csv_path))
     # XXX: support ODS and XLS files ?
@@ -256,7 +257,7 @@ def table_for_answers(config, ID=None):
 
     # Generate the table where students will answer.
     tkzoptions = ['scale=%s' % CELL_SIZE_IN_CM]
-    
+
     d = config['ordering'][1 if ID is None else ID]
     questions = d['questions']
     answers = d['answers']
@@ -286,7 +287,7 @@ def table_for_answers(config, ID=None):
         y1 = -i
         y2 = y1 - 1
         y3 = .5*(y1 + y2)
-        write("\n" 
+        write("\n"
               fr"\draw[ultra thin] (-1,{y1}) rectangle (0,{y2}) (-0.5,{y3}) "
               fr"node {{{name}}};")
         for j in range(n_questions):
@@ -299,7 +300,7 @@ def table_for_answers(config, ID=None):
 
     write(fr"\draw [thick] (-1,1) rectangle ({x2},{y2});" "\n")
 #              %\draw [thick] (-1,0) -- ({x2},0);
-             
+
     for i in range(0, x2):
         write(fr"\draw [thick] ({i},1) -- ({i},{y2});" "\n")
 
