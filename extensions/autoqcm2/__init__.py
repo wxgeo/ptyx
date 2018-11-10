@@ -120,29 +120,6 @@ def _parse_ANSWERS_BLOCK_tag(self, node):
 
 def _parse_END_QCM_tag(self, node):
     pass
-#    data = self.autoqcm_data
-#    context = self.context
-#    n = context['NUM']
-#    data['answers'][n] = self.autoqcm_correct_answers
-    # Those are supposed to have same value for each test,
-    # so we don't save test number:
-#    data['n_questions'] = len(self.autoqcm_correct_answers)
-#    data['n_max_answers'] = self.n_max_answers
-
-    # Now, we know the number of questions and of answers per question for
-    # the whole MCQ, so we can generate the table for the answers.
-    # ~ args, kw = data['table_for_answers_options']
-    # ~ kw['answers'] = int(kw.get('answers', data['n_max_answers']))
-    # ~ kw['questions'] = int(kw.get('questions', data['n_questions']))
-    # ~ if context.get('WITH_ANSWERS'):
-        # ~ kw['correct_answers'] = data['answers'][n]
-    # ~ latex = generate_table_for_answers(*args, **kw)
-    # orientation must be stored for scan later.
-    # ~ data['flip'] = bool(kw.get('flip', False))
-    #XXX: If flip is not the same for all tests, only last flip value
-    # will be stored, which may lead to errors (though it's highly unlikely
-    # that user would adapt flip value depending on subject number).
-
 
 
 def _parse_NEW_QUESTION_tag(self, node):
@@ -162,13 +139,12 @@ def _parse_NEW_QUESTION_tag(self, node):
     self._parse_children(node.children[1:], function=partial(remember_last_question, l=l))
 
 
-# ~ def _parse_TABLE_FOR_ANSWERS_tag(self, node):
-    # ~ self.autoqcm_data['table_for_answers_options'] = self._parse_options(node)
-    # ~ # Don't parse it now, since we don't know the number of questions
-    # ~ # and of answers per question for now.
-    # ~ # Write the tag name as a bookmark... it will be replaced by latex
-    # ~ # code eventually when closing MCQ (see: _parse_END_QCM_tag).
-    # ~ self.write('#TABLE_FOR_ANSWERS')
+def _parse_NEW_ANSWER_tag(self, node):
+    k = int(node.arg(0))
+    n = self.autoqcm_question_number
+    data = self.autoqcm_data['ordering'][self.NUM]
+    data['answers'][n].append(k)
+    _open_answer(self, n, k)
 
 
 def _parse_PROPOSED_ANSWER_tag(self, node):
@@ -203,39 +179,12 @@ def _parse_PROPOSED_ANSWER_tag(self, node):
             func = (lambda s: g(f(s)))
 
     self._parse_children(node.children, function=func)
-    # Close 'AutoQCMTab{' written by `_parse_NEW_ANSWER_tag()`.
-    self.write(r'}\quad%' '\n')
+    _close_answer(self)
 
 
-# ~ def _parse_NEW_ANSWER_tag(self, node):
-    # ~ is_correct = (node.arg(0) == 'True')
-    # ~ # Add counter for each answer.
-    # ~ self.write(r'\stepcounter{answerNumber}')
-    # ~ # When the pdf with solutions will be generated, incorrect answers
-    # ~ # will be preceded by a white square, while correct ones will
-    # ~ # be preceded by a gray one.
-    # ~ if self.context.get('WITH_ANSWERS') and not is_correct:
-        # ~ self.write(r'\whitesquared')
-    # ~ else:
-        # ~ self.write(r'\graysquared')
-    # ~ self.write(r'{\alph{answerNumber}}')
-    # ~ if is_correct:
-        # ~ self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
-    # ~ self.autoqcm_answer_number += 1
-    # ~ if self.autoqcm_answer_number > self.n_max_answers:
-        # ~ self.n_max_answers = self.autoqcm_answer_number
-
-def _parse_NEW_ANSWER_tag(self, node):
-    k = int(node.arg(0))
-    n = self.autoqcm_question_number
-    data = self.autoqcm_data['ordering'][self.NUM]
-    data['answers'][n].append(k)
-    _add_check_box(self, n, k)
-
-
-def _add_check_box(self, n, k):
-    # ~ # Add counter for each answer.
-    # ~ self.write(r'\stepcounter{answerNumber}')
+def _open_answer(self, n, k):
+    # `n` is question number *before* shuffling
+    # `k` is answer number *before* shuffling
     # When the pdf with solutions will be generated, incorrect answers
     # will be preceded by a white square, while correct ones will
     # be preceded by a gray one.
@@ -247,12 +196,16 @@ def _add_check_box(self, n, k):
     else:
         self.write(r'\checkBox{gray}{%s}' % cb_id)
     self.write(r'}{')
-#    if is_correct:
-#        self.autoqcm_correct_answers[-1].append(self.autoqcm_answer_number)
-#    self.autoqcm_answer_number += 1
-#    if self.autoqcm_answer_number > self.n_max_answers:
-#        self.n_max_answers = self.autoqcm_answer_number
 
+
+def _close_answer(self):
+    # Close 'AutoQCMTab{' written by `_parse_NEW_ANSWER_tag()`.
+    self.write(r'}\quad%' '\n')
+
+
+
+
+# Following tag is used to generates the answers from a python list.
 
 def _parse_L_ANSWERS_tag(self, node):
     """#L_ANSWERS{list}{correct_answer} generate answers from a python list.
@@ -281,13 +234,31 @@ def _parse_L_ANSWERS_tag(self, node):
 
     # Shuffle and generate LaTeX.
     randfunc.shuffle(l)
-    self.write('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
+    self.write('\n\n' r'\begin{minipage}{\textwidth}' '\n')
+    n = self.autoqcm_question_number
+    # We will now attribute a unique number to each question.
+    # Order don't really matter, but number `1` is reserved to correct answer.
+    # Some explanations:
+    # In current implementation, correct answer number for each question
+    # before shuffling is encoded in a JSON parameter file, as well as
+    # the permutation used for each version.
+    # This JSON file whill be used by `scan.py` script when scanning students tests later.
+    # However, when using a L_ANSWERS tag, questions list is dynamically generated
+    # for each version of the document. So we c'ant be sure every version of
+    # the list will have the same size. However, this list can't be empty,
+    # so there will always be a first question.
+    # So, we can manage to have correct answer labeled `1` for every test quite easily.
+    # Since `1` is reserved, let's start at `2`.
+    i = 2
     for ans in l:
-        is_correct = (ans == correct_answer)
-        _add_check_box(self, is_correct)
-        self.write(r'\begin{tabular}[t]{c}%s\end{tabular}\quad' % ans)
-        self.write('%\n')
-    self.write('\n\\end{flushleft}\n\\end{minipage}')
+        if ans == correct_answer:
+            _open_answer(self, n, 1)
+        else:
+            _open_answer(self, n, i)
+            i += 1
+        self.write(ans)
+        _close_answer(self)
+    self.write('\n\n\\end{minipage}')
 
 
 def _parse_DEBUG_AUTOQCM_tag(self, node):

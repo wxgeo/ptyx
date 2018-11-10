@@ -285,6 +285,9 @@ def generate_ptyx_code(text):
             # introduced by '-' or '+').
             code.append('#END % question (before l_answers)')
             code.append(line)
+            # Correct answer will always be first one.
+            # (This is simpler to deal with, since list size may vary.)
+            correct_answers[question_num].append(1)
 
         elif line.startswith('@'):
             code.append('#{APPLY_TO_ANSWERS=%s;}' % repr(line[1:]))
