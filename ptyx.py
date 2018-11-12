@@ -31,6 +31,7 @@ __release_date__ = (14, 12, 2016)
 
 
 import argparse, re, random, os, sys, codecs, csv, math
+from ast import literal_eval
 #from math import ceil, floor, isnan, isinf
 
 
@@ -362,11 +363,11 @@ if __name__ == '__main__':
     options.context = {}
     for keyval in ctxt.split(';'):
         if keyval.strip():
-            key, val = keyval.split('=')
-            # TODO:
-            # - test if key is a valid variable name.
-            # - replace eval() by (basic) type detection and appropriate conversion (using int(), float(), etc.)
-            options.context[key.strip()] = eval(val)
+            key, val = keyval.split('=', 1)
+            key = key.strip()
+            if not str.isidentifier(key):
+                raise NameError(f'{key} is not a valid variale name.')
+            options.context[key] = literal_eval(val)
 
 
     # Time to act ! Let's compile all ptyx files...
