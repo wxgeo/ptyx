@@ -235,7 +235,8 @@ def student_ID_table(ids):
           r'\node[draw,rounded corners] {\begin{tabular}{p{8cm}}'
           r'\textsc{Nom~:}~\dotfill\\'
           r'Prénom~:~\dotfill\\'
-          r'Groupe~:~\dots\\'
+          r'Groupe~:~\dotfill\\'
+          r"Numéro d'étudiant:~\dotfill\\"
           r'\end{tabular}};\end{tikzpicture}'
           r'\write\mywrite{ID-table: '
           r'(\dimtomm{\zposx{ID-table}sp}, '
@@ -358,8 +359,8 @@ def packages_and_macros():
     }
     \makeatother
     \newcommand{\checkBox}[2]{%
-        \begin{tikzpicture}[baseline=-12pt,color=black, fill=#1, thick]
-            \draw (0,0)
+        \begin{tikzpicture}[baseline=-12pt,color=black, thick]
+            \draw[fill=#1] (0,0)
                 node {\zsavepos{#2-ll}}
                 rectangle (.5,-.5);
         \end{tikzpicture}%

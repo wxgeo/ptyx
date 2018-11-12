@@ -191,10 +191,10 @@ def _open_answer(self, n, k):
     is_correct = (k in self.autoqcm_data['correct_answers'][n])
     self.write(r'\AutoQCMTab{')
     cb_id = f'Q{n}-{k}'
-    if self.context.get('WITH_ANSWERS') and not is_correct:
-        self.write(r'\checkBox{white}{%s}' % cb_id)
-    else:
+    if self.context.get('WITH_ANSWERS') and is_correct:
         self.write(r'\checkBox{gray}{%s}' % cb_id)
+    else:
+        self.write(r'\checkBox{white}{%s}' % cb_id)
     self.write(r'}{')
 
 
