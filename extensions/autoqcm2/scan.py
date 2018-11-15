@@ -27,6 +27,7 @@ from os.path import (isdir, isfile, join, expanduser, abspath,
                      dirname, basename, isfile)
 from os import listdir, mkdir, rename
 from shutil import rmtree
+from glob import glob
 import subprocess
 import argparse
 import csv
@@ -81,7 +82,7 @@ def _extract_pictures(pdf_path, dest, page=None):
 def _export_pdf_to_jpg(pdf_path, dest, page=None):
     print('Convert PDF to PNG, please wait...')
     cmd = ['gs', '-dNOPAUSE', '-dBATCH', '-sDEVICE=jpeg', '-r200',
-           '-sOutputFile=' + join(dest, 'page-%03d.jpg'), pdf_path]
+           '-sOutputFile=' + join(dest, 'p%03d.jpg'), pdf_path]
     if page is not None:
         cmd = cmd[:1] + ["-dFirstPage=%s" % page, "-dLastPage=%s" % page] + cmd[1:]
     subprocess.run(cmd, stdout=subprocess.PIPE)
@@ -103,7 +104,8 @@ def pdf2pic(*pdf_files, dest, page=None):
         if not all(any(f.endswith(ext) for ext in PIC_EXTS) for f in pics):
             rmtree(tmp_dir)
             mkdir(tmp_dir)
-            _export_pdf_to_jpg(pdf, tmp_dir, args.page)
+            _export_pdf_to_jpg(pdf, tmp_dir, page)
+            pics = listdir(tmp_dir)
         for pic in pics:
             rename(join(tmp_dir, pic), join(dest, f'f{i}-{pic}'))
     rmtree(tmp_dir)
@@ -308,7 +310,8 @@ if __name__ == '__main__':
 
     # Extract images from all the PDF files of the input directory.
     # If images are already cached in `.scan` directory, this step will be skipped.
-    pdf_files = [join(INPUT_DIR, name) for name in listdir(INPUT_DIR) if name.endswith('.pdf')]
+    pdf_files =  glob(join(INPUT_DIR, '**/*.pdf'), recursive=True)
+    # ~ pdf_files = [join(INPUT_DIR, name) for name in listdir(INPUT_DIR) if name.endswith('.pdf')]
     total_page_number = sum(number_of_pages(pdf) for pdf in pdf_files)
 
     if len(listdir(PIC_DIR)) != total_page_number or args.page:
@@ -530,7 +533,7 @@ if __name__ == '__main__':
     MAX_SCORE = 0
     for q in config['correct_answers']:
         if config['mode'].get(q, default_mode) != 'skip':
-            MAX_SCORE += config['correct'].get(q, default_correct)
+            MAX_SCORE += int(config['correct'].get(q, default_correct))
 
     for ID in data:
         print(f'Test {ID} - {data[ID]["name"]}')
@@ -562,7 +565,7 @@ if __name__ == '__main__':
                 earn = config['incorrect'].get(q, default_incorrect)
                 color = ANSI_RED
             print(f'\n  {color}Rating: {color}{earn:g}{ANSI_RESET}\n')
-            d['score'] += earn
+            d['score'] += int(earn)
 
 
     # ---------------------------------------------------
@@ -584,8 +587,11 @@ if __name__ == '__main__':
         for name in sorted(scores):
             print(f' - {name}: {scores[name]:g}')
             writerow([name, scores[name]])
-    mean = round(sum(scores.values())/len(scores.values()), 2)
-    print(f'{ANSI_YELLOW}Mean: {mean:g}/{MAX_SCORE:g}{ANSI_RESET}')
+    if scores.values():
+        mean = round(sum(scores.values())/len(scores.values()), 2)
+        print(f'{ANSI_YELLOW}Mean: {mean:g}/{MAX_SCORE:g}{ANSI_RESET}')
+    else:
+        'No score found !'
     print(f"\nResults stored in {scores_path}\n")
 
 

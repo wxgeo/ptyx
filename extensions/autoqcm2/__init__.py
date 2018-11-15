@@ -236,6 +236,7 @@ def _parse_L_ANSWERS_tag(self, node):
     randfunc.shuffle(l)
     self.write('\n\n' r'\begin{minipage}{\textwidth}' '\n')
     n = self.autoqcm_question_number
+    data = self.autoqcm_data['ordering'][self.NUM]
     # We will now attribute a unique number to each question.
     # Order don't really matter, but number `1` is reserved to correct answer.
     # Some explanations:
@@ -244,7 +245,7 @@ def _parse_L_ANSWERS_tag(self, node):
     # the permutation used for each version.
     # This JSON file whill be used by `scan.py` script when scanning students tests later.
     # However, when using a L_ANSWERS tag, questions list is dynamically generated
-    # for each version of the document. So we c'ant be sure every version of
+    # for each version of the document. So we can't be sure that every version of
     # the list will have the same size. However, this list can't be empty,
     # so there will always be a first question.
     # So, we can manage to have correct answer labeled `1` for every test quite easily.
@@ -252,10 +253,12 @@ def _parse_L_ANSWERS_tag(self, node):
     i = 2
     for ans in l:
         if ans == correct_answer:
-            _open_answer(self, n, 1)
+            k = 1
         else:
-            _open_answer(self, n, i)
+            k = i
             i += 1
+        _open_answer(self, n, k)
+        data['answers'][n].append(k)
         self.write(ans)
         _close_answer(self)
     self.write('\n\n\\end{minipage}')

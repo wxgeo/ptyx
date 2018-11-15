@@ -621,7 +621,8 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     try:
         boxes = config['boxes'][test_ID][page]
     except KeyError:
-        raise KeyError(f'ID {test_ID!r} - page {page!r} not found in config file !')
+        print(f'WARNING: ID {test_ID!r} - page {page!r} not found in config file !')
+        return {'ID': test_ID, 'page': page, 'name': student_name, 'answered': {}, 'matrix': m}
 
     ordering = config['ordering'][test_ID]
     mode = config['mode']
