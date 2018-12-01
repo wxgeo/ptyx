@@ -24,8 +24,9 @@
 
 
 from os.path import (isdir, isfile, join, expanduser, abspath,
-                     dirname, basename, isfile)
+                     dirname, basename)
 from os import listdir, mkdir, rename
+import tempfile
 from shutil import rmtree
 from glob import glob
 import subprocess
@@ -499,16 +500,34 @@ if __name__ == '__main__':
     # - all questions must have been seen.
 
     questions = set(config['correct_answers'])
+    questions_not_seen = {}
+    pages_not_seen = {}
     for ID in data:
         diff = questions - set(data[ID]['answered'])
         if diff:
-            raise RuntimeError(f"Test {ID}: question(s) ${', '.join(diff)} not seen !")
+            questions_not_seen[ID] = ', '.join(str(q) for q in diff)
         # All tests may not have the same number of pages, since
         # page breaking will occur at a different place for each test.
         pages = set(config['boxes'][ID])
         diff = pages - data[ID]['pages']
         if diff:
+            pages_not_seen[ID] = ', '.join(str(p) for p in diff)
             raise RuntimeError(f"Test {ID}: page(s) ${', '.join(diff)} not seen !")
+    if pages_not_seen:
+        print('= WARNING =')
+        print('Pages not seen:')
+        for ID in pages_not_seen:
+            print(f'    • Test {ID}: page(s) {pages_not_seen[ID]}')
+    if questions_not_seen:
+        print('=== ERROR ===')
+        print('Questions not seen !')
+        for ID in questions_not_seen:
+            print(f'    • Test {ID}: question(s) {questions_not_seen[ID]}')
+
+    if questions_not_seen:
+        # Don't raise an error for pages not found (only a warning in log)
+        # if all questions were found, this was probably empty pages.
+        raise RuntimeError(f"Questions not seen ! (Look at message above).")
 
 
 

@@ -173,7 +173,7 @@ def detect_all_squares(matrix, size=50, error=0.30):
 
 
 
-def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=False):
+def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, margin=0, _debug=False):
     """Return True if square is black, False else.
 
     (i, j) is top left corner of the square, where i is line number
@@ -182,17 +182,19 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, _debug=Fals
     to be considered black (`gray_level` is the level below which a pixel
     is considered black).
     """
-    square = m[i:i+size, j:j+size] < gray_level
+    if size <= 2*margin + 4:
+        raise ValueError('Square too small for current margins !')
+    square = m[i + margin: i + size - margin, j + margin: j + size - margin] < gray_level
     if _debug:
         print("proportion of black pixels detected: %s (minimum required was %s)"
                                         % (square.sum()/size**2, proportion))
     # Test also the core of the square, since borders may induce false
     # positives if proportion is kept low (like default value).
-    core = square[2:-2,2:-2]
+    core = square[2:-2, 2:-2]
     return square.sum() > proportion*size**2 and core.sum() > proportion*(size - 4)**2
 
 
-def eval_square_color(m, i, j, size, _debug=False):
+def eval_square_color(m, i, j, size, margin=0, _debug=False):
     """Return an indice of blackness, which is a float in range (0, 1).
     The bigger the float returned, the darker the square.
 
@@ -203,17 +205,19 @@ def eval_square_color(m, i, j, size, _debug=False):
     (i, j) is top left corner of the square, where i is line number
     and j is column number.
     """
+    if size <= 2*margin:
+        raise ValueError('Square too small for current margins !')
     # Warning: pixels outside the sheet shouldn't be considered black !
     # Since we're doing a sum, 0 should represent white and 1 black,
     # so as if a part of the square is outside the sheet, it is considered
     # white, not black ! This explain the `1 - m[...]` below.
-    square = 1 - m[i:i+size, j:j+size]
-    # Test also the core of the square, since borders may induce false
-    # positives.
-    core = square[2:-2,2:-2]
-    # ~ print(core.sum()/(size - 4)**2)
-    return (3*core.sum()/(size - 4)**2 + square.sum()/size**2)/4
+    square = 1 - m[i + margin: i + size-margin, j + margin: j + size-margin]
+    return square.sum()/(size - margin)**2
 
+
+
+def adjust_checkbox(m, i, j, size):
+    return i, j
 
 
 def find_lonely_square(m, size, error=.4, gray_level=.4):
@@ -323,6 +327,5 @@ def color2debug(array=None, from_=None, to_=None, color='red',
             subprocess.run(["feh", "-F", path])
             input('-- pause --')
         del _d[ID]
-
 
 

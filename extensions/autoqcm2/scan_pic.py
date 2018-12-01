@@ -7,7 +7,7 @@ from numpy import array, flipud, fliplr, dot
 
 
 from square_detection import test_square_color, find_black_square, \
-                             eval_square_color,  \
+                             eval_square_color, adjust_checkbox, \
                              find_lonely_square, color2debug
 from config_parser import load, real2apparent
 from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM)
@@ -644,10 +644,12 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     # Store blackness of checkboxes, to help detect false positives
     # and false negatives.
     blackness = {}
+    core_blackness = {}
     positions = {}
     for key, pos in boxes.items():
         # ~ should_have_answered = set() # for debuging only.
         i, j = xy2ij(*pos)
+        i, j = adjust_checkbox(m, i, j, cell_size)
         q, a = key[1:].split('-')
         # `q` and `a` are real questions and answers numbers, that is,
         # questions and answers numbers before shuffling.
@@ -659,7 +661,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
         answer_is_correct = (a in correct_answers)
 
-        test_square = partial(test_square_color, m, i + 3, j + 3, cell_size - 7)
+        test_square = partial(test_square_color, m, i, j, cell_size, margin=5)
         color_square = partial(color2debug, m, (i, j),
                                (i + cell_size, j + cell_size), display=False)
 
@@ -668,7 +670,8 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
             print(f'\n{ANSI_CYAN}• Question {q0}{ANSI_RESET} (Q{q})')
 
         # The following will be used to detect false positives or false negatives later.
-        blackness[(q, a)] = eval_square_color(m, i + 3, j + 3, cell_size - 7)
+        blackness[(q, a)] = eval_square_color(m, i, j, cell_size, margin=4)
+        core_blackness[(q, a)] = eval_square_color(m, i, j, cell_size, margin=7)
         positions[(q, a)] = (i, j)
 
         if (test_square(proportion=0.2, gray_level=0.65) or
@@ -707,9 +710,11 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     # it is probably checked after all (and if not, it will most probably be catched
     # with false positives in next section).
     # Add 0.03 to 1.5*mean, in case mean is almost 0.
-    ceil = 1.5*sum(blackness.values())/len(blackness) + 0.03
+    ceil = 1.5*sum(blackness.values())/len(blackness) + 0.02
+    core_ceil = 1.2*sum(core_blackness.values())/len(core_blackness) + 0.01
     for (q, a) in blackness:
-        if a not in answered[q] and blackness[(q, a)] > ceil:
+        if a not in answered[q] and (blackness[(q, a)] > ceil
+                                  or core_blackness[(q, a)] > core_ceil):
             print('False negative detected', (q, a))
             # This is probably a false negative, but we'd better verify manually.
             manual_verification = (manual_verification is not False)
@@ -721,8 +726,10 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     # If a checkbox is tested as checked, but is much lighter than the darker one,
     # it is very probably a false positive.
     floor = max(.2*max(blackness.values()), max(blackness.values()) - 0.3)
+    core_floor = max(.2*max(core_blackness.values()), max(core_blackness.values()) - 0.3)
     for (q, a) in blackness:
-        if a in answered[q] and blackness[(q, a)] < floor:
+        if a in answered[q] and (blackness[(q, a)] < floor
+                                or core_blackness[(q, a)] < core_floor):
             print('False positive detected', (q, a))
             # This is probably a false positive, but we'd better verify manually.
             manual_verification = (manual_verification is not False)
