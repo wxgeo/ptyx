@@ -186,12 +186,13 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, margin=0, _
         raise ValueError('Square too small for current margins !')
     square = m[i + margin: i + size - margin, j + margin: j + size - margin] < gray_level
     if _debug:
+        print(square, square.sum(), len(square)**2)
         print("proportion of black pixels detected: %s (minimum required was %s)"
                                         % (square.sum()/size**2, proportion))
     # Test also the core of the square, since borders may induce false
     # positives if proportion is kept low (like default value).
     core = square[2:-2, 2:-2]
-    return square.sum() > proportion*size**2 and core.sum() > proportion*(size - 4)**2
+    return square.sum() > proportion*len(square)**2 and core.sum() > proportion*len(core)**2
 
 
 def eval_square_color(m, i, j, size, margin=0, _debug=False):
