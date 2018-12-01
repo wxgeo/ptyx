@@ -499,10 +499,11 @@ if __name__ == '__main__':
     # - all pages must have been scanned,
     # - all questions must have been seen.
 
-    questions = set(config['correct_answers'])
+
     questions_not_seen = {}
     pages_not_seen = {}
     for ID in data:
+        questions = set(config['ordering'][ID]['questions'])
         diff = questions - set(data[ID]['answered'])
         if diff:
             questions_not_seen[ID] = ', '.join(str(q) for q in diff)
@@ -512,16 +513,15 @@ if __name__ == '__main__':
         diff = pages - data[ID]['pages']
         if diff:
             pages_not_seen[ID] = ', '.join(str(p) for p in diff)
-            raise RuntimeError(f"Test {ID}: page(s) ${', '.join(diff)} not seen !")
     if pages_not_seen:
         print('= WARNING =')
         print('Pages not seen:')
-        for ID in pages_not_seen:
+        for ID in sorted(pages_not_seen):
             print(f'    • Test {ID}: page(s) {pages_not_seen[ID]}')
     if questions_not_seen:
         print('=== ERROR ===')
         print('Questions not seen !')
-        for ID in questions_not_seen:
+        for ID in sorted(questions_not_seen):
             print(f'    • Test {ID}: question(s) {questions_not_seen[ID]}')
 
     if questions_not_seen:
@@ -575,16 +575,16 @@ if __name__ == '__main__':
             else:
                 raise RuntimeError('Invalid mode (%s) !' % mode)
             if ok:
-                earn = config['correct'].get(q, default_correct)
+                earn = float(config['correct'].get(q, default_correct))
                 color = ANSI_GREEN
             elif not answered:
-                earn = config['skipped'].get(q, default_skipped)
+                earn = float(config['skipped'].get(q, default_skipped))
                 color = ANSI_YELLOW
             else:
-                earn = config['incorrect'].get(q, default_incorrect)
+                earn = float(config['incorrect'].get(q, default_incorrect))
                 color = ANSI_RED
             print(f'\n  {color}Rating: {color}{earn:g}{ANSI_RESET}\n')
-            d['score'] += int(earn)
+            d['score'] += earn
 
 
     # ---------------------------------------------------
