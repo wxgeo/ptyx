@@ -219,7 +219,7 @@ def find_ID_band(m, i, j1, j2, square_size):
     color2debug(m, (i1, j1), (i2, j2), display=False)
     search_area = m[i1:i2, j1:j2]
     i3, j3 = find_black_square(search_area, size=square_size,
-                            error=0.3, mode='c', debug=False).__next__()
+                            error=0.3, mode='column', debug=False).__next__()
     return i1 + i3, j1 + j3
 
 
@@ -516,7 +516,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
             student_number = None
             search_area = m[vpos:vpos + 4*square_size,:]
-            i, j0 = find_black_square(search_area, size=square_size, error=0.3, mode='c').__next__()
+            i, j0 = find_black_square(search_area, size=square_size, error=0.3, mode='column').__next__()
             #~ color2debug((vpos + i, j0), (vpos + i + square_size, j0 + square_size), color=(0,255,0))
             vpos += i + square_size
 

@@ -19,11 +19,28 @@ COLORS = {'red':        (255, 0, 0),
 # See also: https://pypi.org/project/webcolors/
 
 
+
+def top_left_iterator(stop, step=1):
+    "Return an iterator for coordinates starting from top-left corner."
+    # Pixels are visited starting from top-left corner
+    # in the following order:
+    # 1  3  8  15
+    # 4  2  6  13
+    # 9  7  5  11
+    # 16 14 12 10
+    for n in range(0, stop, step):
+        yield (n, n)
+        for k in range(n - step, -1, -step):
+            yield (k, n)
+            yield (n, k)
+
+
+
 def total_grayness(m):
     return interp(m, [0,0.2,0.8,1], [0, 0.1, 0.9, 1]).sum()
 
 
-def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4, mode='l', debug=False):
+def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4, mode='row', debug=False):
     """Detect a black rectangle of given size (in pixels) in matrix.
 
     The n*m matrix must contain only floats between 0 (white) and 1 (black).
@@ -34,8 +51,9 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
            If it is set to 0, only black pixels will be considered black ; if it
            is close to 1 (max value), almost all pixels are considered black
            except white ones (for which value is 1.).
-        - `mode` is either 'l' (picture is scanned line by line, from top to bottom)
-           or 'c' (picture is scanned column by column, from left to right).
+        - `mode` is either:
+            * 'row' (picture is scanned row by row, from top to bottom)
+            * 'column' (picture is scanned column by column, from left to right)
 
     Return a generator of (i, j) where i is line number and j is column number,
     indicating black squares top left corner.
@@ -55,12 +73,12 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
     to_avoid = []
     # Find a black pixel, starting from top left corner,
     # and scanning line by line (ie. from top to bottom).
-    if mode == 'l':
+    if mode == 'row':
         black_pixels = nonzero(m)
-    elif mode == 'c':
+    elif mode == 'column':
         black_pixels = reversed(nonzero(transpose(array(m))))
     else:
-        raise RuntimeError("Unknown mode: %s. Mode should be either 'l' or 'c'." % repr(mode))
+        raise RuntimeError("Unknown mode: %s. Mode should be either 'row' or 'column'." % repr(mode))
     if debug:
         print(mode, black_pixels)
     for (i, j) in zip(*black_pixels):
@@ -164,6 +182,8 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
             yield (i, j)
 
 
+
+
 def find_black_square(matrix, size, error=.4, gray_level=.4, **kw):
     return find_black_rectangle(matrix, width=size, height=size, error=error, gray_level=gray_level, **kw)
 
@@ -184,7 +204,7 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, margin=0, _
     """
     if size <= 2*margin + 4:
         raise ValueError('Square too small for current margins !')
-    square = m[i + margin: i + size - margin, j + margin: j + size - margin] < gray_level
+    square = m[i+margin : i+size-margin, j+margin : j+size-margin] < gray_level
     if _debug:
         print(square, square.sum(), len(square)**2)
         print("proportion of black pixels detected: %s (minimum required was %s)"
@@ -212,13 +232,31 @@ def eval_square_color(m, i, j, size, margin=0, _debug=False):
     # Since we're doing a sum, 0 should represent white and 1 black,
     # so as if a part of the square is outside the sheet, it is considered
     # white, not black ! This explain the `1 - m[...]` below.
-    square = 1 - m[i + margin: i + size-margin, j + margin: j + size-margin]
+    square = 1 - m[i+margin : i+size-margin, j+margin : j+size-margin]
     return square.sum()/(size - margin)**2
 
 
 
-def adjust_checkbox(m, i, j, size):
+def adjust_checkbox(m, i, j, size, level1=0.5, level2=0.6, delta=5):
+    #return (i, j)
+    # Try to adjust top edge of the checkbox
+    i0, j0 = i, j
+    if m[i:i+size, j:j+1].sum() < level1*size:
+        for i in range(i0 - delta, i0 + delta + 1):
+            if m[i:i+size, j:j+1].sum() > level2*size:
+                break
+        else:
+            i = i0
+    if m[i:i+1, j:j+size].sum() < level1*size:
+        for j in range(j0 - delta, j0 + delta + 1):
+            if m[i:i+1, j:j+size].sum() > level2*size:
+                break
+        else:
+            j = j0
     return i, j
+
+
+
 
 
 def find_lonely_square(m, size, error=.4, gray_level=.4):
