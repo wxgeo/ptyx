@@ -147,7 +147,7 @@ def _parse_NEW_ANSWER_tag(self, node):
     _open_answer(self, n, k)
 
 
-def _parse_PROPOSED_ANSWER_tag(self, node):
+#def _parse_PROPOSED_ANSWER_tag(self, node):
     # TODO: functions should be compiled only once for each question block,
     # not for every answer (though it is probably not be a bottleneck in
     # code execution).
@@ -178,7 +178,7 @@ def _parse_PROPOSED_ANSWER_tag(self, node):
             # since it is not necessarily injective.
             func = (lambda s: g(f(s)))
 
-    self._parse_children(node.children, function=func)
+    self._parse_children(node.children[1:], function=func)
     _close_answer(self)
 
 
@@ -395,15 +395,15 @@ def main(text, compiler):
     #    }
     text = extended_python.main(text, compiler)
     # For efficiency, update only for last tag.
-    compiler.add_new_tag('QCM', (0, 0, ['END_QCM']), _parse_QCM_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('NEW_QUESTION', (1, 0, ['@END', '@END_QUESTION']), _parse_NEW_QUESTION_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('NEW_ANSWER', (1, 0, None), _parse_NEW_ANSWER_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('END_QCM', (0, 0, None), _parse_END_QCM_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('QCM_HEADER', (1, 0, None), _parse_QCM_HEADER_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('PROPOSED_ANSWER', (0, 0, ['@END']), _parse_PROPOSED_ANSWER_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('ANSWERS_BLOCK', (0, 0, ['@END']), _parse_ANSWERS_BLOCK_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('L_ANSWERS', (2, 0, None), _parse_L_ANSWERS_tag, 'autoqcm', update=False)
-    compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), _parse_DEBUG_AUTOQCM_tag, 'autoqcm', update=True)
+    compiler.add_new_tag('QCM', (0, 0, ['END_QCM']), _parse_QCM_tag, 'autoqcm2')
+    compiler.add_new_tag('NEW_QUESTION', (1, 0, ['@END', '@END_QUESTION']), _parse_NEW_QUESTION_tag, 'autoqcm2')
+    compiler.add_new_tag('NEW_ANSWER', (1, 0, ['@END', '@END_ANSWER']), _parse_NEW_ANSWER_tag, 'autoqcm2')
+    compiler.add_new_tag('END_QCM', (0, 0, None), _parse_END_QCM_tag, 'autoqcm2')
+    compiler.add_new_tag('QCM_HEADER', (1, 0, None), _parse_QCM_HEADER_tag, 'autoqcm2')
+    compiler.add_new_tag('ANSWERS_BLOCK', (0, 0, ['@END']), _parse_ANSWERS_BLOCK_tag, 'autoqcm2')
+    compiler.add_new_tag('L_ANSWERS', (2, 0, None), _parse_L_ANSWERS_tag, 'autoqcm2')
+    compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), _parse_DEBUG_AUTOQCM_tag, 'autoqcm2')
+    compiler.update_tags_info()
     code, correct_answers = generate_ptyx_code(text)
     # Some tags use cache, for code which don't change between two successive compilation.
     # (Typically, this is used for (most of) the header).

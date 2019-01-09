@@ -117,7 +117,7 @@ def generate_ptyx_code(text):
 
     code = []
 
-    levels = ('ROOT', 'QCM', 'SECTION', 'QUESTION_BLOCK', 'ANSWERS')
+    levels = ('ROOT', 'QCM', 'SECTION', 'QUESTION_BLOCK', 'ANSWERS', 'ANS')
     stack = StaticStack(levels)
 
 
@@ -149,9 +149,6 @@ def generate_ptyx_code(text):
                 # the section title and the first question.
                 code.append('\\begin{enumerate}[resume]')
                 code.append('#SHUFFLE % (questions)')
-            #~ # Open a section to add a \\begin{enumerate} only once.
-            #~ if stack[-1] != 'SECTION':
-                #~ begin('SECTION')
             # Question blocks are shuffled. As an exception, a block starting
             # with '>' must not be separated from previous block.
             if kw.get('shuffle', True):
@@ -162,10 +159,13 @@ def generate_ptyx_code(text):
 
         elif level == 'ANSWERS':
             # First, end question.
-            code.append('#END % question\n\\nopagebreak[4]')
+            code.append('#END_QUESTION\n\\nopagebreak[4]')
             # Shuffle answers.
             code.append('#ANSWERS_BLOCK')
             code.append('#SHUFFLE % (answers)')
+
+        elif level == "ANS":
+            pass
 
         else:
             raise RuntimeError('Unknown level: %s' % level)
@@ -216,6 +216,8 @@ def generate_ptyx_code(text):
                     code.pop()
                 code.append('#END_SHUFFLE % (answers)')
                 code.append('#END % (answers block)')
+            elif _level == 'ANS':
+                code.append('#END_ANSWER')
 
 
 
@@ -296,18 +298,22 @@ def generate_ptyx_code(text):
             # - incorrect answer
             # + correct answer
 
-            assert stack.current in ('ANSWERS', 'QUESTION_BLOCK')
+            assert stack.current in ('ANS', 'ANSWERS', 'QUESTION_BLOCK')
 
             if stack.current == 'QUESTION_BLOCK':
                 # This is the first answer of a new answer block.
                 begin('ANSWERS')
 
-            elif previous_line == '':
-                # A blank line may be used to separate answers groups.
-                # (It should not appear in final pdf, so overwrite it).
-                # (NB: This must not be done for the first answer !)
-                code[-1] = '#END_SHUFFLE % (answers)'
-                code.append('#SHUFFLE % (answers)')
+            else:
+                # Close any previous opened answer.
+                close('ANS')
+                if previous_line == '':
+                    # A blank line may be used to separate answers groups.
+                    # (It should not appear in final pdf, so overwrite it).
+                    # (NB: This must not be done for the first answer !)
+                    code[-1] = '#END_SHUFFLE % (answers)'
+                    code.append('#SHUFFLE % (answers)')
+
 
             code.append('#ITEM % shuffling answers')
             answer_num += 1
@@ -316,7 +322,8 @@ def generate_ptyx_code(text):
                 # This is a correct answer.
                 correct_answers[question_num].append(answer_num)
 
-            code.append('#PROPOSED_ANSWER %s#END' % line[2:])
+            begin('ANS')
+            code.append(line[2:])
 
         elif n >= 3 and all(c == '-' for c in line):  # ---
             if stack.current == 'ANSWERS':

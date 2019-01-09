@@ -209,7 +209,8 @@ class SyntaxTreeGenerator:
     # TODO: all tags starting with END_TAG should automatically close TAG.
     # (This should be a syntax feature).
     # (Btw, NEW_MACRO -> MACRO, and MACRO -> CALL)
-    closing_tags_list = ('END', 'END_CASE', 'END_PICK', 'END_SHUFFLE', 'END_MACRO', 'END_IF')
+    closing_tags_set = {'END', 'END_CASE', 'END_PICK', 'END_SHUFFLE',
+                                  'END_MACRO', 'END_IF'}
 
     # Tags sorted by length (longer first).
     # This is used for matching tests.
@@ -217,6 +218,13 @@ class SyntaxTreeGenerator:
 
     _found_tags = frozenset()
 
+    def __init__(self):
+        # Add ability to update the set of closing tags for instances of
+        # SyntaxTreeGenerator.
+        # It is used by extensions to define new closing tags,
+        # by calling `Compiler.add_new_tag()`.
+        self.closing_tags_set = set(self.closing_tags_set)
+        self.tags = dict(self.tags)
 
     def preparse(self, text):
         """Pre-parse pTyX code and generate a syntax tree.
@@ -307,7 +315,7 @@ class SyntaxTreeGenerator:
             # --------------------------------------------------
 
             remove_trailing_newline = (self.tags[tag][2] is not None
-                                       or tag in self.closing_tags_list)
+                                       or tag in self.closing_tags_set)
             if remove_trailing_newline:
                 # Remove new line and spaces *before* #IF, #ELSE, ... tags.
                 # This is more convenient, since two successive \n
@@ -381,7 +389,7 @@ class SyntaxTreeGenerator:
             # ------------
             # Exclude #END and all closing tags, since they(re not true tags.
             # (Their only purpose is to close a block, #END doesn't correspond to any command).
-            elif tag not in self.closing_tags_list:
+            elif tag not in self.closing_tags_set:
                 # Create and enter new node.
                 # ~~~~~~~~~~~~~~~~~~~~~~~~~~
                 node = node.add_child(Node(tag))
@@ -526,16 +534,25 @@ class LatexGenerator:
         only if the block condition was satisfied.
         """
         tag = self.convert_tags.get(node.name, node.name)
-        try:
-            method = getattr(self, '_parse_%s_tag' % tag)
-        except AttributeError:
-            # Extensions can define their own tags.
-            tags_dict = self._tags_defined_by_extensions
-            if tag in tags_dict:
+        # Extensions can define their own tags, or overwrite existing ones.
+        tags_dict = self._tags_defined_by_extensions
+        if tag in tags_dict:
+            try:
                 return tags_dict[tag][0](self, node)
-            print("Error: method '_parse_%s_tag' not found" % tag)
+            except Exception:
+                print(f"Error when calling method '_parse_{tag}_tag' "
+                      "(defined by extension).")
+                raise
+        try:
+            method = getattr(self, f'_parse_{tag}_tag')
+            return method(node)
+        except AttributeError:
+            print(f"Error: method '_parse_{tag}_tag' not found.")
             raise
-        return method(node)
+        except:
+            print(f"Error when calling method '_parse_{tag}_tag'.")
+            raise
+
 
     def _parse_children(self, children, function=None, **options):
         """Parse all children nodes.
@@ -565,7 +582,7 @@ class LatexGenerator:
                 # Nodes are either numbered, or have a name.
                 # Numbered nodes correspond to command arguments. Those should
                 # have been processed before, and not be passed to _parse_children().
-                assert isinstance(child.name, str), child.name
+                assert isinstance(child.name, str), repr(child.name)
 
                 self.parse_node(child)
 
@@ -1175,6 +1192,7 @@ class Compiler(object):
         self.syntax_tree_generator = SyntaxTreeGenerator()
         self.latex_generator = LatexGenerator(self)
         self.state = {}
+        self._new_closing_tags = set()
 
     def read_file(self, path):
         "Set the path of the file to be compiled."
@@ -1276,29 +1294,67 @@ class Compiler(object):
             if hasattr(module, 'close'):
                 module.close(self)
 
-    def add_new_tag(self, name, syntax, handler, extension_name, update=True):
+    def add_new_tag(self, name, syntax, handler, extension_name):
         """Add abbility for extensions to extend syntax, adding new tags.
 
         Using `extension_name`, the compiler also checks that two different
         extensions loaded simultaneously do not define define the same tag.
         * if tag is already define by the same extension, nothing is done.
         * if it is defined by an other extension, an error is raised.
+
+        Note that it is not necessary to use `add_new_tag` to declare
+        closing tags (like #END), unless you want to call an handler on close.
+
+        You must call `update_tags_info()` after adding all the new tags.
         """
-        tags_dict = self.latex_generator._tags_defined_by_extensions
-        if name in tags_dict:
-            if tags_dict[name][1] == extension_name:
+        g = self.latex_generator
+        s = self.syntax_tree_generator
+        preparser = g.preparser
+        ext_tags_dict = g._tags_defined_by_extensions
+
+        if name in ext_tags_dict:
+            if ext_tags_dict[name][1] == extension_name:
                 print(("Warning: Tag %s already defined by same extension (%s),"
                        " doing nothing.") % (name, extension_name))
                 return
             else:
                 raise NameError(("Extension %s tries to define tag %s, which was"
                                  "already defined by extension %s.")
-                                 % (extension_name, name, tags_dict[name][1]))
-        tags_dict[name] = (handler, extension_name)
-        stg = self.syntax_tree_generator
-        stg.tags[name] = syntax
-        if update:
-            stg.sorted_tags = sorted(stg.tags, key=len,reverse=True)
+                                 % (extension_name, name, ext_tags_dict[name][1]))
+        # Register handler for this tag.
+        ext_tags_dict[name] = (handler, extension_name)
+
+        # Add this new tag to tags set.
+        s.tags[name] = syntax
+        preparser.tags[name] = syntax
+
+        if syntax[2] is not None:
+            self._new_closing_tags.update(syntax[2])
+
+
+    def update_tags_info(self):
+        "Update information concerning newly added tags."
+        g = self.latex_generator
+        s = self.syntax_tree_generator
+        preparser = g.preparser
+        # Add closing tags to closing tags set.
+        closing_tags = [tag.lstrip('@') for tag in self._new_closing_tags]
+        s.closing_tags_set.update(closing_tags)
+        preparser.closing_tags_set.update(closing_tags)
+        # If not already explicitly registered, closing tags must now be
+        # registered in tags set.
+        for tag in closing_tags:
+            s.tags.setdefault(tag, (0, 0, None))
+            preparser.tags.setdefault(tag, (0, 0, None))
+
+        # Update sorted tags list (it must be the *last* step !)
+        self._new_closing_tags.clear()
+        s.sorted_tags = sorted(s.tags, key=len, reverse=True)
+        preparser.sorted_tags = sorted(preparser.tags, key=len, reverse=True)
+
+
+
+
 
     def parse(self, code, **context):
         """Convert ptyx code to plain LaTeX in one shot.

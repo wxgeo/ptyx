@@ -396,6 +396,7 @@ if __name__ == '__main__':
         # The syntax tree is generated only once, and will then be used
         # for all the following compilations.
         compiler.generate_syntax_tree()
+        # print(compiler.state['syntax_tree'].display())
 
         # Set the seed used for pseudo-random numbers generation.
         # (The seed value is set in the ptyx file using special tag #SEED{}).
