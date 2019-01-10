@@ -305,17 +305,21 @@ def generate_ptyx_code(text):
                 begin('ANSWERS')
 
             else:
+                # A blank line is used to separate answers groups.
+                if previous_line == '':
+                    # This blank line should not appear in final pdf, so remove it.
+                    # (NB: This must *not* be done for the first answer !)
+                    code.pop()
                 # Close any previous opened answer.
                 close('ANS')
                 if previous_line == '':
-                    # A blank line may be used to separate answers groups.
-                    # (It should not appear in final pdf, so overwrite it).
-                    # (NB: This must not be done for the first answer !)
-                    code[-1] = '#END_SHUFFLE % (answers)'
+                    # Answers are shuffled inside their respective groups,
+                    # however groups are kept separate.
+                    code.append('#END_SHUFFLE % (answers)')
                     code.append('#SHUFFLE % (answers)')
 
 
-            code.append('#ITEM % shuffling answers')
+            code.append('#ITEM % shuffling answers\n')
             answer_num += 1
             code.append(f'#NEW_ANSWER{{{answer_num}}}')
             if line[0] == '+':

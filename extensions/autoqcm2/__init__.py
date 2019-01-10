@@ -75,11 +75,11 @@ import randfunc
 from utilities import print_sympy_expr
 
 def test_singularity_and_append(code, l, question):
-    _code_ = code.strip()
-    if _code_ in l:
+    code = code.strip()
+    if code in l:
         msg= [
         'ERROR: Same answer proposed twice in MCQ !',
-        'Answer "%s" appeared at least twice for the same question.' % _code_,
+        f'Answer {code!r} appeared at least twice for the same question.',
         'Question was:',
         repr(question),
         '',
@@ -98,7 +98,7 @@ def test_singularity_and_append(code, l, question):
         raise RuntimeError('Same answer proposed twice in MCQ '
                            '(see message above for more information) !')
     else:
-        l.append(_code_)
+        l.append(code)
     return code
 
 
@@ -176,7 +176,7 @@ def _parse_NEW_ANSWER_tag(self, node):
         if f is not None:
             # Compose functions. Function f should be applied first,
             # since it is not necessarily injective.
-            func = (lambda s: g(f(s)))
+            func = (lambda s: g(f(s.strip())))
 
     self._parse_children(node.children[1:], function=func)
     _close_answer(self)
