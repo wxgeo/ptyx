@@ -3,7 +3,7 @@ import builtins
 from functools import partial
 
 from PIL import Image
-from numpy import array, flipud, fliplr, dot
+from numpy import array, flipud, fliplr, dot, amin, amax#, percentile, clip
 
 
 from square_detection import test_square_color, find_black_square, \
@@ -219,8 +219,11 @@ def find_ID_band(m, i, j1, j2, square_size):
     color2debug(m, (i1, j1), (i2, j2), display=False)
     search_area = m[i1:i2, j1:j2]
     i3, j3 = find_black_square(search_area, size=square_size,
-                            error=0.3, mode='column', debug=False).__next__()
-    return i1 + i3, j1 + j3
+                            error=0.3, gray_level=.5, mode='column', debug=False).__next__()
+    i3 += i1
+    j3 += j1
+    color2debug(m, (i3, j3), (i3 + square_size, j3 + square_size), display=False)
+    return i3, j3
 
 
 
@@ -396,6 +399,20 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     # Convert to grayscale picture.
     pic = Image.open(filename).convert('L')
     m = array(pic)/255.
+    # Increase contrast if needed (the lightest pixel must be white,
+    # the darkest must be black).
+    min_val = amin(m)
+    max_val = amax(m)
+    if debug:
+        color2debug(m, display=True)
+        print(f'Old range: {min_val} - {max_val}')
+    if min_val > 0 or max_val < 255 and max_val - min_val > 0.2:
+        m = (m - min_val)/(max_val - min_val)
+        if debug:
+            print(f'New range: {amin(m)} - {amax(m)}')
+            color2debug(m, display=True)
+    else:
+        print(f'Warning: not enough contrast in picture {filename!r} !')
 
     # ------------------------------------------------------------------
     #                          CONFIGURATION

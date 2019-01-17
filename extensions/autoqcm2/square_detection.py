@@ -2,7 +2,7 @@ import subprocess
 import tempfile
 from os.path import join
 
-from numpy import array, nonzero, transpose, interp
+from numpy import array, nonzero, transpose, interp, int8
 from PIL import Image
 
 COLORS = {'red':        (255, 0, 0),
@@ -62,9 +62,12 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
     # ~ color2debug(matrix)
     # First, convert grayscale image to black and white.
     if debug:
+        print(f'`find_black_rectangle` parameters: width={width}, '
+              f'height={height}, error={error}, gray_level={gray_level}')
         color2debug(matrix, display=True)
     m = array(matrix, copy=False) < gray_level
-
+    if debug:
+        color2debug(1 - m, display=True)
     # Black pixels are represented by False, white ones by True.
     #pic_height, pic_width = m.shape
     per_line = (1 - error)*width
@@ -91,6 +94,10 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
             continue
         assert m[i, j] == 1
         total = m[i:i+height, j:j+width].sum()
+        if debug:
+            print(f"Total: {total} | Goal: {goal}")
+            if total >= goal/5:
+                color2debug(matrix, (i, j), (i+height, j+width), display=True)
         # ~ print(f'Black pixels ratio: {total}/{width*height} ; Min: {goal}.')
         # ~ input('- pause -')
 #        print("Detection: %s found (minimum was %s)." % (total, goal))
@@ -317,7 +324,8 @@ def color2debug(array=None, from_=None, to_=None, color='red',
     ID = id(array)
     if ID not in _d:
         # Load image only if not loaded previously.
-        _d[ID] = Image.fromarray(255*array).convert('RGB')
+        # .astype(int8) will make more arrays representable.
+        _d[ID] = Image.fromarray((255*array).astype(int8)).convert('RGB')
     rgb = _d[ID]
     height, width = array.shape
     if from_ is not None:
