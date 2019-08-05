@@ -105,12 +105,6 @@ class StaticStack():
 
 
 
-
-
-
-
-
-
 def generate_ptyx_code(text):
 
     #TODO: improve ability to customize this part ?

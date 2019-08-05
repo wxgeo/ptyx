@@ -611,8 +611,19 @@ if __name__ == '__main__':
         print(f'{ANSI_YELLOW}Mean: {mean:g}/{MAX_SCORE:g}{ANSI_RESET}')
     else:
         'No score found !'
-    print(f"\nResults stored in {scores_path}\n")
+    print(f"\nResults stored in {scores_path!r}\n")
 
+
+    # Generate CSV file with ID and pictures names for all students.
+    #FIXME: add ALL pictures name.
+    info_path = join(SCAN_DIR, 'info.csv')
+    info = [(d['name'], ID, d['pic']) for ID, d in data.items()]
+    print(f'{ANSI_CYAN}SCORES (/{MAX_SCORE:g}):{ANSI_RESET}')
+    with open(info_path, 'w', newline='') as csvfile:
+        writerow = csv.writer(csvfile).writerow
+        for name, ID, path in sorted(info):
+            writerow([name, ID, path])
+    print(f"\Infos stored in {info_path!r}\n")
 
 
     # Generate pdf files, with the score and the table of correct answers for each test.
