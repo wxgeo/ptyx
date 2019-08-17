@@ -118,9 +118,6 @@ class Node(object):
 
 
 
-
-
-
 class SyntaxTreeGenerator:
     # For each tag, indicate:
     #   1. The number of interpreted arguments (arguments that contain code).
@@ -209,8 +206,6 @@ class SyntaxTreeGenerator:
     # TODO: all tags starting with END_TAG should automatically close TAG.
     # (This should be a syntax feature).
     # (Btw, NEW_MACRO -> MACRO, and MACRO -> CALL)
-    closing_tags_set = {'END', 'END_CASE', 'END_PICK', 'END_SHUFFLE',
-                                  'END_MACRO', 'END_IF'}
 
     # Tags sorted by length (longer first).
     # This is used for matching tests.
@@ -223,8 +218,13 @@ class SyntaxTreeGenerator:
         # SyntaxTreeGenerator.
         # It is used by extensions to define new closing tags,
         # by calling `Compiler.add_new_tag()`.
-        self.closing_tags_set = set(self.closing_tags_set)
         self.tags = dict(self.tags)
+
+
+    def only_closing(self, tag):
+        "Return `True` if tag is only a closing tag, `False` else."
+        return tag == 'END' or tag.startswith('END_')
+        
 
     def preparse(self, text):
         """Pre-parse pTyX code and generate a syntax tree.
@@ -315,7 +315,7 @@ class SyntaxTreeGenerator:
             # --------------------------------------------------
 
             remove_trailing_newline = (self.tags[tag][2] is not None
-                                       or tag in self.closing_tags_set)
+                                       or self.only_closing(tag))
             if remove_trailing_newline:
                 # Remove new line and spaces *before* #IF, #ELSE, ... tags.
                 # This is more convenient, since two successive \n
@@ -389,7 +389,7 @@ class SyntaxTreeGenerator:
             # ------------
             # Exclude #END and all closing tags, since they(re not true tags.
             # (Their only purpose is to close a block, #END doesn't correspond to any command).
-            elif tag not in self.closing_tags_set:
+            elif not self.only_closing(tag):
                 # Create and enter new node.
                 # ~~~~~~~~~~~~~~~~~~~~~~~~~~
                 node = node.add_child(Node(tag))
@@ -803,27 +803,78 @@ class LatexGenerator:
         # This tag does nothing by itself, but is used by some extensions.
         self._parse_children(node.children)
 
-    def _parse_SHUFFLE_tag(self, node):
+    def _child_index(self, children, name):
+        """Return the index of the first child of name `name` in `children` list.
+        
+        Argument `name` must be a `Node` name.
+        
+        A `ValueError` is raised if no such `Node` is found. 
+        """
+        for i, child in enumerate(children):
+            if isinstance(child, Node) and child.name == name:
+                return i
+        else:
+            raise ValueError(f'No {name} Node found.')
+
+    def _shuffle_and_parse_children(self, node, children=None, target='ITEM', **kw):
         # Shuffles all the #ITEM sections inside a #SHUFFLE block.
         # Note that they may be some text or nodes before first #ITEM,
         # if so they should be left unmodified at first position.
-        if node.children:
-            for i, child in enumerate(node.children):
-                if isinstance(child, Node) and child.name == 'ITEM':
-                    break
-            items = node.children[i:]
-            for item in items:
-                if not (isinstance(item, Node) and item.name == 'ITEM'):
-                    log = ['This is current structure:']
-                    log.append(node.display())
-                    log.append('\n%s is not an ITEM node !' % repr(item))
-                    raise RuntimeError('\n'.join(log))
-            randfunc.shuffle(items)
-            self._parse_children(node.children[:i] + items)
-            #~ print('\n------------')
-            #~ print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
-            #~ print('state hash is %s' % hash(random.getstate()))
-            #~ print('------------\n')
+        # Nota: children may be only some children of given node.
+        # This is used when some children were already processed before
+        # (this is the case for arguments usually).
+        if children is None:
+            children = node.children
+        if not children:
+            return
+        try:
+            i = self._child_index(children, target)
+        except ValueError:
+            # `target` not found: nothing to shuffle.
+            print(f'WARNING: Nothing to shuffle ({target!r} not found).')
+            self._parse_children(children, **kw)
+            return
+        items = children[i:]
+        # Now, we will shuffle only items which are nodes of name `target`.
+        # So, we split items in groups, so that every group starts with
+        # a Node named `target`.
+        # For example, if target is `QUESTION`, and items are
+        # ['QUESTION', 'OTHER', 'QUESTION', 'OTHER', 'ANOTHER'],
+        # groups will be [['QUESTION', 'OTHER'], 
+        #                 ['QUESTION', 'OTHER', 'ANOTHER']]
+        # Then, we will shuffle those groups. We may obtain for example :
+        #                [['QUESTION', 'OTHER', 'ANOTHER'], 
+        #                 ['QUESTION', 'OTHER']]
+        # Finally, we flatten `groups` list to obtain the following: 
+        # ['QUESTION', 'OTHER', 'ANOTHER', 'QUESTION', 'OTHER']
+        # 1. Generate groups
+        groups = []
+        for item in items:
+            if isinstance(item, Node) and item.name == target:
+                groups.append([item])
+            else:
+                groups[-1].append(item)
+        # 2. Shuffle groups
+        randfunc.shuffle(groups)
+        # 3. Flatten `groups` list 
+        items = sum(groups, [])
+                
+#        for item in items:
+#            if not isinstance(item, Node) or item.name != target:
+#                log = ['This is current structure:']
+#                log.append(node.display())
+#                log.append(f'\nERROR: {item!r} is not an {target!r} node ! (See error above).')
+#                raise RuntimeError('\n'.join(log))
+        randfunc.shuffle(items)
+        self._parse_children(children[:i] + items, **kw)
+        #~ print('\n------------')
+        #~ print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
+        #~ print('state hash is %s' % hash(random.getstate()))
+        #~ print('------------\n')
+        
+
+    def _parse_SHUFFLE_tag(self, node):
+        self._shuffle_and_parse_children(node.children, )
 
     def _parse_ITEM_tag(self, node):
         self._parse_children(node.children)
@@ -835,27 +886,31 @@ class LatexGenerator:
         # what seems to be a very strange behaviour of the compiler !)
         pass
 
-    def _parse_PICK_tag(self, node):
+    def _pick_and_parse_children(self, node, children=None, target='ITEM', **kw):
         # Choose only one between all the #ITEM sections inside a #PICK block.
         # Note that they may be some text or nodes before first #ITEM,
         # if so they should be left unmodified at their original position.
-        if node.children:
-            for i, child in enumerate(node.children):
-                if isinstance(child, Node) and child.name == 'ITEM':
-                    break
-            items = node.children[i:]
-            for item in items:
-                if not (isinstance(item, Node) and item.name == 'ITEM'):
-                    log = ['This is current structure:']
-                    log.append(node.display())
-                    log.append('\n%s is not an ITEM node !' % repr(item))
-                    raise RuntimeError('\n'.join(log))
-            item = randfunc.randchoice(items)
-            self._parse_children(node.children[:i] + [item])
-            #~ print('\n------------')
-            #~ print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
-            #~ print('state hash is %s' % hash(random.getstate()))
-            #~ print('------------\n')
+        if children is None:
+            children = node.children
+        if not children:
+            return
+        i = self._child_index(children, target)
+        items = children[i:]
+        for item in items:
+            if not (isinstance(item, Node) and item.name == target):
+                log = ['This is current structure:']
+                log.append(node.display())
+                log.append(rf'\n{item!r} is not an {target!r} node !')
+                raise RuntimeError('\n'.join(log))
+        item = randfunc.randchoice(items)
+        self._parse_children(children[:i] + [item], **kw)
+        #~ print('\n------------')
+        #~ print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
+        #~ print('state hash is %s' % hash(random.getstate()))
+        #~ print('------------\n')
+
+    def _parse_PICK_tag(self, node):
+        self._pick_child(node)
 
     # TODO: Refactor _parse_PICK_tag/_parse_SHUFFLE_tag
 
@@ -1262,6 +1317,9 @@ class Compiler(object):
         else:
             code = self.state['plain_ptyx_code']
         tree = self.state['syntax_tree'] = self.syntax_tree_generator.preparse(code)
+#        print(tree.tags)
+#        print(tree.display())
+#        input('-- pause --')
         return tree
 
     def generate_latex(self, tree=None, **context):
@@ -1337,10 +1395,8 @@ class Compiler(object):
         g = self.latex_generator
         s = self.syntax_tree_generator
         preparser = g.preparser
-        # Add closing tags to closing tags set.
+
         closing_tags = [tag.lstrip('@') for tag in self._new_closing_tags]
-        s.closing_tags_set.update(closing_tags)
-        preparser.closing_tags_set.update(closing_tags)
         # If not already explicitly registered, closing tags must now be
         # registered in tags set.
         for tag in closing_tags:
@@ -1351,9 +1407,6 @@ class Compiler(object):
         self._new_closing_tags.clear()
         s.sorted_tags = sorted(s.tags, key=len, reverse=True)
         preparser.sorted_tags = sorted(preparser.tags, key=len, reverse=True)
-
-
-
 
 
     def parse(self, code, **context):
