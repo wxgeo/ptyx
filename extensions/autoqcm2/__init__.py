@@ -106,37 +106,93 @@ def test_singularity_and_append(code, l, question):
 #    CUSTOM TAGS
 # ------------------
 
+def has_option(node, option):
+    return option in [opt.strip() for opt in node.options.split(',')]
+
 def _parse_QCM_tag(self, node):
     # ~ self.autoqcm_correct_answers = []
     self.autoqcm_data['ordering'][self.NUM] = {'questions': [], 'answers': {}}
 #    self.autoqcm_data['answers'] = {}
     # ~ self.autoqcm_data['question_num'] =
-    self._parse_children(node.children)
+    if has_option(node, 'shuffle') :
+        self._shuffle_and_parse_children(node, target='SECTION')
+    else:
+        self._parse_children(node.children)
+    
 
-def _parse_ANSWERS_BLOCK_tag(self, node):
-    self.write('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
-    self._parse_children(node.children)
-    self.write('\n\\end{flushleft}\n\\end{minipage}')
+def _parse_SECTION_tag(self, node):
+    title = (node.options.strip() if node.options else '')
+    if title:
+        self.write(r'\section{%s}' % title)
+    children = node.children
+    # Nota: \begin{enumerate} must not be written just after the 
+    # beginning of the section, since there may be some explanations 
+    # between the section title and the first question.
+    # So, we have to insert it just before the first NEW_QUESTION.
+    try:
+        i = self._child_index(children, 'NEW_QUESTION')
+    except ValueError:
+        self._parse_children(children)
+        return
+    self._parse_children(children[:i])
+    self.write(r'\begin{enumerate}[resume]')
+    self._shuffle_and_parse_children(node, children[i:], target='NEW_QUESTION')
+    self.write(r'\end{enumerate}')
 
-def _parse_END_QCM_tag(self, node):
-    pass
-
-
+#
+#def _parse_QUESTIONS_BLOCK_tag(self, node):
+#    shuffle = has_option(node, 'shuffle')
+#    if shuffle:
+#        self._shuffle_children(node, target='NEW_QUESTION')
+    
+        
 def _parse_NEW_QUESTION_tag(self, node):
     n = int(node.arg(0))
     self.autoqcm_question_number = n
     # This list is used to test that the same answer is not proposed twice.
-    self.auto_qcm_answers = []
+    self.autoqcm_answers = []
     data = self.autoqcm_data['ordering'][self.NUM]
     data['questions'].append(n)
     data['answers'][n] = []
     self.context['APPLY_TO_ANSWERS'] = None
+    self.write(r'\pagebreak[3]\item')
+    self.write(r'\setcounter{answerNumber}{0}')
+    self._pick_and_parse_children(node, children=node.children[1:], 
+                                  target='VERSION',
+                                  )
+
+
+# Same function, but name must be different so that shuffling does not apply.
+_parse_CONSECUTIVE_QUESTION_tag = _parse_NEW_QUESTION_tag
+
+    
+def _parse_VERSION_tag(self, node):
     # This is used to improve message error when an error occured.
     self.current_question = l = []
+    # The question itself is stored to make debuging easier (error messages will
+    # display current question).
     def remember_last_question(code, l):
         l.append(code)
         return code
-    self._parse_children(node.children[1:], function=partial(remember_last_question, l=l))
+    # So, we have to find where the question itself ends and the answers start.
+    try:
+        i = self._child_index(node.children, 'ANSWERS_BLOCK')
+    except ValueError:
+        i = self._child_index(node.children, 'L_ANSWERS')    
+    self._parse_children(node.children[:i],
+                         function=partial(remember_last_question, l=l),
+                         )
+    # This is the end of the question itself.
+    
+    # And then, the answers follow.
+    self.write('\n\\nopagebreak[4]')
+    self._parse_children(node.children[i:])
+        
+        
+def _parse_ANSWERS_BLOCK_tag(self, node):
+    self.write('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
+    self._shuffle_and_parse_children(node, target='NEW_ANSWER')
+    self.write('\n\\end{flushleft}\n\\end{minipage}')
 
 
 def _parse_NEW_ANSWER_tag(self, node):
@@ -146,8 +202,6 @@ def _parse_NEW_ANSWER_tag(self, node):
     data['answers'][n].append(k)
     _open_answer(self, n, k)
 
-
-#def _parse_PROPOSED_ANSWER_tag(self, node):
     # TODO: functions should be compiled only once for each question block,
     # not for every answer (though it is probably not be a bottleneck in
     # code execution).
@@ -171,7 +225,7 @@ def _parse_NEW_ANSWER_tag(self, node):
         # This function is used to verify that each answer is unique.
         # This avoids proposing twice the same answer by mistake, which
         # may occur easily when using random values.
-        func = g = partial(test_singularity_and_append, l=self.auto_qcm_answers,
+        func = g = partial(test_singularity_and_append, l=self.autoqcm_answers,
                                         question=self.current_question[0])
         if f is not None:
             # Compose functions. Function f should be applied first,
@@ -265,12 +319,12 @@ def _parse_L_ANSWERS_tag(self, node):
 
 
 def _parse_DEBUG_AUTOQCM_tag(self, node):
-    ans = self.autoqcm_correct_answers
+    data = self.autoqcm_data
     print('---------------------------------------------------------------')
-    print('AutoQCM answers:')
-    print(ans)
+    print('AutoQCM data:')
+    print(data)
     print('---------------------------------------------------------------')
-    self.write(ans)
+    #self.write(data)
 
 
 def _parse_QCM_HEADER_tag(self, node):
@@ -394,15 +448,39 @@ def main(text, compiler):
     #         ],
     #    }
     text = extended_python.main(text, compiler)
-    # For efficiency, update only for last tag.
-    compiler.add_new_tag('QCM', (0, 0, ['END_QCM']), _parse_QCM_tag, 'autoqcm2')
-    compiler.add_new_tag('NEW_QUESTION', (1, 0, ['@END', '@END_QUESTION']), _parse_NEW_QUESTION_tag, 'autoqcm2')
-    compiler.add_new_tag('NEW_ANSWER', (1, 0, ['@END', '@END_ANSWER']), _parse_NEW_ANSWER_tag, 'autoqcm2')
-    compiler.add_new_tag('END_QCM', (0, 0, None), _parse_END_QCM_tag, 'autoqcm2')
-    compiler.add_new_tag('QCM_HEADER', (1, 0, None), _parse_QCM_HEADER_tag, 'autoqcm2')
-    compiler.add_new_tag('ANSWERS_BLOCK', (0, 0, ['@END']), _parse_ANSWERS_BLOCK_tag, 'autoqcm2')
-    compiler.add_new_tag('L_ANSWERS', (2, 0, None), _parse_L_ANSWERS_tag, 'autoqcm2')
-    compiler.add_new_tag('DEBUG_AUTOQCM', (0, 0, None), _parse_DEBUG_AUTOQCM_tag, 'autoqcm2')
+    
+    # Régister custom tags and corresponding handlers for this extension.
+    new_tag = partial(compiler.add_new_tag, extension_name='autoqcm2')
+    
+    # Note for closing tags: 
+    # '@END' means closing tag #END must be consumed, unlike 'END'. 
+    # So, use '@END_QUESTIONS_BLOCK' to close QUESTIONS_BLOCK,
+    # but use 'END_QUESTIONS_BLOCK' to close QUESTION, since 
+    # #END_QUESTIONS_BLOCK must not be consumed then (it must close 
+    # QUESTIONS_BLOCK too).
+    
+    # Tags used to structure MCQ
+    new_tag('QCM', (0, 0, ['@END_QCM']), _parse_QCM_tag)
+    new_tag('SECTION', (0, 0, ['SECTION', 'END_QCM']), _parse_SECTION_tag)
+    new_tag('NEW_QUESTION', (1, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION', 
+                                    'SECTION', 'END_QCM']), 
+            _parse_NEW_QUESTION_tag)
+    new_tag('CONSECUTIVE_QUESTION', (1, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION', 
+                                            'SECTION', 'END_QCM']), 
+            _parse_NEW_QUESTION_tag)
+    new_tag('VERSION', (0, 0, ['VERSION', 'NEW_QUESTION', 'CONSECUTIVE_QUESTION', 
+                                    'SECTION', 'END_QCM']), _parse_VERSION_tag)
+    new_tag('ANSWERS_BLOCK', (0, 0, ['@END_ANSWERS_BLOCK']),
+            _parse_ANSWERS_BLOCK_tag)
+    new_tag('NEW_ANSWER', (1, 0, ['NEW_ANSWER', 'END_ANSWERS_BLOCK']), 
+            _parse_NEW_ANSWER_tag)
+    new_tag('L_ANSWERS', (2, 0, None), _parse_L_ANSWERS_tag)
+    
+    # Other tags
+    new_tag('QCM_HEADER', (1, 0, None), _parse_QCM_HEADER_tag)
+    new_tag('DEBUG_AUTOQCM', (0, 0, None), _parse_DEBUG_AUTOQCM_tag)
+
+    # For efficiency, update only once, after last tag is added.
     compiler.update_tags_info()
     code, correct_answers = generate_ptyx_code(text)
     # Some tags use cache, for code which don't change between two successive compilation.

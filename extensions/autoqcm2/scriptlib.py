@@ -6,9 +6,8 @@
 #
 ######################################
 #
-#    WxGeometrie
-#    Dynamic geometry, graph plotter, and more for french mathematic teachers.
-#    Copyright (C) 2005-2013  Nicolas Pourcelot
+#    This library provides some shell functions to write easily 
+#    shell scripts in Python.
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by

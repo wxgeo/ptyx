@@ -6,175 +6,59 @@ sys.path.insert(0, script_path)
 
 
 
-
-class StaticStack():
-    """This is a fixed values "stack".
-
-    This "stack" is initialized with a tuple of successive values.
-    Thoses values are accessible through `.level` attribute.
-
-    One can only go up or down in the stack ; stack `.state` consist of all
-    values below current position (values above are supposed not in the stack).
-    We start at position 0.
-
-    We can't go below first level, nor above last level.
-
-    As a consequence, this "stack" can never be empty.
-
-    >>> s = StaticStack(('a', 'b', 'c'))
-    >>> s.levels
-    ('a', 'b', 'c')
-    >>> s.state
-    ('a',)
-    >>> s.up() # Return last top value.
-    'a'
-    >>> s.state
-    ('a', 'b')
-    >>> s.up()
-    'b'
-    >>> s.state
-    ('a', 'b', 'c')
-    >>> s.current
-    'c'
-    >>> s.up()
-    IndexError: Can't go higher than c !
-    >>> s.down()
-    'c'
-    >>> s.current
-    'b'
-    >>> 'c' in s
-    False
-    >>> s[-1]
-    'b'
-    >>> len(s)
-    2
-    >>> s.pos    # s[s.pos] == s[-1] == s.current is always True
-    1
-    >>> print(s)
-    a, b (c)
-    """
-
-    def __init__(self, levels:tuple):
-        self.__levels = levels
-        self.__i = 0
-
-    @property
-    def levels(self):
-        return self.__levels
-
-    def up(self):
-        "Go up in the stack and return previous level."
-        if self.__i == len(self.__levels) - 1:
-            raise IndexError("Can't go higher than %s !" % self.__levels[-1])
-        self.__i += 1
-        return self.__levels[self.__i - 1]
-
-    def down(self):
-        "Go down in the stack and return previous level."
-        if self.__i == 0:
-            raise IndexError("Can't go lower than %s !" % self.__levels[0])
-        self.__i -= 1
-        return self.__levels[self.__i + 1]
-
-    @property
-    def state(self):
-        return self.__levels[:self.__i + 1]
-
-    def __contains__(self, value):
-        return value in self.state
-
-    @property
-    def pos(self):
-        return self.__i
-
-    def __len__(self):
-        return self.__i + 1
-
-    @property
-    def current(self):
-        return self.__levels[self.__i]
-
-    def __getitem__(self, i):
-        return self.state[i]
-
-    def __str__(self):
-        return ', '.join(str(v) for v in self.state) + \
-                ' (%s)' % ', '.join(str(v) for v in self.levels[self.__i + 1:])
-
-
-
-
-
 def generate_ptyx_code(text):
+    "This function translates MCQ syntax into proper pTyX code."
 
     #TODO: improve ability to customize this part ?
 
     code = []
 
-    levels = ('ROOT', 'QCM', 'SECTION', 'QUESTION_BLOCK', 'ANSWERS', 'ANS')
-    stack = StaticStack(levels)
+    level_names = ('ROOT', 'QCM', 'SECTION', 'QUESTION', 
+              'VERSION', 'ANSWERS_BLOCK', 'NEW_ANSWER')
+    levels = dict(enumerate(level_names))
+    depth = {name: i for i, name in enumerate(level_names)}
+#    stack = StaticStack(levels)
+    current_level = levels[0]
 
+    def next_level(level):
+        return levels[depth[level] + 1]
+    def previous_level(level):
+        return levels[depth[level] - 1]
 
     def begin(level, **kw):
-
-        # Keep track of previous level: this is useful to know if a question block
-        # is the first of a section, for example.
-        previous_level = stack.current
-        # First, close any opened level until founding a parent.
-        close(level)
+        nonlocal current_level
+        
+        if level not in level_names:
+            raise RuntimeError(f'Unknown level: {level}')
+        
+        # Current level must be the parent one before opening level. 
+        target = depth[level] - 1
+        while depth[current_level] > target:
+            close(current_level)
+        while depth[current_level] < target:
+            begin(next_level(current_level))
+        assert depth[current_level] == target
+    
+        current_level = level
+        l = []
+        if level == 'QUESTION':
+            l.append('#CONSECUTIVE_QUESTION' if kw.get('consecutive') 
+                                                else '#NEW_QUESTION')
+            l.append('{%s}' % kw['n'])
+        else:                                                
+            l.append(f'#{level}')
 
         if level == 'QCM':
-            code.append('#QCM')
-            code.append('#SHUFFLE % (sections)')
-
-        elif level == 'SECTION':
-            code.append('#ITEM % shuffle sections')
-            if 'title' in kw:
-                code.append(r'\section{%s}' % kw['title'])
-
-        elif level == 'QUESTION_BLOCK':
-            if stack.current == 'QCM':
-                begin('SECTION')
-
-            if previous_level in ('SECTION', 'QCM'):
-                # This is the first question block.
-                # NB: \begin{enumerate} must not be written just after the begining
-                # of the section, since there may be some explanations between
-                # the section title and the first question.
-                code.append('\\begin{enumerate}[resume]')
-                code.append('#SHUFFLE % (questions)')
-            # Question blocks are shuffled. As an exception, a block starting
-            # with '>' must not be separated from previous block.
             if kw.get('shuffle', True):
-                code.append('#ITEM % shuffle questions') # shuffle blocks.
-            code.append('\\pagebreak[3]\\item')
-            code.append('\\setcounter{answerNumber}{0}')
-            code.append('#PICK % (question)')
+                # Shuffle sections.
+                l.append('[shuffle]')
+        elif level == 'SECTION':
+            if 'title' in kw:
+                l.append('[%s]' % kw['title'])
+        elif level == 'NEW_ANSWER':
+            l.append('{%s}' % kw['n'])
 
-        elif level == 'ANSWERS':
-            # First, end question.
-            code.append('#END_QUESTION\n\\nopagebreak[4]')
-            # Shuffle answers.
-            code.append('#ANSWERS_BLOCK')
-            code.append('#SHUFFLE % (answers)')
-
-        elif level == "ANS":
-            pass
-
-        else:
-            raise RuntimeError('Unknown level: %s' % level)
-
-        #~ elif tag == 'NEW_QUESTION':
-            #~ stack.append(
-            #~ code.append('#NEW_QUESTION')
-            #~ answer_number = 0
-
-        print(stack.pos*4*' ' + 'begin %s' % level)
-        stack.up()
-        assert stack.current == level
-
-        #~ if tag == 'QUESTION_BLOCK':
-            #~ begin('NEW_QUESTION')
+        code.append(''.join(l))
 
 
     def close(level):
@@ -184,35 +68,23 @@ def generate_ptyx_code(text):
         to a level lower than SECTION ('ROOT' or 'QCM').
         Any opened upper level ('QUESTION_BLOCK' or 'ANSWERS') will be closed first.
         """
+        nonlocal current_level
 
-        while level in stack:
-            # Note that close('ROOT') will raise an error, as expected.
-            _level = stack.down()
-            print(stack.pos*4*' ' + 'close %s' % _level)
-            #~ print('Current code: %s' % repr(code[-20:]))
+        if depth[current_level] < depth[level]:
+            raise RuntimeError(f"I can not close level {level}, since it is not opened !")
+        while depth[current_level] > depth[level]:
+            close(current_level)
+            
+        current_level = previous_level(level)
+        if level == 'QCM':
+            code.append('#END_QCM')
 
-            # Specify how to close each level.
-            if _level == 'QCM':
-                code.append('#END_SHUFFLE % (sections)')
-                code.append('#END_QCM')
-
-            elif _level == 'SECTION':
-                code.append('#END_SHUFFLE % (questions)')
-                code.append(r'\end{enumerate}')
-
-            elif _level == 'QUESTION_BLOCK':
-                code.append('#END_PICK % (question)')
-
-            elif _level == 'ANSWERS':
-                # Remove  blank lines which may be placed between two answers
-                # when shuffling.
-                while code[-1].strip() == '':
-                    code.pop()
-                code.append('#END_SHUFFLE % (answers)')
-                code.append('#END % (answers block)')
-            elif _level == 'ANS':
-                code.append('#END_ANSWER')
-
+        elif level == 'ANSWERS_BLOCK':
+            # Remove  blank lines which may be placed between two answers
+            # when shuffling.
+            while code[-1].strip() == '':
+                code.pop()
+            code.append('#END_ANSWERS_BLOCK')
 
 
     previous_line = None
@@ -256,6 +128,8 @@ def generate_ptyx_code(text):
             # Start a new section.
             begin('SECTION', title=line.strip('= '))
 
+        # Nota: for a new version of a question, line must start with 'OR ',  
+        # with a trailing space, or line must be 'OR', without trailing space.
         elif any(line.startswith(s) for s in ('* ', '> ', 'OR ')) or line == 'OR':
             # * question
             # Start a question block, with possibly several versions of a question.
@@ -263,14 +137,12 @@ def generate_ptyx_code(text):
             if line[:2] == 'OR':
                 # If line starts with 'OR', this is not a new block, only another
                 # version of current question block.
-                close('ANSWERS')
+                begin('VERSION')
             else:
                 # This is a new question.
-                begin('QUESTION_BLOCK', shuffle=(line[0]=='*'))
-            code.append('#ITEM % pick a version') # pick a block.
-
-            question_num += 1
-            code.append(f'#NEW_QUESTION{{{question_num}}}')
+                question_num += 1
+                begin('QUESTION', consecutive=(line[0]=='>'), n=question_num)
+                begin('VERSION')
             correct_answers[question_num] = []
             answer_num = 0
             code.append(line[2:])
@@ -279,7 +151,6 @@ def generate_ptyx_code(text):
             # End question.
             # (Usually, questions are closed when seeing answers, ie. lines
             # introduced by '-' or '+').
-            code.append('#END % question (before l_answers)')
             code.append(line)
             # Correct answer will always be first one.
             # (This is simpler to deal with, since list size may vary.)
@@ -292,40 +163,30 @@ def generate_ptyx_code(text):
             # - incorrect answer
             # + correct answer
 
-            assert stack.current in ('ANS', 'ANSWERS', 'QUESTION_BLOCK')
+            # A blank line is used to separate answers groups.
+            if previous_line == '' and current_level == 'NEW_ANSWER':
+                # This blank line should not appear in final pdf, so remove it.
+                # (NB: This must *not* be done for the first answer !)
+                code.pop()
 
-            if stack.current == 'QUESTION_BLOCK':
-                # This is the first answer of a new answer block.
-                begin('ANSWERS')
-
-            else:
-                # A blank line is used to separate answers groups.
-                if previous_line == '':
-                    # This blank line should not appear in final pdf, so remove it.
-                    # (NB: This must *not* be done for the first answer !)
-                    code.pop()
-                # Close any previous opened answer.
-                close('ANS')
-                if previous_line == '':
-                    # Answers are shuffled inside their respective groups,
-                    # however groups are kept separate.
-                    code.append('#END_SHUFFLE % (answers)')
-                    code.append('#SHUFFLE % (answers)')
+            if previous_line == '':
+                # Answers are shuffled inside their respective groups,
+                # however groups are kept separate.
+                begin('ANSWERS_BLOCK')
 
 
-            code.append('#ITEM % shuffling answers\n')
             answer_num += 1
-            code.append(f'#NEW_ANSWER{{{answer_num}}}')
+            begin('NEW_ANSWER', n=answer_num)
+
             if line[0] == '+':
                 # This is a correct answer.
                 correct_answers[question_num].append(answer_num)
 
-            begin('ANS')
             code.append(line[2:])
 
-        elif n >= 3 and all(c == '-' for c in line):  # ---
-            if stack.current == 'ANSWERS':
-                close('ANSWERS')
+#        elif n >= 3 and all(c == '-' for c in line):  # ---
+#            if stack.current == 'ANSWERS':
+#                close('ANSWERS')
 
         elif n >= 3 and all(c == '>' for c in line):  # >>>
             # End MCQ
@@ -339,6 +200,3 @@ def generate_ptyx_code(text):
     code.append(r'\cleardoublepage')
     code.append(r'\end{document}')
     return '\n'.join(code), correct_answers
-
-
-
