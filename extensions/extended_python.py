@@ -65,6 +65,7 @@ def parse_extended_python_code(code):
             i = line.find(' with ')
             if i != -1:
                 condition = line[i + 6:]
+                #TODO: handle condition
 
 
             #TODO: define nrandint

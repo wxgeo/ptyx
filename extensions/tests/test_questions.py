@@ -82,7 +82,7 @@ Or maybe fried spider legs ?
 
 I'm afraid not, sorry.
 
- == END ==
+ ================
 
 ____________________________________________________________________________
 
@@ -92,10 +92,99 @@ No more questions.
 
 ok, have a nice day then.
 
-=== END ===
+=================
 
 """
-    text2 = "\n\n#END_ANY_ASK_OR_ANS\n\\begin{enumerate}\n#ENUM\n\\item\n#ASK \n\nWhat's your name ?\n#ANS \n\nAbraham Lincoln\n#END_ANY_ASK_OR_ANS\n\\item\n#ITEM\n#ASK \n\nHow old are you ?\n\n#ANS \n\nI'm actually very old.\n\n#END_ANY_ASK_OR_ANS\n\\item\n#ITEM\n#ASK \n\nDo you like icecream ?\n\n#ANS \n\nYes, pretty much.\n\n#END_ANY_ASK_OR_ANS\n\\item\n#ITEM\n#ASK \n\nWould you like to eat some...\n\n#END_ANY_ASK_OR_ANS\n\\begin{enumerate}\n#ENUM\n\\item\n#ASK \n\n...chocolate cake ?\n\n#ANS \n\nyes, of course.\n\n#END_ANY_ASK_OR_ANS\n\\item\n#ITEM\n#ASK \n\n...fried spider legs ?\n\n#ANS \n\nI'm afraid not, sorry.\n\n#END_ANY_ASK_OR_ANS\n#END\n\\end{enumerate}\n\n#END_ANY_ASK_OR_ANS\n\\item\n#ITEM\n#ASK \n\nNo more questions.\n\n#ANS \n\nok, have a nice day then.\n\n#END_ANY_ASK_OR_ANS\n#END\n\\end{enumerate}\n\n"
+    text2 = r"""
+
+\begin{enumerate}
+#ENUM
+#ITEM
+\item
+#ASK
+
+What's your name ?
+#END
+#ANS
+
+Abraham Lincoln
+#END
+#ITEM
+\item
+#ASK
+
+How old are you ?
+
+#END
+#ANS
+
+I'm actually very old.
+
+#END
+#ITEM
+\item
+#ASK
+
+Do you like icecream ?
+
+#END
+#ANS
+
+Yes, pretty much.
+
+#END
+#ITEM
+\item
+#ASK
+
+Would you like to eat some...
+
+#END
+\begin{enumerate}
+#ENUM
+#ITEM
+\item
+#ASK
+
+...chocolate cake ?
+
+#END
+#ANS
+
+yes, of course.
+
+#END
+#ITEM
+\item
+#ASK
+
+Or maybe fried spider legs ?
+
+#END
+#ANS
+
+I'm afraid not, sorry.
+
+#END
+#END
+\end{enumerate}
+
+#ITEM
+\item
+#ASK
+
+No more questions.
+
+#END
+#ANS
+
+ok, have a nice day then.
+
+#END
+#END
+\end{enumerate}
+
+"""
     print(sys.executable)
     this_file = realpath(sys._getframe().f_code.co_filename)
     filename = join(dirname(dirname(this_file)), 'questions.py')

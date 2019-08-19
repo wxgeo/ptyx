@@ -6,7 +6,7 @@ import re
 #~ print sys.path
 sys.path.append('..')
 
-from latexgenerator import SyntaxTreeGenerator, LatexGenerator, Compiler, parse
+from latexgenerator import SyntaxTreeGenerator, Compiler#, parse
 from utilities import find_closing_bracket, round, print_sympy_expr
 from randfunc import randchoice, srandchoice, randfrac
 
