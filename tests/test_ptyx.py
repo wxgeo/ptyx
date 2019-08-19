@@ -1,6 +1,7 @@
 from __future__ import division, unicode_literals, absolute_import, print_function
 
 import sys
+import re
 
 #~ print sys.path
 sys.path.append('..')
@@ -54,14 +55,17 @@ def test_syntax_tree():
     text = 'hello world !'
     s.preparse(text)
     tree = \
-"""+ Node ROOT
-  - text: 'hello world !'"""
+"""
++ Node ROOT
+  - text: 'hello world !'
+""".strip()
     assertEq(s.syntax_tree.display(color=False), tree)
 
     text = "#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END"
     s.preparse(text)
     tree = \
-"""+ Node ROOT
+"""
++ Node ROOT
   + Node CONDITIONAL_BLOCK
     + Node IF
       + Node 0
@@ -80,19 +84,22 @@ def test_syntax_tree():
       + Node EVAL
         + Node 0
           - text: 'variable+1'
-      - text: ' !'"""
+      - text: ' !'
+""".strip()
     assertEq(s.syntax_tree.display(color=False), tree)
 
 
     text = "#PYTHON#some comment\nvariable = 2\n#END#ASSERT{variable == 2}"
     s.preparse(text)
     tree = \
-"""+ Node ROOT
+"""
++ Node ROOT
   + Node PYTHON
-    - text: '#some comment [...]'
+    - text: '#some comment\\nvariable  [...]'
   + Node ASSERT
     + Node 0
-      - text: 'variable == 2'"""
+      - text: 'variable == 2'
+""".strip()
     assertEq(s.syntax_tree.display(color=False), tree)
 
 
@@ -155,7 +162,7 @@ def test_SEED_SHUFFLE():
 
 def test_SEED_SHUFFLE_2():
     tests = []
-    tests.append('''#SEED{153}
+    tests.append('''#SEED{153}%
 #SHUFFLE
 #ITEM
 a
@@ -164,7 +171,7 @@ b
 #ITEM
 c
 #END''')
-    tests.append('''#SEED{153}
+    tests.append('''#SEED{153}%
 #SHUFFLE
 
 #ITEM
@@ -174,7 +181,7 @@ b
 #ITEM
 c
 #END''')
-    tests.append('''#SEED{153}
+    tests.append('''#SEED{153}%
 #SHUFFLE
  #ITEM
 a
@@ -183,29 +190,40 @@ b
 #ITEM
 c
 #END''')
-
     c = Compiler()
     results = []
     for test in tests:
         results.append(c.parse(test))
-    assertEq(results[0], 'cab')
-    assertEq(results[1], 'cab')
-    assertEq(results[2], 'cab')
+    assertEq(results[0], '%\nb\na\nc')
+    assertEq(results[1], '%\n\nb\na\nc')
+    assertEq(results[2], '%\nb\na\nc')
 
 
 
 def test_PICK():
-    test = '''#PICK{a=1,2,3,4}'''
+    test = '''
+    And the winner is: 
+    #PICK
+    #ITEM
+    1
+    #ITEM
+    2
+    #ITEM
+    3
+    #ITEM
+    4
+    #END_PICK'''
     c = Compiler()
+    c.state['seed'] = 1
     c.generate_syntax_tree(test)
     g = c.latex_generator
     assertEq(g.NUM, 0)
-    assertEq(c.generate_latex(), '1')
-    g.clear()
-    g.context['NUM'] = 2
-    assertEq(g.NUM, 2)
-    g.parse_node(c.syntax_tree)
-    assertEq(g.read(), '3')
+    
+    c.state['seed'] = 5
+    assertEq(g.NUM, 0)
+    latex = c.generate_latex()
+    latex = re.sub('\s+', ' ', latex).strip()
+    assertEq(latex, 'And the winner is: 3')
 
 def test_CASE():
     test = "#CASE{0}first case#CASE{1}second case#CASE{2}third one#END#CASE{1} bonus#END this is something else."

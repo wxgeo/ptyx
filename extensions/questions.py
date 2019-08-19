@@ -86,7 +86,7 @@ An other simpler example, with no enumeration (only one question):
 from __future__ import division, unicode_literals, absolute_import, print_function
 
 from re import sub, DOTALL, match
-from . import extended_python
+from extensions import extended_python
 
 
 
