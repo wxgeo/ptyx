@@ -239,7 +239,7 @@ def test_IF_ELIF_ELSE():
     assertEq(latex, result)
 
 def test_MACRO():
-    test = r"#NEW_MACRO{a0}#IF{a==0}$a=0$#ELSE$a\neq 0$#END#END#{a=0;}Initially #MACRO{a0}#{a=2;}, but now #MACRO{a0}."
+    test = r"#MACRO{a0}#IF{a==0}$a=0$#ELSE$a\neq 0$#END#END_MACRO#{a=0;}Initially #CALL{a0}#{a=2;}, but now #CALL{a0}."
     result = r"Initially $a=0$, but now $a\neq 0$."
     c = Compiler()
     latex = c.parse(test)

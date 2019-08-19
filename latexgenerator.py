@@ -165,19 +165,13 @@ class SyntaxTreeGenerator:
             'ELIF':         (1, 0, ['ELIF', 'ELSE', 'END', 'END_IF']),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
             'ELSE':         (0, 0, ['END', 'END_IF']),
-            'END':          (0, 0, None),
-            'END_CASE':     (0, 0, None),
-            'END_IF':       (0, 0, None),
-            'END_MACRO':    (0, 0, None),
-            'END_PICK':     (0, 0, None),
-            'END_SHUFFLE':  (0, 0, None),
             'IMPORT':       (1, 0, None),
             'LOAD':         (1, 0, None),
             'FREEZE_RANDOM_STATE': (0, 0, []),
             'GCALC':        (0, 0, ['@END']),
             'IFNUM':        (1, 1, None),
-            'MACRO':        (0, 1, None),
-            'NEW_MACRO':    (0, 1, ['@END', '@END_MACRO']),
+            'CALL':        (0, 1, None),
+            'MACRO':    (0, 1, ['@END', '@END_MACRO']),
             'PICK':         (0, 0, ['@END', '@END_PICK']),
             'PYTHON':       (0, 0, ['@END']),
             'QUESTION':     (0, 1, None),
@@ -203,13 +197,11 @@ class SyntaxTreeGenerator:
             '#':            (0, 0, None),
             }
 
-    # TODO: all tags starting with END_TAG should automatically close TAG.
-    # (This should be a syntax feature).
-    # (Btw, NEW_MACRO -> MACRO, and MACRO -> CALL)
+    # TODO: all tags starting with END_TAG should automatically close TAG ?
+    # (Should this be a syntax feature ?
+    # It sounds nice, but how should we deal with the `@` then ?).
 
-    # Tags sorted by length (longer first).
-    # This is used for matching tests.
-    sorted_tags = sorted(tags, key=len,reverse=True)
+#    sorted_tags = sorted(tags, key=len, reverse=True)
 
     _found_tags = frozenset()
 
@@ -219,13 +211,34 @@ class SyntaxTreeGenerator:
         # It is used by extensions to define new closing tags,
         # by calling `Compiler.add_new_tag()`.
         self.tags = dict(self.tags)
+        self.update_tags()
 
 
     def only_closing(self, tag):
         "Return `True` if tag is only a closing tag, `False` else."
         return tag == 'END' or tag.startswith('END_')
-        
 
+
+    def update_tags(self):
+        "Automatically add closing tags, then generate sorted list."
+        missing = set()
+        for name, syntax in self.tags.items():
+            closing_tags = syntax[2]
+            if closing_tags is None:
+                continue
+            for tag in closing_tags:
+                tag = tag.lstrip('@')
+                if tag not in self.tags:
+                    missing.add(tag)
+                    
+        for name in missing:
+            self.tags[name] = (0, 0, None)
+            
+        # Tags sorted by length (longer first).
+        # This is used for matching tests.
+        self.sorted_tags = sorted(self.tags, key=len, reverse=True)
+        
+        
     def preparse(self, text):
         """Pre-parse pTyX code and generate a syntax tree.
 
@@ -675,9 +688,6 @@ class LatexGenerator:
         if not self.context.get('WITH_ANSWERS'):
             self._parse_children(node.children[0].children)
 
-    #~ def _parse_END_ANY_ASK_OR_ANS_tag(self, node):
-        #~ pass
-
     def _parse_IF_tag(self, node):
         test = eval(node.arg(0), self.context)
         if test:
@@ -789,14 +799,15 @@ class LatexGenerator:
         self.flags.clear()
         self.write(txt)
 
-    def _parse_NEW_MACRO_tag(self, node):
+    def _parse_MACRO_tag(self, node):
         name = node.arg(0)
         self.macros[name] = node.children[1:]
 
-    def _parse_MACRO_tag(self, node):
+    def _parse_CALL_tag(self, node):
+        "Calling a macro."
         name = node.arg(0)
         if name not in self.macros:
-            raise NameError('Error: MACRO "%s" undefined.' % name)
+            raise NameError(f'Error: MACRO {name!r} undefined.')
         self._parse_children(self.macros[name])
 
     def _parse_ENUM_tag(self, node):
@@ -805,10 +816,10 @@ class LatexGenerator:
 
     def _child_index(self, children, name):
         """Return the index of the first child of name `name` in `children` list.
-        
+
         Argument `name` must be a `Node` name.
-        
-        A `ValueError` is raised if no such `Node` is found. 
+
+        A `ValueError` is raised if no such `Node` is found.
         """
         for i, child in enumerate(children):
             if isinstance(child, Node) and child.name == name:
@@ -840,12 +851,12 @@ class LatexGenerator:
         # a Node named `target`.
         # For example, if target is `QUESTION`, and items are
         # ['QUESTION', 'OTHER', 'QUESTION', 'OTHER', 'ANOTHER'],
-        # groups will be [['QUESTION', 'OTHER'], 
+        # groups will be [['QUESTION', 'OTHER'],
         #                 ['QUESTION', 'OTHER', 'ANOTHER']]
         # Then, we will shuffle those groups. We may obtain for example :
-        #                [['QUESTION', 'OTHER', 'ANOTHER'], 
+        #                [['QUESTION', 'OTHER', 'ANOTHER'],
         #                 ['QUESTION', 'OTHER']]
-        # Finally, we flatten `groups` list to obtain the following: 
+        # Finally, we flatten `groups` list to obtain the following:
         # ['QUESTION', 'OTHER', 'ANOTHER', 'QUESTION', 'OTHER']
         # 1. Generate groups
         groups = []
@@ -856,9 +867,9 @@ class LatexGenerator:
                 groups[-1].append(item)
         # 2. Shuffle groups
         randfunc.shuffle(groups)
-        # 3. Flatten `groups` list 
+        # 3. Flatten `groups` list
         items = sum(groups, [])
-                
+
 #        for item in items:
 #            if not isinstance(item, Node) or item.name != target:
 #                log = ['This is current structure:']
@@ -871,7 +882,7 @@ class LatexGenerator:
         #~ print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
         #~ print('state hash is %s' % hash(random.getstate()))
         #~ print('------------\n')
-        
+
 
     def _parse_SHUFFLE_tag(self, node):
         self._shuffle_and_parse_children(node)
@@ -1332,7 +1343,7 @@ class Compiler(object):
             tree = self.state['syntax_tree']
         gen = self.latex_generator
         gen.clear()
-        gen.context.update(context)            
+        gen.context.update(context)
         seed = self.state['seed'] + gen.context['NUM']
         randfunc.set_seed(seed)
         try:
@@ -1366,7 +1377,8 @@ class Compiler(object):
         Note that it is not necessary to use `add_new_tag` to declare
         closing tags (like #END), unless you want to call an handler on close.
 
-        You must call `update_tags_info()` after adding all the new tags.
+        WARNING: After adding all the new tags, you'll have to call
+        `.update_tags_info()` method.
         """
         g = self.latex_generator
         s = self.syntax_tree_generator
@@ -1389,27 +1401,11 @@ class Compiler(object):
         s.tags[name] = syntax
         preparser.tags[name] = syntax
 
-        if syntax[2] is not None:
-            self._new_closing_tags.update(syntax[2])
-
 
     def update_tags_info(self):
         "Update information concerning newly added tags."
-        g = self.latex_generator
-        s = self.syntax_tree_generator
-        preparser = g.preparser
-
-        closing_tags = [tag.lstrip('@') for tag in self._new_closing_tags]
-        # If not already explicitly registered, closing tags must now be
-        # registered in tags set.
-        for tag in closing_tags:
-            s.tags.setdefault(tag, (0, 0, None))
-            preparser.tags.setdefault(tag, (0, 0, None))
-
-        # Update sorted tags list (it must be the *last* step !)
-        self._new_closing_tags.clear()
-        s.sorted_tags = sorted(s.tags, key=len, reverse=True)
-        preparser.sorted_tags = sorted(preparser.tags, key=len, reverse=True)
+        self.latex_generator.update_tags()
+        self.syntax_tree_generator.preparser.update_tags()
 
 
     def parse(self, code, **context):
