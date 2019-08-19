@@ -101,7 +101,7 @@ class Node(object):
                 text = repr(child)
                 if not raw:
                     if len(text) > 30:
-                        text = text[:25] + ' [...]'
+                        text = text[:25] + " [...]'"
                 if color:
                     text = term_color(text, 'green')
                 texts.append('%s  - text: %s' % (indent*' ', text))
@@ -874,7 +874,7 @@ class LatexGenerator:
         
 
     def _parse_SHUFFLE_tag(self, node):
-        self._shuffle_and_parse_children(node.children, )
+        self._shuffle_and_parse_children(node)
 
     def _parse_ITEM_tag(self, node):
         self._parse_children(node.children)
@@ -910,7 +910,7 @@ class LatexGenerator:
         #~ print('------------\n')
 
     def _parse_PICK_tag(self, node):
-        self._pick_child(node)
+        self._pick_and_parse_children(node)
 
     # TODO: Refactor _parse_PICK_tag/_parse_SHUFFLE_tag
 
@@ -1312,6 +1312,9 @@ class Compiler(object):
         return value
 
     def generate_syntax_tree(self, code=None):
+        # Test if a seed has been already generated.
+        if 'seed' not in self.state:
+            self.read_seed(code)
         if code is not None:
             self.state['plain_ptyx_code'] = code
         else:
@@ -1329,7 +1332,7 @@ class Compiler(object):
             tree = self.state['syntax_tree']
         gen = self.latex_generator
         gen.clear()
-        gen.context.update(context)
+        gen.context.update(context)            
         seed = self.state['seed'] + gen.context['NUM']
         randfunc.set_seed(seed)
         try:
@@ -1424,6 +1427,9 @@ class Compiler(object):
         self.close()
         return latex
 
+    @property
+    def syntax_tree(self):
+        return self.state['syntax_tree']
 
 
 compiler = Compiler()
