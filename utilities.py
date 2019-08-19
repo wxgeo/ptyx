@@ -1,10 +1,13 @@
 
 import re
 from math import ceil, floor, isnan, isinf
+from os.path import realpath, normpath, expanduser
 
 from config import param, sympy, wxgeometrie, custom_latex
+
 if sympy is not None:
     from sympy import preorder_traversal, Symbol
+
 
 def round(val, ndigits=0):
     """Round using round-away-from-zero strategy for halfway cases.
@@ -250,3 +253,7 @@ def term_color(string, color, **kw):
             l.append(str(n) if val else str(20 + n))
     l.append(str(colors[color]))
     return '\033[%sm%s\033[0m' % (';'.join(l), string)
+
+
+def pth(path):
+    return realpath(normpath(expanduser(path)))

@@ -29,93 +29,20 @@ __api__ = "4.3"
 __release_date__ = (19, 8, 2019)
 
 
-
-import argparse, re, random, os, sys, codecs, csv, math
+import argparse, os, sys, codecs, csv
 from ast import literal_eval
-#from math import ceil, floor, isnan, isinf
 
-
-from config import param, sympy, numpy#, custom_latex
-import randfunc
-from utilities import print_sympy_expr, term_color
+from config import param
+from utilities import pth
 from compilation import make_files
 from latexgenerator import compiler
-from context import global_context
+
 
 if sys.version_info.major == 2:
     if sys.platform == 'win32':
         sys.stdout = codecs.getwriter('cp850')(sys.stdout)
     else:
         sys.stdout = codecs.getwriter('utf8')(sys.stdout)
-
-
-
-def pth(path):
-        path = os.path.expanduser(path)
-        path = os.path.normpath(path)
-        return os.path.realpath(path)
-
-
-#~ def is_negative_number(value):
-    #~ is_python_num = isinstance(value, (float, int, long))
-    #~ is_sympy_num = sympy and isinstance(value, sympy.Basic) and value.is_number
-    #~ return (is_sympy_num or is_python_num) and value < 0
-
-
-
-
-#~ math_list = ('cos', 'sin', 'tan', 'ln', 'exp', 'diff', 'limit',
-             #~ 'integrate', 'E', 'pi', 'I', 'oo', 'gcd', 'lcm', 'floor',
-             #~ 'ceiling',)
-
-if sympy is not None:
-    global_context['sympy'] = sympy
-    global_context['sympify'] = global_context['SY'] = sympy.sympify
-    #~ for name in math_list:
-        #~ global_context[name] = getattr(sympy, name)
-    exec('from sympy import *', global_context)
-    exec('var("x y")', global_context)
-    #~ global_context['x'] = sympy.Symbol('x')
-
-if numpy is not None:
-    global_context['numpy'] = numpy
-
-global_context['sign'] = lambda x: ('+' if x > 0 else '-')
-global_context['round'] = round
-global_context['min'] = min
-global_context['max'] = max
-global_context['rand'] = global_context['random'] = random.random
-global_context['ceil'] = (global_context['ceiling'] if sympy is not None else math.ceil)
-global_context['float'] = float
-global_context['int'] = int
-global_context['str'] = str
-
-global_context['randpoint'] = randfunc.randpoint
-global_context['srandpoint'] = randfunc.srandpoint
-global_context['randint'] = randfunc.randint
-global_context['randbool'] = randfunc.randbool
-global_context['randsignint'] = randfunc.srandint
-global_context['srandint'] = randfunc.srandint
-global_context['randsign'] = randfunc.randsign
-global_context['randfrac'] = randfunc.randfrac
-global_context['srandfrac'] = randfunc.srandfrac
-global_context['randfloat'] = randfunc.randfloat
-global_context['srandfloat'] = randfunc.srandfloat
-global_context['randchoice'] = randfunc.randchoice
-global_context['srandchoice'] = randfunc.srandchoice
-global_context['randpop'] = randfunc.randpop
-global_context['shuffle'] = randfunc.shuffle
-global_context['many'] = randfunc.many
-global_context['distinct'] = randfunc.distinct
-global_context['_print_state'] = randfunc._print_state
-# If a document is compiled several times (to produce different versions of the same document),
-# NUM is the compilation number (starting from 0).
-global_context['NUM'] = 0
-global_context['latex'] = print_sympy_expr
-
-#if sympy is not None:
-#    sympy.Basic.__str__ = print_sympy_expr
-
 
 
 

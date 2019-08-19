@@ -9,7 +9,6 @@ sys.path.append('..')
 from latexgenerator import SyntaxTreeGenerator, LatexGenerator, Compiler, parse
 from utilities import find_closing_bracket, round, print_sympy_expr
 from randfunc import randchoice, srandchoice, randfrac
-from ptyx import enumerate_shuffle_tree, display_enumerate_tree
 
 from testlib import assertEq
 
