@@ -23,10 +23,10 @@
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-__version__ = "4.2"
+__version__ = "4.3"
 # API version number changes only when backward compatibility is broken.
-__api__ = "4.2"
-__release_date__ = (14, 12, 2016)
+__api__ = "4.3"
+__release_date__ = (19, 8, 2019)
 
 
 
@@ -119,146 +119,7 @@ global_context['latex'] = print_sympy_expr
 
 
 
-
-class EnumNode(object):
-    def __init__(self, node_type=''):
-        self.items = []
-        self.node_type = node_type
-        self.options = []
-
-    def __repr__(self):
-        return '<Node %s : %s item(s)>' % (self.node_type, len(self.items))
-
-
-def enumerate_shuffle_tree(text, start=0):
-    tags = (r'\begin{enumerate}', r'\end{enumerate}', r'\begin{itemize}', r'\end{itemize}', r'\item')
-    tree = []
-    stack = [tree]
-    pos = 0
-    tag = ''
-
-    def find(s, tags, pos=0):
-        results = ((s.find(tag, pos), tag) for tag in tags)
-        try:
-            return min((pos, tag) for (pos, tag) in results if pos != -1)
-        except ValueError:
-            return (None, None)
-
-    while tag is not None:
-        tag_pos, tag = find(text, tags, pos)
-
-        if not stack:
-            #TODO: print line number.
-            raise RuntimeError(r'There is more \end{enumerate} (or itemize) than \begin{enumerate} !')
-
-        stack[-1].append(text[pos:tag_pos])
-
-        if tag is not None:
-            pos = tag_pos + len(tag)
-
-            if tag.startswith(r'\begin'):
-                # node_type: enumerate or itemize
-                node = EnumNode(tag[7:-1])
-                m = re.match(r'\s*\[([^]]+)\]', text[pos:])
-                if m is not None:
-                    pos += len(m.group())
-                    node.options = [s.strip() for s in m.groups()[0].split(',')]
-                stack[-1].append(node)
-                stack.append(node.items)
-            elif tag == r'\item':
-                node = EnumNode('item')
-                # If it's not the first item of the enumeration,
-                # close last item block.
-                if getattr(stack[-2][-1], 'node_type', None) == 'item':
-                    del stack[-1]
-                stack[-1].append(node)
-                stack.append(node.items)
-            else:
-                # Close enumeration block.
-                del stack[-2:]
-
-    if stack[-1] is not tree:
-        #TODO: print line number.
-        raise RuntimeError(r'Warning: Some \begin{enumerate} or \begin{itemize} was never closed !')
-
-    return tree
-
-
-def display_enumerate_tree(tree, color=True, indent=0, raw=False):
-    "Return enumerate tree in a human readable form for debugging purpose."
-
-    texts = []
-    for child in tree:
-        if isinstance(child, EnumNode):
-            node_name = "Node " + child.node_type
-            if color:
-                node_name = term_color(node_name, 'yellow')
-            texts.append('%s  + %s [%s]' % (indent*' ', node_name, ",".join(child.options)))
-            texts.append(display_enumerate_tree(child.items, color, indent + 2, raw=raw))
-        else:
-            if raw:
-                text = repr(child)
-            else:
-                lines = child.split('\n')
-                text = lines[0]
-                if len(lines) > 1:
-                    text += ' [...]'
-                text = repr(text)
-            if color:
-                text = term_color(text, 'green')
-            texts.append('%s  - text: %s' % (indent*' ', text))
-    return '\n'.join(texts)
-
-
-
-# ~ def tree2strlist(tree, shuffle=False, answer=False):
-    # ~ str_list = []
-    # ~ for item in tree:
-        # ~ if isinstance(item, str):
-            # ~ if answer:
-                # ~ # '====' or any longer repetition of '=' begins an answer.
-                # ~ i = item.find('====')
-                # ~ if i != -1:
-                    # ~ j = i + 1
-                    # ~ n = len(item)
-                    # ~ while j < n and item[j] == '=':
-                        # ~ j += 1
-                    # ~ item = item[:i] + '#ANS{}' + item[j:]
-            # ~ str_list.append(item)
-        # ~ else:
-            # ~ if item.node_type == 'item':
-                # ~ if shuffle:
-                    # ~ str_list.append('#ITEM')
-                # ~ str_list.append(r'\item')
-                # ~ if answer:
-                    # ~ str_list.append('#ASK')
-                # ~ str_list.extend(tree2strlist(item.items, answer=answer))
-                # ~ if answer:
-                    # ~ str_list.append('#END')
-            # ~ else:
-                # ~ _shuffle_ = _answer_ = False
-                # ~ if '_shuffle_' in item.options:
-                    # ~ item.options.remove('_shuffle_')
-                    # ~ _shuffle_ = True
-                # ~ if '_answer_' in item.options:
-                    # ~ item.options.remove('_answer_')
-                    # ~ _answer_ = True
-                # ~ str_list.append(r'\begin{%s}' % item.node_type)
-                # ~ if item.options:
-                    # ~ str_list.append('[%s]' % ','.join(item.options))
-                # ~ if _shuffle_:
-                    # ~ str_list.append('#SHUFFLE')
-                # ~ str_list.extend(tree2strlist(item.items, shuffle=_shuffle_, answer=_answer_))
-                # ~ if _shuffle_:
-                    # ~ str_list.append('#END')
-                # ~ str_list.append(r'\end{%s}' % item.node_type)
-    # ~ return str_list
-
-
-
-
 if __name__ == '__main__':
-    #~ print('Ptyx ' + __version__ + ' ' + '/'.join(str(d) for d in __release_date__))
 
     # Options parsing
     parser = argparse.ArgumentParser(prog='pTyX',
@@ -380,18 +241,6 @@ if __name__ == '__main__':
         # Load extensions if needed.
         compiler.call_extensions()
 
-        # ~ # Preparse text (option _shuffle_ in enumerate/itemize)
-        # ~ # This is mainly for compatibility with old versions, extensions should
-        # ~ # be used instead now (extensions are handled directly by SyntaxTreeGenerator).
-        # ~ text = compiler.state['plain_ptyx_code']
-        # ~ if '_shuffle_' in text or '_answer_' in text:
-            # ~ print("Warning: deprecated option _shuffle_ or _answer_ is used !")
-            # ~ text = ''.join(tree2strlist(enumerate_shuffle_tree(text)))
-            # ~ tmp_file_name = os.path.join(os.path.dirname(input_name), '.ptyx.tmp')
-            # ~ with open(tmp_file_name, 'w') as tmp_ptyx_file:
-                # ~ tmp_ptyx_file.write(text)
-            # ~ compiler.state['plain_ptyx_code'] = text
-
         # Generate syntax tree.
         # The syntax tree is generated only once, and will then be used
         # for all the following compilations.
@@ -425,7 +274,4 @@ if __name__ == '__main__':
             if any(tag in tags for tag in ANSWER_tags):
                 filenames, output_name = make_files(input_name, correction=True, **vars(options))
 
-
         compiler.close()
-
-
