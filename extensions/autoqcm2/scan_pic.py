@@ -441,6 +441,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
     f_cell_size = CELL_SIZE_IN_CM*pixels_per_mm*10
     cell_size = round(f_cell_size)
+    half_cell = round(f_cell_size/2)
 
     # Henceforth, we can convert LaTeX position to pixel with a good precision.
     def xy2ij(x, y):
@@ -576,6 +577,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
             # and the associated caracter is appended to the ID.
             all_ID_are_of_the_same_length = (len(set(len(ID) for ID in ids)) == 1)
 
+            ev = eval_square_color
             for n in range(ID_length):
                 # Top of the row.
                 i = round(i0 + n*f_cell_size)
@@ -599,7 +601,16 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
                     # ~ color2debug(m, (i + 2, j + 2), (i - 2 + cell_size, j - 2+ cell_size), color=(1,1,0))
                     if test_square_color(m, i, j, cell_size, gray_level=.8):
-                        blackness = eval_square_color(m, i, j, cell_size)
+                        # To test the blackness, we exclude the top left corner,
+                        # which contain the cell number and may alter the result.
+                        # So, we divide the cell in four squares, and calculate
+                        # the mean blackness of the bottom left, bottom right
+                        # and top right squares (avoiding the top left one).
+                        blackness = (ev(m, i, j + half_cell, half_cell) +
+                                     ev(m, i + half_cell, j, half_cell) +
+                                     ev(m, i + half_cell, j + half_cell, half_cell)
+                                     )/3
+                        
                         black_cells.append((blackness, d))
                         print('Found:', d, blackness)
                         # ~ color2debug(m, (imin + i, j), (imin + i + cell_size, j + cell_size))
