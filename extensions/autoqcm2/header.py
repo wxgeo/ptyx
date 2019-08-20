@@ -226,7 +226,7 @@ def student_ID_table(ids):
         # One row for each digit of the student id number.
         for i, d in enumerate(sorted(digits[j])):
             write(fr'''\draw ({i},{-j}) rectangle ({i+1},{-j-1})
-                    node [midway] {{\scriptsize\color{{black!50}}\textsf{{{d}}}}};''')
+                    ({i+0.25},{-j-0.25}) node  {{\footnotesize\color{{black}}\textsf{{{d}}}}};''')
         for i in range(i, max_digits):
             write(fr'''\draw ({i},{-j}) rectangle ({i+1},{-j-1});''')
     write(r'\draw[white,->,thick] (-0.5, -0.5) -- (-0.5,%s);' % (0.5 - ID_length))
