@@ -1254,6 +1254,24 @@ class LatexGenerator:
 
 
 class Compiler(object):
+    """Compiler is the main object of pTyX.
+    The following methods are called successively to generate LaTeX code from 
+    a pTyX file:
+        * .read_file(path) will read the content of the file.
+        * .call_extensions() will search for extensions in this content,
+          then call the extensions to convert content into plain pTyX code.
+        * .read_seed() will search for a #SEED tag, or give a default seed
+          value, used to generate all pseudo-random content later.
+        * .generate_syntax_tree() will convert this code into a syntax tree.
+          This should be done only once ofr each document, even if multiple
+          versions of this document are needed.
+        * Finally, .generate_latex() will generate the LaTeX code.
+          Pseudo-random content will depend of the seed (see above), but also
+          of the document number, given by `gen.context['NUM']`.
+          So, changing `gen.context['NUM']` enables to generate different
+          versions of the same document.
+        
+    """
     def __init__(self):
         self.syntax_tree_generator = SyntaxTreeGenerator()
         self.latex_generator = LatexGenerator(self)
@@ -1404,8 +1422,8 @@ class Compiler(object):
 
     def update_tags_info(self):
         "Update information concerning newly added tags."
-        self.latex_generator.update_tags()
-        self.syntax_tree_generator.preparser.update_tags()
+        self.syntax_tree_generator.update_tags()
+        self.latex_generator.preparser.update_tags()
 
 
     def parse(self, code, **context):
