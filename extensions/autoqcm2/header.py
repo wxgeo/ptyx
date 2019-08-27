@@ -61,13 +61,13 @@ def ID_band(ID, calibration=True):
     if calibration:
         l.append(r"""
         \draw[fill=black] ([xshift=1cm,yshift=-1cm]current page.north west)
-            rectangle ([xshift=1.25cm,yshift=-1.25cm]current page.north west);
+            rectangle ([xshift=1.5cm,yshift=-1.5cm]current page.north west);
         \draw[fill=black] ([xshift=-1cm,yshift=-1cm]current page.north east)
-            rectangle ([xshift=-1.25cm,yshift=-1.25cm]current page.north east);
+            rectangle ([xshift=-1.5cm,yshift=-1.5cm]current page.north east);
         \draw[fill=black] ([xshift=1cm,yshift=1cm]current page.south west)
-            rectangle ([xshift=1.25cm,yshift=1.25cm]current page.south west);
+            rectangle ([xshift=1.5cm,yshift=1.5cm]current page.south west);
         \draw[fill=black] ([xshift=-1cm,yshift=1cm]current page.south east)
-            rectangle ([xshift=-1.25cm,yshift=1.25cm]current page.south east);""")
+            rectangle ([xshift=-1.5cm,yshift=1.5cm]current page.south east);""")
         # ~ l.append(r"""
         # ~ \draw[fill=black] ([xshift=1cm,yshift=-1cm]current page.north west)
             # ~ node {\zsavepos{top-left}} rectangle ([xshift=1.25cm,yshift=-1.25cm]current page.north west);
@@ -96,7 +96,10 @@ def ID_band(ID, calibration=True):
 
         \draw[dotted]  ([xshift=-1cm,yshift=-2cm]current page.north east)
             -- ([xshift=1cm,yshift=-2cm]current page.north west)
-            node [midway,fill=white]
+            node [pos=0.25,fill=white]
+            {{\,\,\scriptsize\textuparrow\,\,\textsc{{N'écrivez rien au
+            dessus de cette ligne}}\,\,\textuparrow\,\,}}
+            node [pos=0.75,fill=white]
             {{\,\,\scriptsize\textuparrow\,\,\textsc{{N'écrivez rien au
             dessus de cette ligne}}\,\,\textuparrow\,\,}};
     \end{{tikzpicture}}}}""")
@@ -221,7 +224,7 @@ def student_ID_table(ids):
     write('\n\n')
     write(r'\begin{tikzpicture}[baseline=-10pt,scale=.5]')
     write(r'\node[anchor=south west] at (-1, 0) {Numéro étudiant (INE)~:};')
-    write(r'\draw[fill=black] (-1, 0) node {\zsavepos{ID-table}} rectangle (0,%s);' % (-ID_length))
+    write(r'\draw[] (-1, 0) node {\zsavepos{ID-table}} rectangle (0,%s);' % (-ID_length))
     for j in range(ID_length):
         # One row for each digit of the student id number.
         for i, d in enumerate(sorted(digits[j])):
@@ -229,7 +232,7 @@ def student_ID_table(ids):
                     ({i+0.25},{-j-0.25}) node  {{\footnotesize\color{{black}}\textsf{{{d}}}}};''')
         for i in range(i, max_digits):
             write(fr'''\draw ({i},{-j}) rectangle ({i+1},{-j-1});''')
-    write(r'\draw[white,->,thick] (-0.5, -0.5) -- (-0.5,%s);' % (0.5 - ID_length))
+    write(r'\draw[black,->,thick] (-0.5, -0.5) -- (-0.5,%s);' % (0.5 - ID_length))
     write(r'\end{tikzpicture}')
     write(r'\hfill\begin{tikzpicture}[baseline=10pt]'
           r'\node[draw,rounded corners] {\begin{tabular}{p{8cm}}'
