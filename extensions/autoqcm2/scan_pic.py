@@ -3,14 +3,16 @@ import builtins
 from functools import partial
 
 from PIL import Image
-from numpy import array, flipud, fliplr, dot, amin, amax#, percentile, clip
+from numpy import array, flipud, fliplr, dot, amin, amax, zeros#, percentile, clip
 
 
 from square_detection import test_square_color, find_black_square, \
                              eval_square_color, adjust_checkbox, \
-                             find_lonely_square, color2debug
+                             color2debug
 from config_parser import load, real2apparent
-from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM)
+from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM,
+                        CALIBRATION_SQUARE_POSITION, CALIBRATION_SQUARE_SIZE
+                        )
 from header import set_up_ID_table
 
 ANSI_RESET = "\u001B[0m";
@@ -53,27 +55,147 @@ def transform(pic, transformation, *args, **kw):
     return pic, array(pic)/255.
 
 
+def find_black_cell(grid, ll, LL, detection_level):
+    k = i = j = 0
+    for k in range (LL + ll):
+        # j < ll <=> k - i < ll <=> k - ll < i <=> i >= k - ll + 1
+        for i in range(max(0, k - ll + 1), min(k + 1, LL)):
+            j = k - i
+#            if grid[i, j] < 100:
+#                i0 = half*i   # Add `half` and `m` to the function parameters
+#                j0 = half*j   # before running this code.
+#                color2debug(m, (i0, j0), (i0 + half, j0 + half))
+            if grid[i, j] < detection_level:
+                return i, j
+    raise LookupError(f"Corner square not found.")
 
-def find_corner_square(m, size, corner, tolerance, whiteness):
+
+def find_corner_square(m, size, corner, max_whiteness):
     L, l = m.shape
     V, H = corner
+    # First, flip the matrix if needed, so that the corner considered
+    # is now the top left corner.
     if V == 'b':
         m = flipud(m)
     if H == 'r':
         m = fliplr(m)
     area = m[:L//4,:l//4]
-    positions = find_lonely_square(area, size, error=tolerance, gray_level=whiteness)
-    def norm(ij):
-        return l*ij[0] + L*ij[1]
-    try:
-        i, j = min(positions, key=norm)
-    except ValueError:
-        raise LookupError(f"No lonely black square in {CORNER_NAMES[corner]} corner !")
+#    color2debug(m, (0, 0), (L//4, l//4), color="blue", display=False)
+
+    # Then, split area into a mesh grid.
+    # The mesh size is half the size of the searched square.
+    half = size//2
+    LL = (L//4)//half
+    ll = (l//4)//half
+    grid = zeros((LL, ll))
+
+    # For each mesh grid cell, we calculate the whiteness of the cell.
+    # (Each pixel value vary from 0 (black) to 1 (white).)
+    for i in range(LL):
+        for j in range(ll):
+            grid[i,j] = area[i*half:(i+1)*half,j*half:(j+1)*half].sum()
+
+
+    # This is the darkest cell value.
+    darkest = grid.min()
+    # We could directly collect the coordinates of this cell,
+    # which are (grid.argmin()//ll, grid.argmin()%ll).
+    # However, the search area is large, and we may detect as the
+    # darkest cell one checkbox of the MCQ itself for example,
+    # or the ID band.
+    # Anyway, even if the core of the black square is not
+    # the darkest cell, it should be almost as dark as the darkest.
+    detection_level = darkest + 0.1*half**2
+
+    # Then, we will browse the mesh grid, starting from the top left corner,
+    # following oblique lines (North-East->South-West), as follows:
+    # 1  2  4  7
+    # 3  5  8  11
+    # 6  9  12 14
+    # 10 13 15 16
+
+    # We stop when we found a black cell.
+    i, j = find_black_cell(grid, ll, LL, detection_level)
+
+    i0 = half*i
+    j0 = half*j
+
+    # Now, we must adjust the position of the square.
+    # First, let's adjust it vertically.
+    # We have detected the core of the square.
+    # The top part of the square (if any) is in the cell just above,
+    # and the bottom part (if any) in the cell just below.
+    if i == 0:
+        i0 = 0
+    elif i == LL - 1:
+        i0 = half*i
+    else:
+        # t1 is the percentage of black pixels in the cell above, and t2
+        # the percentage in the cell below.
+        # We now have a good approximation of the percentage of the square
+        # to be found in the upper cell and in the lower cell.
+        # So, t2/(t1 + t2)*half is approximatively the vertical position
+        # of the square, starting from the top of the upper cell.
+        t1 = grid[i - 1, j]
+        t2 = grid[i + 1, j]
+        if t1 + t2 == 0:
+            raise NotImplementedError
+        i0 = round((i - 1 + t2/(t1 + t2))*half)
+
+    # Same procedure, but horizontally now.
+    if j == 0:
+        j0 = 0
+    elif j == ll - 1:
+        j0 = half*j
+    else:
+        t1 = grid[i, j - 1]
+        t2 = grid[i, j + 1]
+        if t1 + t2 == 0:
+            raise NotImplementedError
+        j0 = round((j - 1 + t2/(t1 + t2))*half)
+
+    # Adjust line by line for more precision.
+    # First, vertically.
+    j1 = j0
+    j2 = j0 + size
+    shift_down = False
+    while i0 < L//4 - size and area[i0+size,j1:j2].sum() < area[i0,j1:j2].sum():
+        # shift one pixel down
+        i0 += 1
+        shift_down = True
+    if not shift_down:
+        while i0 > 0 and area[i0-1,j1:j2].sum() < area[i0+size-1,j1:j2].sum():
+            # shift one pixel up
+            i0 -= 1
+
+    # Then, adjust horizontally.
+    i1 = i0
+    i2 = i0 + size
+    shift_right = False
+    while j0 < l//4 - size and area[i1:i2,j0+size].sum() < area[i1:i2,j0].sum():
+        # shift one pixel right
+        j0 += 1
+        shift_right = True
+    if not shift_right:
+        while j0 > 0 and area[i1:i2,j0-1].sum() < area[i1:i2,j0+size-1].sum():
+            # shift one pixel left
+            j0 -= 1
+
+    # Test the result. If the square is too dim, raise LookupError.
+    whiteness_measure = m[i0:i0+size,j0:j0+size].sum()/size**2
+    print(f'Corner square {corner} found...')
+#    color2debug(m, (i0, j0), (i0 + size, j0 + size))
+    if whiteness_measure > max_whiteness:
+        print(f'WARNING: Corner square {corner} not found (not dark enough !)')
+        #color2debug(m, (i0, j0), (i0 + size, j0 + size), color='blue', display=False)
+        raise LookupError(f"Corner square {corner} not found.")
+
     if V == 'b':
-        i = L - 1 - i - size
+        i0 = L - 1 - i0 - size
     if H == 'r':
-        j = l - 1 - j - size
-    return i, j, norm((i, j))
+        j0 = l - 1 - j0 - size
+
+    return i0, j0
 
 
 def orthogonal(corner, positions):
@@ -97,40 +219,34 @@ def area_opposite_corners(positions):
     return (i1, j1), (i2, j2)
 
 
+
 def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=False):
-    h = w = round(2*(1 + SQUARE_SIZE_IN_CM)*cm)
-    tolerance = 0.4
-    whiteness = 0.45
+#    h = w = round(2*(1 + SQUARE_SIZE_IN_CM)*cm)
+    max_whiteness = 0.45
     # Make a mutable copy of frozenset CORNERS.
     corners = set(CORNERS)
     positions = {}
-    give_up = False
-    while len(positions) < 4 and not give_up:
-        for corner in CORNERS:
-            try:
-                i, j, norm = find_corner_square(m, square_size, corner, tolerance, whiteness)
-                # ~ # We may have only detected a part of the square by restricting
-                # ~ # the search area, so extend search by the size of the square.
-                # ~ i, j = find_corner_square(m, square_size, corner, h + square_size,
-                                          # ~ w + square_size, tolerance, whiteness)
-                color2debug(m, (i, j), (i + square_size, j + square_size), display=False)
-                positions[corner] = i, j
-                corners.remove(corner)
-            except LookupError:
-                pass
-        give_up = True
-        if tolerance < 0.8:
-            tolerance += 0.02
-            give_up = False
-        if whiteness < 0.7:
-            whiteness += 0.01
-            give_up = False
+    for corner in CORNERS:
+        try:
+            i, j = find_corner_square(m, square_size, corner, max_whiteness)
+        # ~ # We may have only detected a part of the square by restricting
+        # ~ # the search area, so extend search by the size of the square.
+        # ~ i, j = find_corner_square(m, square_size, corner, h + square_size,
+                                  # ~ w + square_size, tolerance, whiteness)
+            color2debug(m, (i, j), (i + CALIBRATION_SQUARE_SIZE,
+                                    j + CALIBRATION_SQUARE_SIZE), display=False)
+            positions[corner] = i, j
+            corners.remove(corner)
+        except LookupError:
+            pass
+
         # ~ if input(len(positions)) == 'd':
             # ~ color2debug(m)
 
     # If one calibration square is missing (a corner of the sheet is
     # folded for example), it will be generated from the others.
 
+#    color2debug(m)
     if len(positions) <= 2:
         color2debug(m)
         raise RuntimeError('Only 2 squares found, calibration failed !')
@@ -195,7 +311,8 @@ def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=Fal
 
             # Calculate the last corner (ABCD parallelogram <=> Vec{AB} = \Vec{DC})
             positions[corner] = (i, j)
-            color2debug(m, (i, j), (i + square_size, j + square_size), color="cyan", display=False)
+            color2debug(m, (i, j), (i + CALIBRATION_SQUARE_SIZE,
+                        j + CALIBRATION_SQUARE_SIZE), color="cyan", display=False)
 
             # For example: positions['bl'] = positions['br'][0], positions['tl'][1]
 
@@ -248,8 +365,10 @@ def calibrate(pic, m, debug=False):
     # Square size is equal to SQUARE_SIZE_IN_CM in theory, but this vary
     # in practice depending on printer and scanner parameters (margins...).
     square_size = round(SQUARE_SIZE_IN_CM*cm)
+    calib_square = round(CALIBRATION_SQUARE_SIZE*cm)
+    calib_shift_mm = 10*(2*CALIBRATION_SQUARE_POSITION + CALIBRATION_SQUARE_SIZE)
 
-    # Detect the four squares at the top left, top right, bottom left
+    # Detect the four big squares at the top left, top right, bottom left
     # and bottom right corners of the page.
     # This squares will be used to calibrate picture more precisely.
 
@@ -282,7 +401,8 @@ def calibrate(pic, m, debug=False):
     # extending the search area and beeing more tolerant if needed.
 
     # First pass, to detect rotation.
-    positions, *_ = detect_four_squares(m, square_size, cm, max_alignment_error_cm=2, debug=debug)
+    positions, *_ = detect_four_squares(m, calib_square, cm,
+                                        max_alignment_error_cm=2, debug=debug)
     print(positions)
 
     # Now, let's detect the rotation.
@@ -307,17 +427,21 @@ def calibrate(pic, m, debug=False):
     pic, m = transform(pic, 'rotate', rotation, resample=Image.BICUBIC, expand=True)
 
     (i1, j1), (i2, j2) = positions['tl'], positions['br']
-    # Distance between the (top left corners of the) left and right squares is:
-    # 21 cm - 2 cm (margin left and margin right) - SQUARE_SIZE_IN_CM (1 square)
-    h_pixels_per_mm = (j2 - j1)/(190 - 10*SQUARE_SIZE_IN_CM)
-    # Distance between the (top left corners of the) top and bottom squares is:
-    # 29.7 cm - 2 cm (margin left and margin right) - SQUARE_SIZE_IN_CM (1 square)
-    v_pixels_per_mm = (i2 - i1)/(277 - 10*SQUARE_SIZE_IN_CM)
+
+    # XXX: implement other paper sheet sizes. Currently only A4 is supported.
+
+    # Distance between the top left corners of the left and right squares is:
+    # 21 cm - (margin left + margin right + 1 square width)
+    h_pixels_per_mm = (j2 - j1)/(210 - calib_shift_mm)
+    # Distance between the top left corners of the top and bottom squares is:
+    # 29.7 cm - (margin top + margin bottom + 1 square height)
+    v_pixels_per_mm = (i2 - i1)/(297 - calib_shift_mm)
     cm = 10*(h_pixels_per_mm + 1.5*v_pixels_per_mm)/2.5
     print(f"Detect pixels/cm: {cm}")
 
     # Redetect calibration squares.
-    positions, (i1, j1), (i2, j2) = detect_four_squares(m, square_size, cm, debug=debug)
+    positions, (i1, j1), (i2, j2) = detect_four_squares(m, calib_square, cm,
+                                                        debug=debug)
 
 
     try:
@@ -330,11 +454,12 @@ def calibrate(pic, m, debug=False):
         p = positions
         for corner in p:
             i, j = p[corner]
-            i = L - 1 - i - square_size
-            j = l - 1 - j - square_size
+            i = L - 1 - i - calib_square
+            j = l - 1 - j - calib_square
             V, H = corner
             p[corner] = i, j
-            color2debug(m, (i, j), (i + square_size, j + square_size), display=False)
+            color2debug(m, (i, j), (i + calib_square, j + calib_square),
+                        color='green', display=False)
         # Replace each tag by the opposite (top-left -> bottom-right).
         p['tl'], p['bl'], p['br'], p['tr'] = p['br'], p['tr'], p['tl'], p['bl']
         # ~ color2debug(m)
@@ -350,18 +475,20 @@ def calibrate(pic, m, debug=False):
             raise RuntimeError("Can't find identification band !")
 
 
-    # Distance between the (top left corners of the) left and right squares is:
-    # 21 cm - 2 cm (margin left and margin right) - SQUARE_SIZE_IN_CM (1 square)
-    h_pixels_per_mm = (j2 - j1)/(190 - 10*SQUARE_SIZE_IN_CM)
-    # Distance between the (top left corners of the) top and bottom squares is:
-    # 29.7 cm - 2 cm (margin left and margin right) - SQUARE_SIZE_IN_CM (1 square)
-    v_pixels_per_mm = (i2 - i1)/(277 - 10*SQUARE_SIZE_IN_CM)
-    cm = (h_pixels_per_mm + 1.5*v_pixels_per_mm)/2.5
+    # Distance between the top left corners of the left and right squares is:
+    # 21 cm - (margin left + margin right + 1 square width)
+    h_pixels_per_mm = (j2 - j1)/(210 - calib_shift_mm)
+    # Distance between the top left corners of the top and bottom squares is:
+    # 29.7 cm - (margin top + margin bottom + 1 square height)
+    v_pixels_per_mm = (i2 - i1)/(297 - calib_shift_mm)
+#    cm = 10*(h_pixels_per_mm + 1.5*v_pixels_per_mm)/2.5
+
 
 
     print(positions)
     for c, (i, j) in positions.items():
-        color2debug(m, (i, j), (i + square_size, j + square_size), display=False)
+        color2debug(m, (i, j), (i + CALIBRATION_SQUARE_SIZE,
+                                j + CALIBRATION_SQUARE_SIZE), display=False)
     color2debug(m, (i3, j3), (i3 + square_size, j3 + square_size), display=False)
     if debug:
         color2debug(m)
@@ -570,8 +697,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
             i0, j0 = xy2ij(*config['id-table-pos'])
 
-            #~ color2debug(m, (imin + i0, j0), (imin + i0 + height, j0 + cell_size), color=(0,255,0))
-            # ~ color2debug(m, (i0, j0), (i0 + cell_size, j0 + cell_size), color=(0,255,0))
+#            color2debug(m, (i0, j0), (i0 + cell_size, j0 + cell_size), color=(0,255,0))
 
             # Scan grid row by row. For each row, the darker cell is retrieved,
             # and the associated caracter is appended to the ID.
@@ -610,7 +736,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
                                      ev(m, i + half_cell, j, half_cell) +
                                      ev(m, i + half_cell, j + half_cell, half_cell)
                                      )/3
-                        
+
                         black_cells.append((blackness, d))
                         print('Found:', d, blackness)
                         # ~ color2debug(m, (imin + i, j), (imin + i + cell_size, j + cell_size))
@@ -658,11 +784,11 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
     # Detect the answers.
     print('\n=== Reading answers ===')
-    print(f'Mode: *{mode}* correct answers must be checked.')
+    print(f"Mode: *{mode['default']}* correct answers must be checked.")
     print('Rating:')
-    print(f"• {config['correct']} for correctly answered question,")
-    print(f"• {config['incorrect']} for wrongly answered question,")
-    print(f"• {config['skipped']} for unanswered question.")
+    print(f"• {config['correct']['default']} for correctly answered question,")
+    print(f"• {config['incorrect']['default']} for wrongly answered question,")
+    print(f"• {config['skipped']['default']} for unanswered question.")
     print("Scanning...\n")
 
     # Using the config file to obtain correct answers list allows some easy customization

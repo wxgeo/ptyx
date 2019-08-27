@@ -557,7 +557,7 @@ if __name__ == '__main__':
     for ID in data:
         print(f'Test {ID} - {data[ID]["name"]}')
         d = data[ID]
-        for q in d['answered']:
+        for q in sorted(d['answered']):
             answered = set(d['answered'][q])
             correct_ones = set(config['correct_answers'][q])
             mode = config['mode'].get(q, default_mode)
@@ -583,9 +583,9 @@ if __name__ == '__main__':
             else:
                 earn = float(config['incorrect'].get(q, default_incorrect))
                 color = ANSI_RED
-            print(f'\n  {color}Rating: {color}{earn:g}{ANSI_RESET}\n')
+            print(f'-  {color}Rating (Q{q}): {color}{earn:g}{ANSI_RESET}')
             d['score'] += earn
-
+    print()
 
     # ---------------------------------------------------
     # Time to synthetize & store all those informations !

@@ -38,7 +38,7 @@ def top_left_iterator(stop, step=1):
 
 def total_grayness(m):
     return interp(m, [0,0.2,0.8,1], [0, 0.1, 0.9, 1]).sum()
-
+    
 
 def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4, mode='row', debug=False):
     """Detect a black rectangle of given size (in pixels) in matrix.

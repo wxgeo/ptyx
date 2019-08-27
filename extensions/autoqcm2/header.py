@@ -7,7 +7,9 @@ script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 sys.path.insert(0, script_path)
 from parameters import (CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM, # SQUARE_SIZE_IN_CM,
                          MARGIN_RIGHT_IN_CM, PAPER_FORMAT, # PAPER_FORMATS,
-                         MARGIN_BOTTOM_IN_CM, MARGIN_TOP_IN_CM
+                         MARGIN_BOTTOM_IN_CM, MARGIN_TOP_IN_CM,
+                         CALIBRATION_SQUARE_POSITION,
+                         CALIBRATION_SQUARE_SIZE
                         )
 from config_parser import correct_answers
 
@@ -59,15 +61,17 @@ def ID_band(ID, calibration=True):
     \begin{tikzpicture}[remember picture,overlay,
                     every node/.style={inner sep=0,outer sep=-0.2}]"""]
     if calibration:
-        l.append(r"""
-        \draw[fill=black] ([xshift=1cm,yshift=-1cm]current page.north west)
-            rectangle ([xshift=1.5cm,yshift=-1.5cm]current page.north west);
-        \draw[fill=black] ([xshift=-1cm,yshift=-1cm]current page.north east)
-            rectangle ([xshift=-1.5cm,yshift=-1.5cm]current page.north east);
-        \draw[fill=black] ([xshift=1cm,yshift=1cm]current page.south west)
-            rectangle ([xshift=1.5cm,yshift=1.5cm]current page.south west);
-        \draw[fill=black] ([xshift=-1cm,yshift=1cm]current page.south east)
-            rectangle ([xshift=-1.5cm,yshift=1.5cm]current page.south east);""")
+        pos = CALIBRATION_SQUARE_POSITION
+        pos2 = CALIBRATION_SQUARE_POSITION + CALIBRATION_SQUARE_SIZE
+        l.append(fr"""
+        \draw[fill=black] ([xshift={pos}cm,yshift=-{pos}cm]current page.north west)
+            rectangle ([xshift={pos2}cm,yshift=-{pos2}cm]current page.north west);
+        \draw[fill=black] ([xshift=-{pos}cm,yshift=-{pos}cm]current page.north east)
+            rectangle ([xshift=-{pos2}cm,yshift=-{pos2}cm]current page.north east);
+        \draw[fill=black] ([xshift={pos}cm,yshift={pos}cm]current page.south west)
+            rectangle ([xshift={pos2}cm,yshift={pos2}cm]current page.south west);
+        \draw[fill=black] ([xshift=-{pos}cm,yshift={pos}cm]current page.south east)
+            rectangle ([xshift=-{pos2}cm,yshift={pos2}cm]current page.south east);""")
         # ~ l.append(r"""
         # ~ \draw[fill=black] ([xshift=1cm,yshift=-1cm]current page.north west)
             # ~ node {\zsavepos{top-left}} rectangle ([xshift=1.25cm,yshift=-1.25cm]current page.north west);
