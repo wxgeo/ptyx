@@ -423,8 +423,9 @@ def calibrate(pic, m, debug=False):
     # Rotate page.
     # (rotation_v should be a bit more precise than rotation_h).
     rotation = (rotation_h + 1.5*rotation_v)/2.5
-    print(f'Rotate picture: {round(rotation, 4)}°')
-    pic, m = transform(pic, 'rotate', rotation, resample=Image.BICUBIC, expand=True)
+    if abs(rotation) > 0.5:
+        print(f'Rotate picture: {round(rotation, 4)}°')
+        pic, m = transform(pic, 'rotate', rotation, resample=Image.BICUBIC, expand=True)
 
     (i1, j1), (i2, j2) = positions['tl'], positions['br']
 

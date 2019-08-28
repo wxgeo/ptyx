@@ -39,7 +39,6 @@ script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 sys.path.insert(0, join(script_path, '../..'))
 
 from header import answers_and_score
-from compilation import make_file, join_files
 from config_parser import load
 from scan_pic import scan_picture
 
@@ -205,6 +204,8 @@ if __name__ == '__main__':
                         help='Specify a directory with write permission.')
     parser.add_argument("-s", "--scan", "--scan-dir", type=str, metavar='DIR',
                         help='Specify the directory where the scanned tests can be found.')
+    parser.add_argument("-c", "--correction", action='store_true',
+                help="For each test, generate a pdf file with the answers.")
     parser.add_argument("--hide-scores", action='store_true',
                 help="Print only answers, not scores, in generated pdf files.")
     args = parser.parse_args()
@@ -626,24 +627,26 @@ if __name__ == '__main__':
     print(f"\Infos stored in {info_path!r}\n")
 
 
-    # Generate pdf files, with the score and the table of correct answers for each test.
-    pdf_paths = []
-    for ID, d in data.items():
-        #~ identifier, answers, name, score, students, ids
-        name = d['name']
-        score = d['score']
-        path = join(PDF_DIR, '%s-%s-corr.score' % (base_name, ID))
-        pdf_paths.append(path)
-        print('Generating pdf file for student %s (subject %s, score %s)...'
-                                                % (name, ID, score))
-        latex = answers_and_score(config, name, ID,
-                        (score if not args.hide_scores else None), MAX_SCORE)
-        make_file(path, plain_latex=latex,
-                            remove=True,
-                            formats=['pdf'],
-                            quiet=True,
-                            )
-    join_files(scores_pdf_path, pdf_paths, remove_all=True, compress=True)
+    if args.correction:
+        from compilation import make_file, join_files
+        # Generate pdf files, with the score and the table of correct answers for each test.
+        pdf_paths = []
+        for ID, d in data.items():
+            #~ identifier, answers, name, score, students, ids
+            name = d['name']
+            score = d['score']
+            path = join(PDF_DIR, '%s-%s-corr.score' % (base_name, ID))
+            pdf_paths.append(path)
+            print('Generating pdf file for student %s (subject %s, score %s)...'
+                                                    % (name, ID, score))
+            latex = answers_and_score(config, name, ID,
+                            (score if not args.hide_scores else None), MAX_SCORE)
+            make_file(path, plain_latex=latex,
+                                remove=True,
+                                formats=['pdf'],
+                                quiet=True,
+                                )
+        join_files(scores_pdf_path, pdf_paths, remove_all=True, compress=True)
 
     # Generate an hidden CSV file for printing or mailing results later.
     with open(data_path, 'w', newline='') as csvfile:
