@@ -427,12 +427,13 @@ if __name__ == '__main__':
 
         # 2) Gather data
         #    ‾‾‾‾‾‾‾‾‾‾‾
-        d = data.setdefault(ID, {'pages': set(), 'score': 0,
+        d = data.setdefault(ID, {'pages': set(), 'score': 0, 'pictures': set(),
                                  'name': more_infos.get(ID, ''),
                                  'answered': {},
                                  'score': 0})
         d['pages'].add(pic_data['page'])
         d['pic'] = pic_path
+        d['pictures'].add(pic_path)
         for q in pic_data['answered']:
             ans = d['answered'].setdefault(q, set())
             ans |= pic_data['answered'][q]
@@ -616,14 +617,15 @@ if __name__ == '__main__':
 
 
     # Generate CSV file with ID and pictures names for all students.
-    #FIXME: add ALL pictures name.
     info_path = join(SCAN_DIR, 'info.csv')
-    info = [(d['name'], ID, d['pic']) for ID, d in data.items()]
+    info = [(d['name'], ID, d['score'], d['pictures']) for ID, d in data.items()]
     print(f'{ANSI_CYAN}SCORES (/{MAX_SCORE:g}):{ANSI_RESET}')
     with open(info_path, 'w', newline='') as csvfile:
         writerow = csv.writer(csvfile).writerow
-        for name, ID, path in sorted(info):
-            writerow([name, ID, path])
+        writerow(('Name', 'Test ID', 'Score', 'Pictures'))
+        for name, ID, score, paths in sorted(info):
+            paths = ', '.join(pth.replace(SCAN_DIR, '', 1) for pth in paths)
+            writerow([name, f'#{ID}', score, paths])
     print(f"\Infos stored in {info_path!r}\n")
 
 
@@ -651,6 +653,7 @@ if __name__ == '__main__':
     # Generate an hidden CSV file for printing or mailing results later.
     with open(data_path, 'w', newline='') as csvfile:
         writerow = csv.writer(csvfile).writerow
+        writerow(('Test ID', 'Name', 'Score'))
         for ID, d in data.items():
             #~ (identifier, answers, name, score, students, ids)
             writerow([ID, d['name'], d['score']])
