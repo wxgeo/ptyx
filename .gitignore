@@ -5,6 +5,8 @@
 *.bak
 *.log
 *.aux
+*.toc
+*.log
 BAZAR/
 *.tex
 *.ptyx
