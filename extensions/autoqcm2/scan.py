@@ -40,10 +40,9 @@ sys.path.insert(0, join(script_path, '../..'))
 
 from header import answers_and_score
 from config_parser import load
-from scan_pic import scan_picture
-
-from scan_pic import ANSI_YELLOW, ANSI_RESET, ANSI_CYAN, ANSI_GREEN, ANSI_RED, color2debug
-
+from scan_pic import (scan_picture, ANSI_YELLOW, ANSI_RESET, ANSI_CYAN,
+                      ANSI_GREEN, ANSI_RED, color2debug)
+from amend import amend_all
 
 PIC_EXTS = ('.jpg', '.jpeg', '.png')
 
@@ -350,11 +349,11 @@ if __name__ == '__main__':
     data = {}
     # Dict `data` will collect data from all scanned tests.
     #...............................................................
-    # FORMAT: {ID: {'pages': (set) the pages seen,
+    # FORMAT: {ID: {'pages': (dict) the pages seen, and all related informations,
     #               'answers': ({int: set}) the answers of the student for each question,
     #               'score': (float) the test score,
     #               'name': (str) the student name,
-    #               'pic': (str) image full path,
+    #               'last_pic': (str) last image seen full path,
     #               },
     #           ...
     #          }
@@ -427,13 +426,14 @@ if __name__ == '__main__':
 
         # 2) Gather data
         #    ‾‾‾‾‾‾‾‾‾‾‾
-        d = data.setdefault(ID, {'pages': set(), 'score': 0, 'pictures': set(),
+        d = data.setdefault(ID, {'pages': {}, 'score': 0,
                                  'name': more_infos.get(ID, ''),
                                  'answered': {},
-                                 'score': 0})
-        d['pages'].add(pic_data['page'])
-        d['pic'] = pic_path
-        d['pictures'].add(pic_path)
+                                 'score': 0,
+                                 'score_per_question': {}})
+        d['pages'][pic_data['page']] = pic_data
+        d['last_pic'] = pic_path
+#        d['pictures'].add(pic_path)
         for q in pic_data['answered']:
             ans = d['answered'].setdefault(q, set())
             ans |= pic_data['answered'][q]
@@ -480,7 +480,7 @@ if __name__ == '__main__':
                 # Remove twin name from index, and get the corresponding previous test ID.
                 ID0 = index.pop(name)
                 # Ask for a new name.
-                name0 = read_name_manually(data[ID0]['pic'], config, msg, default=name)
+                name0 = read_name_manually(data[ID0]['last_pic'], config, msg, default=name)
                 # Update all infos.
                 index[name0] = ID0
                 more_infos[ID0] = name0
@@ -512,7 +512,7 @@ if __name__ == '__main__':
         # All tests may not have the same number of pages, since
         # page breaking will occur at a different place for each test.
         pages = set(config['boxes'][ID])
-        diff = pages - data[ID]['pages']
+        diff = pages - set(data[ID]['pages'])
         if diff:
             pages_not_seen[ID] = ', '.join(str(p) for p in diff)
     if pages_not_seen:
@@ -587,6 +587,7 @@ if __name__ == '__main__':
                 color = ANSI_RED
             print(f'-  {color}Rating (Q{q}): {color}{earn:g}{ANSI_RESET}')
             d['score'] += earn
+            d['score_per_question'][q] = earn
     print()
 
     # ---------------------------------------------------
@@ -618,7 +619,8 @@ if __name__ == '__main__':
 
     # Generate CSV file with ID and pictures names for all students.
     info_path = join(SCAN_DIR, 'info.csv')
-    info = [(d['name'], ID, d['score'], d['pictures']) for ID, d in data.items()]
+    info = [(d['name'], ID, d['score'], [d['pages'][p]['file'] for p in d['pages']])
+                                                  for ID, d in data.items()]
     print(f'{ANSI_CYAN}SCORES (/{MAX_SCORE:g}):{ANSI_RESET}')
     with open(info_path, 'w', newline='') as csvfile:
         writerow = csv.writer(csvfile).writerow
@@ -628,6 +630,7 @@ if __name__ == '__main__':
             writerow([name, f'#{ID}', score, paths])
     print(f"\Infos stored in {info_path!r}\n")
 
+    amend_all(data, config, save_dir=PDF_DIR)
 
     if args.correction:
         from compilation import make_file, join_files

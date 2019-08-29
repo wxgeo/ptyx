@@ -801,6 +801,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     blackness = {}
     core_blackness = {}
     positions = {}
+    displayed_questions_numbers = {}
     for key, pos in boxes.items():
         # ~ should_have_answered = set() # for debuging only.
         i, j = xy2ij(*pos)
@@ -813,8 +814,9 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
         # `q0` and `a0` keep track of apparent question and answers numbers,
         # which will be used on output to make debuging easier.
         q0, a0 = real2apparent(q, a, config, test_ID)
+        displayed_questions_numbers[q] = q0
 
-        answer_is_correct = (a in correct_answers)
+#        answer_is_correct = (a in correct_answers)
 
         test_square = partial(test_square_color, m, i, j, cell_size, margin=5)
         color_square = partial(color2debug, m, (i, j),
@@ -901,5 +903,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     else:
         color2debug()
 
-    return {'ID': test_ID, 'page': page, 'name': student_name, 'answered': answered, 'matrix': m}
+    return {'ID': test_ID, 'page': page, 'name': student_name, 'file': filename,
+            'answered': answered, 'positions': positions, 'matrix': m,
+            'cell_size': cell_size, 'questions_nums': displayed_questions_numbers}
 
