@@ -12,28 +12,28 @@ from numpy import int8
 from square_detection import COLORS
 
 def _correct_checkboxes(draw, pos, checked, correct, size):
-    j, i = pos
+    i, j = pos
     margin = size//2
     red = COLORS['red']
     green = COLORS['green']
     # Draw a blue square around the box (for debuging purpose).
-    draw.rectangle((i, j, i+size, j+size), outline=green)
+    draw.rectangle((j, i, j+size, i+size), outline=green)
     if checked and not correct:
         # Circle checkbox with red pen.
-        draw.ellipse((i-margin, j-margin, i+size+margin, j+size+margin), outline=red)
+        draw.ellipse((j-margin, i-margin, j+size+margin, i+size+margin), outline=red)
     elif not checked and correct:
         # Check (cross) the box (with red pen).
-        draw.line((i, j, i+size, j+size), fill=red)
-        draw.line((i+size, j, i, j+size), fill=red)
+        draw.line((j, i, j+size, i+size), fill=red)
+        draw.line((j+size, i, j, i+size), fill=red)
 
 
 def _write_score(draw, pos, earn, size):
-    j, i = pos
+    i, j = pos
     red = COLORS['red']
     fnt = ImageFont.truetype('FreeSerif.ttf', int(0.7*size))
-    if int(earn) == earn:
-        earn = int(earn)
-    draw.text((i - 2*size, j), str(earn), font=fnt, fill=red)
+    if isinstance(earn, float):
+        earn = f"{earn:g}"
+    draw.text((j, i), earn, font=fnt, fill=red)
 
 
 def amend_all(data, config, save_dir):
@@ -64,9 +64,9 @@ def amend_all(data, config, save_dir):
                 else:
                     top_left_positions[q] = pos
             for q in top_left_positions:
-                print(q, top_left_positions[q], d['score_per_question'][q])
                 earn = d['score_per_question'][q]
-                _write_score(draw, top_left_positions[q], earn, size)
+                i, j = top_left_positions[q]
+                _write_score(draw, (i, j - 2*size), earn, size)
             # We will now sort pages.
             # For that, we use questions numbers: the page which displays
             # the smaller questions numbers is the first one, and so on.
@@ -75,7 +75,9 @@ def amend_all(data, config, save_dir):
             q_num = page_data['questions_nums'][q]
             pics[q_num] = pic
             # Sort pages now.
-            _, pages = zip(*sorted(pics.items()))
+        _, pages = zip(*sorted(pics.items()))
+        draw = ImageDraw.Draw(pages[0])
+        _write_score(draw, (2*size, 4*size), f"{d['score']:g}/{config['max_score']:g}", 2*size)
         pages[0].save(join(save_dir, f"{d['name']}-{ID}.pdf"), save_all=True,
                  append_images=pages[1:])
 

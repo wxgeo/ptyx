@@ -555,6 +555,7 @@ if __name__ == '__main__':
     for q in config['correct_answers']:
         if config['mode'].get(q, default_mode) != 'skip':
             MAX_SCORE += int(config['correct'].get(q, default_correct))
+    config['max_score'] = MAX_SCORE
 
     for ID in data:
         print(f'Test {ID} - {data[ID]["name"]}')
