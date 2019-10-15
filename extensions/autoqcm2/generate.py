@@ -13,7 +13,7 @@ def generate_ptyx_code(text):
 
     code = []
 
-    level_names = ('ROOT', 'QCM', 'SECTION', 'QUESTION', 
+    level_names = ('ROOT', 'QCM', 'SECTION', 'QUESTION',
               'VERSION', 'ANSWERS_BLOCK', 'NEW_ANSWER')
     levels = dict(enumerate(level_names))
     depth = {name: i for i, name in enumerate(level_names)}
@@ -27,25 +27,25 @@ def generate_ptyx_code(text):
 
     def begin(level, **kw):
         nonlocal current_level
-        
+
         if level not in level_names:
             raise RuntimeError(f'Unknown level: {level}')
-        
-        # Current level must be the parent one before opening level. 
+
+        # Current level must be the parent one before opening level.
         target = depth[level] - 1
         while depth[current_level] > target:
             close(current_level)
         while depth[current_level] < target:
             begin(next_level(current_level))
         assert depth[current_level] == target
-    
+
         current_level = level
         l = []
         if level == 'QUESTION':
-            l.append('#CONSECUTIVE_QUESTION' if kw.get('consecutive') 
+            l.append('#CONSECUTIVE_QUESTION' if kw.get('consecutive')
                                                 else '#NEW_QUESTION')
             l.append('{%s}' % kw['n'])
-        else:                                                
+        else:
             l.append(f'#{level}')
 
         if level == 'QCM':
@@ -74,7 +74,7 @@ def generate_ptyx_code(text):
             raise RuntimeError(f"I can not close level {level}, since it is not opened !")
         while depth[current_level] > depth[level]:
             close(current_level)
-            
+
         current_level = previous_level(level)
         if level == 'QCM':
             code.append('#END_QCM')
@@ -128,7 +128,7 @@ def generate_ptyx_code(text):
             # Start a new section.
             begin('SECTION', title=line.strip('= '))
 
-        # Nota: for a new version of a question, line must start with 'OR ',  
+        # Nota: for a new version of a question, line must start with 'OR ',
         # with a trailing space, or line must be 'OR', without trailing space.
         elif any(line.startswith(s) for s in ('* ', '> ', 'OR ')) or line == 'OR':
             # * question
@@ -157,7 +157,12 @@ def generate_ptyx_code(text):
             correct_answers[question_num].append(1)
 
         elif line.startswith('@'):
-            code.append('#{APPLY_TO_ANSWERS=%s;}' % repr(line[1:]))
+            raw = line.startswith('@@')
+            formatting = line[(2 if raw else 1):].strip()
+            if formatting == '':
+                formatting = '%s'
+            # Declare function to be applied to all answers.
+            code.append(f'#{{RAW_CODE={raw};APPLY_TO_ANSWERS={formatting!r};}}')
 
         elif line.startswith('- ') or line.startswith('+ '):
             # - incorrect answer
@@ -169,10 +174,15 @@ def generate_ptyx_code(text):
                 # (NB: This must *not* be done for the first answer !)
                 code.pop()
 
-            if previous_line == '':
+            if previous_line == '' or previous_line.startswith('@'):
                 # Answers are shuffled inside their respective groups,
                 # however groups are kept separate.
+                if previous_line.startswith('@'):
+                    cut_and_paste = code.pop()
                 begin('ANSWERS_BLOCK')
+                if previous_line.startswith('@'):
+                    code.append(cut_and_paste)
+
 
 
             answer_num += 1

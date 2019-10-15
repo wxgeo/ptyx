@@ -118,15 +118,15 @@ def _parse_QCM_tag(self, node):
         self._shuffle_and_parse_children(node, target='SECTION')
     else:
         self._parse_children(node.children)
-    
+
 
 def _parse_SECTION_tag(self, node):
     title = (node.options.strip() if node.options else '')
     if title:
         self.write(r'\section{%s}' % title)
     children = node.children
-    # Nota: \begin{enumerate} must not be written just after the 
-    # beginning of the section, since there may be some explanations 
+    # Nota: \begin{enumerate} must not be written just after the
+    # beginning of the section, since there may be some explanations
     # between the section title and the first question.
     # So, we have to insert it just before the first NEW_QUESTION.
     try:
@@ -144,8 +144,8 @@ def _parse_SECTION_tag(self, node):
 #    shuffle = has_option(node, 'shuffle')
 #    if shuffle:
 #        self._shuffle_children(node, target='NEW_QUESTION')
-    
-        
+
+
 def _parse_NEW_QUESTION_tag(self, node):
     n = int(node.arg(0))
     self.autoqcm_question_number = n
@@ -155,9 +155,10 @@ def _parse_NEW_QUESTION_tag(self, node):
     data['questions'].append(n)
     data['answers'][n] = []
     self.context['APPLY_TO_ANSWERS'] = None
-    self.write(r'\pagebreak[3]\item')
+    self.context['RAW_CODE'] = None
+    self.write(r'\pagebreak[3]\item\filbreak')
     self.write(r'\setcounter{answerNumber}{0}')
-    self._pick_and_parse_children(node, children=node.children[1:], 
+    self._pick_and_parse_children(node, children=node.children[1:],
                                   target='VERSION',
                                   )
 
@@ -165,7 +166,7 @@ def _parse_NEW_QUESTION_tag(self, node):
 # Same function, but name must be different so that shuffling does not apply.
 _parse_CONSECUTIVE_QUESTION_tag = _parse_NEW_QUESTION_tag
 
-    
+
 def _parse_VERSION_tag(self, node):
     # This is used to improve message error when an error occured.
     self.current_question = l = []
@@ -178,17 +179,17 @@ def _parse_VERSION_tag(self, node):
     try:
         i = self._child_index(node.children, 'ANSWERS_BLOCK')
     except ValueError:
-        i = self._child_index(node.children, 'L_ANSWERS')    
+        i = self._child_index(node.children, 'L_ANSWERS')
     self._parse_children(node.children[:i],
                          function=partial(remember_last_question, l=l),
                          )
     # This is the end of the question itself.
-    
+
     # And then, the answers follow.
     self.write('\n\\nopagebreak[4]')
     self._parse_children(node.children[i:])
-        
-        
+
+
 def _parse_ANSWERS_BLOCK_tag(self, node):
     self.write('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
     self._shuffle_and_parse_children(node, target='NEW_ANSWER')
@@ -201,38 +202,50 @@ def _parse_NEW_ANSWER_tag(self, node):
     data = self.autoqcm_data['ordering'][self.NUM]
     data['answers'][n].append(k)
     _open_answer(self, n, k)
+    # Functions to apply. Last one is applied first:
+    # if functions = [f, g, h], then s -> f(g(h(s))).
+    functions = []
 
-    # TODO: functions should be compiled only once for each question block,
+    # TODO(?): functions should be compiled only once for each question block,
     # not for every answer (though it is probably not be a bottleneck in
     # code execution).
     apply = self.context.get('APPLY_TO_ANSWERS')
-    f = None
     if apply:
         # Apply template or function to every answer.
         # Support:
         # - string templates. Ex: \texttt{%s}
-        # - functions to apply. Ex: f
+        # - name of the function to apply. Ex: f.
+        # In last case, the function must have been defined or imported
+        # before.
         if '%s' in apply:
-            f = (lambda s: (apply % s))
+            functions.append(lambda s: (apply % s))
         else:
-            #~ for key in sorted(self.context):
-                #~ print ('* ' + repr(key))
-            f = self.context[apply]
+            # Search for the function name in context.
+            functions.append(self.context[apply])
 
-    func = f
+    if self.context.get('RAW_CODE'):
+        # Try to emulate verbatim (which is not allowed inside
+        # a macro argument in LaTeX).
+        def escape(s):
+            # Replace \ first !
+            s = s.replace('\\', r'\textbackslash<!ø5P3C14Lø?>')
+            s = s.replace('~', r'\textasciitilde<!ø5P3C14Lø?>')
+            s = s.replace('^', r'\textasciicircum<!ø5P3C14Lø?>')
+            s = s.replace("'", r'\textquotesingle<!ø5P3C14Lø?>')
+            for char in '#$%&_{}':
+                s = s.replace(char, fr'\{char}')
+            s = s.replace('<!ø5P3C14Lø?>', '{}')
+            return fr'\texttt{{{s}}}'
+        functions.append(escape)
 
     if not self.context.get('ALLOW_SAME_ANSWER_TWICE'):
         # This function is used to verify that each answer is unique.
         # This avoids proposing twice the same answer by mistake, which
         # may occur easily when using random values.
-        func = g = partial(test_singularity_and_append, l=self.autoqcm_answers,
-                                        question=self.current_question[0])
-        if f is not None:
-            # Compose functions. Function f should be applied first,
-            # since it is not necessarily injective.
-            func = (lambda s: g(f(s.strip())))
+        functions.append(partial(test_singularity_and_append, l=self.autoqcm_answers,
+                                        question=self.current_question[0]))
 
-    self._parse_children(node.children[1:], function=func)
+    self._parse_children(node.children[1:], function=functions)
     _close_answer(self)
 
 
@@ -448,34 +461,34 @@ def main(text, compiler):
     #         ],
     #    }
     text = extended_python.main(text, compiler)
-    
+
     # Régister custom tags and corresponding handlers for this extension.
     new_tag = partial(compiler.add_new_tag, extension_name='autoqcm2')
-    
-    # Note for closing tags: 
-    # '@END' means closing tag #END must be consumed, unlike 'END'. 
+
+    # Note for closing tags:
+    # '@END' means closing tag #END must be consumed, unlike 'END'.
     # So, use '@END_QUESTIONS_BLOCK' to close QUESTIONS_BLOCK,
-    # but use 'END_QUESTIONS_BLOCK' to close QUESTION, since 
-    # #END_QUESTIONS_BLOCK must not be consumed then (it must close 
+    # but use 'END_QUESTIONS_BLOCK' to close QUESTION, since
+    # #END_QUESTIONS_BLOCK must not be consumed then (it must close
     # QUESTIONS_BLOCK too).
-    
+
     # Tags used to structure MCQ
     new_tag('QCM', (0, 0, ['@END_QCM']), _parse_QCM_tag)
     new_tag('SECTION', (0, 0, ['SECTION', 'END_QCM']), _parse_SECTION_tag)
-    new_tag('NEW_QUESTION', (1, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION', 
-                                    'SECTION', 'END_QCM']), 
+    new_tag('NEW_QUESTION', (1, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION',
+                                    'SECTION', 'END_QCM']),
             _parse_NEW_QUESTION_tag)
-    new_tag('CONSECUTIVE_QUESTION', (1, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION', 
-                                            'SECTION', 'END_QCM']), 
+    new_tag('CONSECUTIVE_QUESTION', (1, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION',
+                                            'SECTION', 'END_QCM']),
             _parse_NEW_QUESTION_tag)
-    new_tag('VERSION', (0, 0, ['VERSION', 'NEW_QUESTION', 'CONSECUTIVE_QUESTION', 
+    new_tag('VERSION', (0, 0, ['VERSION', 'NEW_QUESTION', 'CONSECUTIVE_QUESTION',
                                     'SECTION', 'END_QCM']), _parse_VERSION_tag)
     new_tag('ANSWERS_BLOCK', (0, 0, ['@END_ANSWERS_BLOCK']),
             _parse_ANSWERS_BLOCK_tag)
-    new_tag('NEW_ANSWER', (1, 0, ['NEW_ANSWER', 'END_ANSWERS_BLOCK']), 
+    new_tag('NEW_ANSWER', (1, 0, ['NEW_ANSWER', 'END_ANSWERS_BLOCK']),
             _parse_NEW_ANSWER_tag)
     new_tag('L_ANSWERS', (2, 0, None), _parse_L_ANSWERS_tag)
-    
+
     # Other tags
     new_tag('QCM_HEADER', (1, 0, None), _parse_QCM_HEADER_tag)
     new_tag('DEBUG_AUTOQCM', (0, 0, None), _parse_DEBUG_AUTOQCM_tag)
