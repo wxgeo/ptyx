@@ -230,15 +230,15 @@ class SyntaxTreeGenerator:
                 tag = tag.lstrip('@')
                 if tag not in self.tags:
                     missing.add(tag)
-                    
+
         for name in missing:
             self.tags[name] = (0, 0, None)
-            
+
         # Tags sorted by length (longer first).
         # This is used for matching tests.
         self.sorted_tags = sorted(self.tags, key=len, reverse=True)
-        
-        
+
+
     def preparse(self, text):
         """Pre-parse pTyX code and generate a syntax tree.
 
@@ -575,6 +575,10 @@ class LatexGenerator:
         If `function` is not None, apply `function` to resulting LaTeX
         code before appending it to self.context['LATEX'].
         (So, `function` signature must be: function(str, **options) -> str).
+
+        Note that `function` can also be a list of functions.
+        In that case, the first function of the list is also the first
+        to be applied.
         """
 
         if function is not None:
@@ -600,7 +604,11 @@ class LatexGenerator:
                 self.parse_node(child)
 
         if function is not None:
-            code = function(''.join(self.context['LATEX']), **options)
+            code = ''.join(self.context['LATEX'])
+            if callable(function):
+                function = [function]
+            for f in function:
+                code = f(code, **options)
             self.context['LATEX'] = self.backups.pop()
             self.write(code)
 
@@ -1255,7 +1263,7 @@ class LatexGenerator:
 
 class Compiler(object):
     """Compiler is the main object of pTyX.
-    The following methods are called successively to generate LaTeX code from 
+    The following methods are called successively to generate LaTeX code from
     a pTyX file:
         * .read_file(path) will read the content of the file.
         * .call_extensions() will search for extensions in this content,
@@ -1270,7 +1278,7 @@ class Compiler(object):
           of the document number, given by `gen.context['NUM']`.
           So, changing `gen.context['NUM']` enables to generate different
           versions of the same document.
-        
+
     """
     def __init__(self):
         self.syntax_tree_generator = SyntaxTreeGenerator()
