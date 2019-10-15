@@ -134,7 +134,8 @@ def extract_ID_NAME_from_csv(csv_path, script_path):
     ids = {}
     # Read CSV file and generate the dictionary {id: "student name"}.
     with open(csv_path) as f:
-        for row in csv.reader(f):
+        dialect = csv.Sniffer().sniff(f.read(1024))
+        for row in csv.reader(f, dialect):
             n, *row = row
             ids[n.strip()] = ' '.join(item.strip() for item in row)
     return ids
