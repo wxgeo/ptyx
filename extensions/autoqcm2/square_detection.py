@@ -38,7 +38,7 @@ def top_left_iterator(stop, step=1):
 
 def total_grayness(m):
     return interp(m, [0,0.2,0.8,1], [0, 0.1, 0.9, 1]).sum()
-    
+
 
 def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4, mode='row', debug=False):
     """Detect a black rectangle of given size (in pixels) in matrix.
@@ -293,7 +293,7 @@ def find_lonely_square(m, size, error=.4, gray_level=.4):
 
 
 def color2debug(array=None, from_=None, to_=None, color='red',
-                display=True, thickness=2, fill=False, _d={}):
+                display=True, thickness=2, fill=False, _d={}, wait=True):
     """Display picture with a red (by default) rectangle for debuging.
 
     `array` is an array containing the image data (image must be gray mode,
@@ -365,14 +365,19 @@ def color2debug(array=None, from_=None, to_=None, color='red',
                     set_pix(i, j, color)
 
     if display:
+        del _d[ID]
         if subprocess.call(['which', 'feh']) != 0:
             raise RuntimeError('The `feh` command is not found, please '
                         'install it (`sudo apt install feh` on Ubuntu).')
         with tempfile.TemporaryDirectory() as tmpdirname:
             path = join(tmpdirname, 'test.png')
             rgb.save(path)
-            subprocess.run(["feh", "-F", path])
-            input('-- pause --')
-        del _d[ID]
+            if wait:
+                process = subprocess.run(["feh", "-F", path])
+            else:
+                process = subprocess.Popen(["feh", "-F", path],
+                                           stdin=subprocess.DEVNULL)
+            input('-- pause --\n')
+            return process
 
 
