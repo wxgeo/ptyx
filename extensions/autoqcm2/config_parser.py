@@ -69,6 +69,8 @@ def load(path):
 def real2apparent(q, a, config, ID):
     """Return apparent question number and answer number.
 
+    If `a` is None, return only question number.
+
     By "apparent", it means question and answer numbers as they
     will appear in the PDF file, after shuffling questions and answers.
 
@@ -79,17 +81,24 @@ def real2apparent(q, a, config, ID):
     # Apparent question number (ie. after shuffling).
     # Attention, list index 0 correspond to first question is numbered 1, corresponding to .
     q1 = questions.index(q) + 1
+    if a is None:
+        return q1
     a1 = answers[q].index(a) + 1
     return (q1, a1)
 
 
 def apparent2real(q, a, config, ID):
-    "Return real question number and answer number."
+    """Return real question number and answer number.
+
+    If `a` is None, return only question number.
+    """
     questions = config['ordering'][ID]['questions']
     answers = config['ordering'][ID]['answers']
     # Real question number (ie. before shuffling).
     # Attention, first question is numbered 1, corresponding to list index 0.
     q1 = questions[q - 1]
+    if a is None:
+        return q1
     # Real answer number (ie. before shuffling).
     a1 = answers[q1][a - 1]
     return (q1, a1)
