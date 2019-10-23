@@ -7,7 +7,6 @@ Created on Thu Aug 29 14:49:37 2019
 """
 from os.path import join
 from PIL import Image, ImageDraw, ImageFont
-from numpy import int8
 
 from square_detection import COLORS
 
@@ -47,9 +46,13 @@ def amend_all(data, config, save_dir):
         for page, page_data in d['pages'].items():
             top_left_positions = {}
             # Convert to RGB picture.
-#            pic = Image.open(page_data['file']).convert('RGB')
-            array = page_data['matrix']
-            pic = Image.fromarray((255*array).astype(int8)).convert('RGB')
+            pic = Image.open(page_data['webp']).convert('RGB')
+            if not page_data['positions']:
+                # The last page of the MCQ may be empty.
+                # `float('+inf')` is used to ensure
+                # it will be the last page when sorting.
+                pics[float('+inf')] = pic
+                continue
             # Drawing context
             draw = ImageDraw.Draw(pic)
             size = page_data['cell_size']

@@ -41,11 +41,11 @@ sys.path.insert(0, join(script_path, '../..'))
 from header import answers_and_score
 from config_parser import load
 from scan_pic import (scan_picture, ANSI_YELLOW, ANSI_RESET, ANSI_CYAN,
-                      ANSI_GREEN, ANSI_RED, color2debug)
+                      ANSI_GREEN, ANSI_RED, color2debug, CalibrationError,
+                      store_as_WEBP)
 from amend import amend_all
 
 PIC_EXTS = ('.jpg', '.jpeg', '.png')
-
 
 
 
@@ -137,9 +137,13 @@ def read_name_manually(matrix, config, msg='', default=None):
 #    subprocess.run(["display", "-resize", "1920x1080", pic_path])
     #TODO: use first letters of students name to find student.
     #(ask again if not found, or if several names match first letters)
+    process = None
     while True:
         L, l = matrix.shape
-        color2debug(matrix[0:int(3/4*l),:])
+        # Don't relaunch process if it is still alive.
+        # (process.poll() is not None for dead processes.)
+        if process is None or process.poll() is not None:
+            process = color2debug(matrix[0:int(3/4*l),:], wait=False)
         name = input('Student name or ID:').strip()
         if not name:
             if default is None:
@@ -157,6 +161,7 @@ def read_name_manually(matrix, config, msg='', default=None):
             continue
         if name:
             break
+    process.terminate()
     return name
 
 
@@ -184,6 +189,7 @@ if __name__ == '__main__':
                                         help="Read only page P of pdf file.")
     group.add_argument("-sk", "--skip", "--skip-pages", metavar="P", type=int, nargs='+', default=[],
                                         help="Skip page(s) P [P ...] of pdf file.")
+
     parser.add_argument("-n", "--names", metavar="CSV_FILENAME", type=str,
                                         help="Read names from file CSV_FILENAME.")
     parser.add_argument("-P", "--print", action='store_true',
@@ -193,12 +199,17 @@ if __name__ == '__main__':
     parser.add_argument("--reset", action="store_true", help='Delete `scan` directory.')
     parser.add_argument("--picture", metavar="P", type=str,
                         help='Scan only given picture (useful for debugging).')
+    # Following options can't be used simultaneously.
     group2 = parser.add_mutually_exclusive_group()
     group2.add_argument("--never-ask", action="store_false", dest='manual_verification', default=None,
                         help="Always assume algorithm is right, never ask user in case of ambiguity.")
     group2.add_argument("--manual-verification", action="store_true", default=None,
                         help="For each page scanned, display a picture of "
                         "the interpretation by the detection algorithm.")
+
+    parser.add_argument("--ask-for-name", action="store_true", default=None,
+                        help="For each first page, display a picture of "
+                        "the top of the page and ask for the student name.")
     parser.add_argument("-d", "--dir", type=str,
                         help='Specify a directory with write permission.')
     parser.add_argument("-s", "--scan", "--scan-dir", type=str, metavar='DIR',
@@ -257,6 +268,8 @@ if __name__ == '__main__':
     # .scan/
     # .scan/pic -> pictures extracted from the pdf
     # .scan/cfg/more_infos.csv -> missing students names.
+    # .scan/cfg/verified.csv -> pages already verified.
+    # .scan/cfg/skipped.csv -> pages to skip.
     # .scan/scores.csv
     SCAN_DIR = join(args.dir or DIR, '.scan')
     CFG_DIR = join(SCAN_DIR, 'cfg')
@@ -329,6 +342,30 @@ if __name__ == '__main__':
                 more_infos[int(sheet_id)] = name
             print("Retrieved infos:", more_infos)
 
+    # List manually verified pages.
+    # They should not be verified anymore.
+    verified = set()
+    verif_path = join(CFG_DIR, 'verified.csv')
+    if isfile(verif_path):
+        with open(verif_path, 'r', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                sheet_id, page = row
+                verified.add((int(sheet_id), int(page)))
+            print("Pages manually verified:", verified)
+
+    # List skipped pictures.
+    # Next time, they will be skipped with no warning.
+    skipped = set()
+    skip_path = join(CFG_DIR, 'skipped.csv')
+    if isfile(skip_path):
+        with open(skip_path, 'r', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                picture, = row
+                skipped.add(picture)
+            print("Pictures skipped:", skipped)
+
 
     # ---------------------------------------
     # Extract informations from the pictures.
@@ -359,10 +396,13 @@ if __name__ == '__main__':
     #          }
     #...............................................................
 
+
     for i, pic in enumerate(pic_list):
         if args.page is not None and args.page != i + 1:
             continue
         if i + 1 in args.skip:
+            continue
+        if pic in skipped:
             continue
         print('-------------------------------------------------------')
         print('Page', i + 1)
@@ -372,7 +412,22 @@ if __name__ == '__main__':
         #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
         pic_path = join(PIC_DIR, pic)
-        pic_data = scan_picture(pic_path, config, manual_verification=args.manual_verification)
+        try:
+            pic_data = scan_picture(pic_path, config,
+                                manual_verification=args.manual_verification,
+                                already_verified=verified)
+            # Don't store all matrices ! It would consume too much memory.
+            matrix = pic_data.pop('matrix')
+            # However, we will store a compressed version.
+            pic_data['webp'] = store_as_WEBP(matrix)
+        except CalibrationError:
+            print(f'WARNING: {pic_path} seems invalid ! Skipping...')
+            with open(skip_path, 'a', newline='') as csvfile:
+                writerow = csv.writer(csvfile).writerow
+                writerow([pic])
+            input('-- PAUSE --')
+            continue
+
         #...........................................................
         # `pic_data` FORMAT: {'ID': (int) ID of the test,
         #                     'page': (int) page number (for the test),
@@ -380,6 +435,12 @@ if __name__ == '__main__':
         #                     'answered': (dict={int:set}) score,
         #                     }
         #...........................................................
+        if pic_data['verified']:
+            # If the page has been manually verified, keep track of it,
+            # so it won't be verified next time if a second pass is needed.
+            with open(verif_path, 'a', newline='') as csvfile:
+                writerow = csv.writer(csvfile).writerow
+                writerow([str(pic_data['ID']), str(pic_data['page'])])
 
         ID = pic_data['ID']
         p = pic_data['page']
@@ -446,7 +507,9 @@ if __name__ == '__main__':
             # However, if the name was already set (using `more_infos`),
             # don't overwrite it.
             if not d['name']:
-                d['name'] = pic_data['name']
+                # Store the name read (except if ask not to do so).
+                if not args.ask_for_name:
+                    d['name'] = pic_data['name']
 
             name = d['name']
 
@@ -461,7 +524,7 @@ if __name__ == '__main__':
                     name = args.names.pop(0)
                 # (ii) If not, ask user for the name.
                 else:
-                    name = read_name_manually(pic_data['matrix'], config, msg=name)
+                    name = read_name_manually(matrix, config, msg=name)
                     more_infos[ID] = name
                     # Keep track of manually entered information (will be useful
                     # if `scan.py` has to be run again later !)

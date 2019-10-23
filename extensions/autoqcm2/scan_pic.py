@@ -1,15 +1,16 @@
 from math import degrees, atan, hypot
 import builtins
 from functools import partial
+import io
 
 from PIL import Image
-from numpy import array, flipud, fliplr, dot, amin, amax, zeros#, percentile, clip
+from numpy import array, flipud, fliplr, dot, amin, amax, zeros, int8#, percentile, clip
 
 
 from square_detection import test_square_color, find_black_square, \
                              eval_square_color, adjust_checkbox, \
                              color2debug
-from config_parser import load, real2apparent
+from config_parser import load, real2apparent, apparent2real
 from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM,
                         CALIBRATION_SQUARE_POSITION, CALIBRATION_SQUARE_SIZE
                         )
@@ -35,6 +36,10 @@ CORNER_NAMES = {'tl': 'top-left', 'tr': 'top-right', 'bl': 'bottom-left',
 #At the bottom of the page, display 5 squares:
 # Black - Gray - Light gray - White - Light gray - Gray - Black
 
+class CalibrationError(RuntimeError):
+    "Error if calibration failed."
+    pass
+
 
 def round(f, n=None):
     # PEP3141 compatible round() implementation.
@@ -42,6 +47,17 @@ def round(f, n=None):
     # __builtin__.round(f) doesn't return an int if type(f) is np.float64.
     # See: https://github.com/numpy/numpy/issues/11810
     return (int(builtins.round(f)) if n is None else builtins.round(f, n))
+
+
+def store_as_WEBP(m):
+    output = io.BytesIO()
+    im = Image.fromarray((255*m).astype(int8))
+    im.save(output, format="WEBP")
+    return output
+
+#def uncompress_array(buffer):
+#    im = Image.open(buffer)
+#    return array(im)/255
 
 
 def transform(pic, transformation, *args, **kw):
@@ -187,7 +203,7 @@ def find_corner_square(m, size, corner, max_whiteness):
 #    color2debug(m, (i0, j0), (i0 + size, j0 + size))
     if whiteness_measure > max_whiteness:
         print(f'WARNING: Corner square {corner} not found (not dark enough !)')
-        #color2debug(m, (i0, j0), (i0 + size, j0 + size), color='blue', display=False)
+        color2debug(m, (i0, j0), (i0 + size, j0 + size), color='blue', display=False)
         raise LookupError(f"Corner square {corner} not found.")
 
     if V == 'b':
@@ -222,7 +238,7 @@ def area_opposite_corners(positions):
 
 def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=False):
 #    h = w = round(2*(1 + SQUARE_SIZE_IN_CM)*cm)
-    max_whiteness = 0.45
+    max_whiteness = 0.55
     # Make a mutable copy of frozenset CORNERS.
     corners = set(CORNERS)
     positions = {}
@@ -249,7 +265,7 @@ def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=Fal
 #    color2debug(m)
     if len(positions) <= 2:
         color2debug(m)
-        raise RuntimeError('Only 2 squares found, calibration failed !')
+        raise CalibrationError('Only 2 squares found, calibration failed !')
 
     # If there are 4 squares, and one is less dark than the others,
     # let's drop it and use only the 3 darkers.
@@ -293,7 +309,7 @@ def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=Fal
         if n <= 2:
             color2debug(m)
             print('n =', n)
-            raise RuntimeError("Something wrong with the corners !")
+            raise CalibrationError("Something wrong with the corners !")
 
 
     for corner in CORNERS:
@@ -423,9 +439,9 @@ def calibrate(pic, m, debug=False):
     # Rotate page.
     # (rotation_v should be a bit more precise than rotation_h).
     rotation = (rotation_h + 1.5*rotation_v)/2.5
-    if abs(rotation) > 0.5:
-        print(f'Rotate picture: {round(rotation, 4)}°')
-        pic, m = transform(pic, 'rotate', rotation, resample=Image.BICUBIC, expand=True)
+
+    print(f'Rotate picture: {round(rotation, 4)}°')
+    pic, m = transform(pic, 'rotate', rotation, resample=Image.BICUBIC, expand=True)
 
     (i1, j1), (i2, j2) = positions['tl'], positions['br']
 
@@ -473,7 +489,7 @@ def calibrate(pic, m, debug=False):
             print("ERROR: Can't find identification band, displaying search areas in red.")
             print(i1, j1, i2, j2)
             color2debug(m)
-            raise RuntimeError("Can't find identification band !")
+            raise CalibrationError("Can't find identification band !")
 
 
     # Distance between the top left corners of the left and right squares is:
@@ -500,8 +516,81 @@ def calibrate(pic, m, debug=False):
     return m, h_pixels_per_mm, v_pixels_per_mm, positions['tl'], (i3, j3)
 
 
+def edit_answers(m, boxes, answered, config, test_ID, xy2ij, cell_size):
+    print('Please verify answers detection:')
+    input('-- Press ENTER --')
+    process = color2debug(m, wait=False)
+    while True:
+        ans = input('Is this correct ? [(y)es/(N)o]')
+        if ans.lower() in ('y', 'yes'):
+            process.terminate()
+            process.terminate()
+            return answered
 
-def scan_picture(filename, config, manual_verification=None, debug=False):
+        while True:
+            ans = input('Write a question number, or 0 to escape:')
+            if ans == '0':
+                break
+            try:
+                q0 = int(ans)
+            except ValueError:
+                continue
+            q = apparent2real(q0, None, config, test_ID)
+            if q not in answered:
+                print('Invalid question number.')
+                continue
+
+            ans = input('Add or remove answers (Example: +2 -1 -4 to add answer 2, '
+                        'and remove answers 1 et 4):')
+            checked = answered[q]
+            try:
+                for val in ans.split():
+                    op, a0 = val[0], int(val[1:])
+                    q, a = apparent2real(q0, a0, config, test_ID)
+                    if op == '+':
+                        if a in checked:
+                            print(f'Warning: {a0} already in answers.')
+                        else:
+                            checked.add(a)
+                    elif op == '-':
+                        if a in checked:
+                            checked.remove(a)
+                        else:
+                            print(f'Warning: {a0} not in answers.')
+                    else:
+                        print(f'Invalid operation: {val!r}')
+            except ValueError:
+                print('Invalid answer number.')
+                continue
+            answered[q] = checked
+            process.terminate()
+            # Color answers
+            valid_answers = {}
+            for key, pos in boxes.items():
+                # ~ should_have_answered = set() # for debuging only.
+                i, j = xy2ij(*pos)
+                i, j = adjust_checkbox(m, i, j, cell_size)
+                q, a = key[1:].split('-')
+                # `q` and `a` are real questions and answers numbers, that is,
+                # questions and answers numbers before shuffling.
+                q = int(q)
+                a = int(a)
+                valid_answers.setdefault(q, set()).add(a)
+                if a in answered[q]:
+                    color2debug(m, (i, j), (i + cell_size, j + cell_size),
+                                thickness=5, color='green', display=False)
+
+            for q in answered:
+                if answered[q] - valid_answers[q]:
+                    answered[q] &= valid_answers[q]
+                    print('Warning: invalid answers numbers were dropped.')
+            process = color2debug(m, wait=False)
+
+
+
+
+def scan_picture(filename, config, manual_verification=None,
+                 already_verified=frozenset(), debug=False):
     """Scan picture and return page identifier and list of answers for each question.
 
     - `filename` is a path pointing to a PNG file.
@@ -773,11 +862,20 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     #                      READ ANSWERS
     # ------------------------------------------------------------------
 
+    answered = {}
+    positions = {}
+    displayed_questions_numbers = {}
+    output = {'ID': test_ID, 'page': page, 'name': student_name, 'file': filename,
+            'answered': answered, 'positions': positions, 'matrix': m,
+            'cell_size': cell_size, 'questions_nums': displayed_questions_numbers,
+            'verified': None}
+
     try:
         boxes = config['boxes'][test_ID][page]
     except KeyError:
-        print(f'WARNING: ID {test_ID!r} - page {page!r} not found in config file !')
-        return {'ID': test_ID, 'page': page, 'name': student_name, 'answered': {}, 'matrix': m}
+        print(f'WARNING: ID {test_ID!r} - page {page!r} not found in config file !\n'
+              f'Maybe ID {test_ID!r} - page {page!r} is an empty page ?')
+        return output
 
     ordering = config['ordering'][test_ID]
     mode = config['mode']
@@ -795,13 +893,11 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     # Using the config file to obtain correct answers list allows some easy customization
     # after the test was generated (this is useful if some tests questions were flawed).
 
-    answered = {}
     # Store blackness of checkboxes, to help detect false positives
     # and false negatives.
     blackness = {}
     core_blackness = {}
-    positions = {}
-    displayed_questions_numbers = {}
+
     for key, pos in boxes.items():
         # ~ should_have_answered = set() # for debuging only.
         i, j = xy2ij(*pos)
@@ -898,12 +994,15 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
     # ~ color2debug(m, (0,0), (0,0), display=True)
     # ~ print(f'\nScore: {ANSI_REVERSE}{score:g}{ANSI_RESET}\n')
-    if debug or (manual_verification is True):
+    if manual_verification is True and (test_ID, page) not in already_verified:
+        print(already_verified)
+        print(test_ID, page)
+        answered = edit_answers(m, boxes, answered, config, test_ID, xy2ij, cell_size)
+    elif debug:
         color2debug(m)
     else:
         color2debug()
 
-    return {'ID': test_ID, 'page': page, 'name': student_name, 'file': filename,
-            'answered': answered, 'positions': positions, 'matrix': m,
-            'cell_size': cell_size, 'questions_nums': displayed_questions_numbers}
+    output['verified'] = manual_verification
+    return output
 
