@@ -180,7 +180,8 @@ def read_name_manually(matrix, config, msg='', default=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Extract information from numerised tests.")
-    parser.add_argument('path', help=("Path to a directory which must contain "
+    parser.add_argument('path', nargs='?', default='.',
+                        help=("Path to a directory which must contain "
                         "a .autoqcm.config file and a .scan.pdf file "
                         "(alternatively, this path may point to any file in this folder)."))
     group = parser.add_mutually_exclusive_group()
@@ -422,10 +423,10 @@ if __name__ == '__main__':
             pic_data['webp'] = store_as_WEBP(matrix)
         except CalibrationError:
             print(f'WARNING: {pic_path} seems invalid ! Skipping...')
+            input('-- PAUSE --')
             with open(skip_path, 'a', newline='') as csvfile:
                 writerow = csv.writer(csvfile).writerow
                 writerow([pic])
-            input('-- PAUSE --')
             continue
 
         #...........................................................

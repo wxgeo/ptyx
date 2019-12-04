@@ -121,7 +121,7 @@ def find_corner_square(m, size, corner, max_whiteness):
     # or the ID band.
     # Anyway, even if the core of the black square is not
     # the darkest cell, it should be almost as dark as the darkest.
-    detection_level = darkest + 0.1*half**2
+    detection_level = darkest + 0.15*half**2
 
     # Then, we will browse the mesh grid, starting from the top left corner,
     # following oblique lines (North-East->South-West), as follows:
@@ -202,7 +202,8 @@ def find_corner_square(m, size, corner, max_whiteness):
     print(f'Corner square {corner} found...')
 #    color2debug(m, (i0, j0), (i0 + size, j0 + size))
     if whiteness_measure > max_whiteness:
-        print(f'WARNING: Corner square {corner} not found (not dark enough !)')
+        print(f'WARNING: Corner square {corner} not found '
+              f'(not dark enough: {whiteness_measure}!)')
         color2debug(m, (i0, j0), (i0 + size, j0 + size), color='blue', display=False)
         raise LookupError(f"Corner square {corner} not found.")
 
@@ -249,8 +250,8 @@ def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=Fal
         # ~ # the search area, so extend search by the size of the square.
         # ~ i, j = find_corner_square(m, square_size, corner, h + square_size,
                                   # ~ w + square_size, tolerance, whiteness)
-            color2debug(m, (i, j), (i + CALIBRATION_SQUARE_SIZE,
-                                    j + CALIBRATION_SQUARE_SIZE), display=False)
+            color2debug(m, (i, j), (i + square_size,
+                                    j + square_size), display=False)
             positions[corner] = i, j
             corners.remove(corner)
         except LookupError:
@@ -302,11 +303,15 @@ def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=Fal
 
         lighter_corner = min(darkness, key=darkness.get)
         if darkness[lighter_corner] < 0.4:
-            print(f'Removing {CORNER_NAMES[lighter_corner]} corner (too light !)')
+            print(f'Removing {CORNER_NAMES[lighter_corner]} corner '
+                  f'(too light: {darkness[lighter_corner]} !)')
             del positions[lighter_corner]
 
     if len(positions) == 4:
         if n <= 2:
+            for (i, j) in positions.values():
+                color2debug(m, (i, j), (i + square_size, j + square_size),
+                            display=False)
             color2debug(m)
             print('n =', n)
             raise CalibrationError("Something wrong with the corners !")
