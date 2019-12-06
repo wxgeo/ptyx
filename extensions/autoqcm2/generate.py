@@ -44,7 +44,6 @@ def generate_ptyx_code(text):
         if level == 'QUESTION':
             l.append('#CONSECUTIVE_QUESTION' if kw.get('consecutive')
                                                 else '#NEW_QUESTION')
-            l.append('{%s}' % kw['n'])
         else:
             l.append(f'#{level}')
 
@@ -55,7 +54,7 @@ def generate_ptyx_code(text):
         elif level == 'SECTION':
             if 'title' in kw:
                 l.append('[%s]' % kw['title'])
-        elif level == 'NEW_ANSWER':
+        elif level in ('NEW_ANSWER', 'VERSION'):
             l.append('{%s}' % kw['n'])
 
         code.append(''.join(l))
@@ -134,15 +133,14 @@ def generate_ptyx_code(text):
             # * question
             # Start a question block, with possibly several versions of a question.
 
-            if line[:2] == 'OR':
+            if line[:2] != 'OR':
                 # If line starts with 'OR', this is not a new block, only another
                 # version of current question block.
-                begin('VERSION')
-            else:
-                # This is a new question.
-                question_num += 1
-                begin('QUESTION', consecutive=(line[0]=='>'), n=question_num)
-                begin('VERSION')
+                # In all other cases, this is a new question.
+                
+                begin('QUESTION', consecutive=(line[0]=='>'))
+            question_num += 1
+            begin('VERSION', n=question_num)
             correct_answers[question_num] = []
             answer_num = 0
             code.append(line[2:])

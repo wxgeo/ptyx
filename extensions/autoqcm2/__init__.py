@@ -147,6 +147,16 @@ def _parse_SECTION_tag(self, node):
 
 
 def _parse_NEW_QUESTION_tag(self, node):
+    self._pick_and_parse_children(node, children=node.children[1:],
+                                  target='VERSION',
+                                  )
+
+
+# Same function, but name must be different so that shuffling does not apply.
+_parse_CONSECUTIVE_QUESTION_tag = _parse_NEW_QUESTION_tag
+
+
+def _parse_VERSION_tag(self, node):
     n = int(node.arg(0))
     self.autoqcm_question_number = n
     # This list is used to test that the same answer is not proposed twice.
@@ -158,16 +168,6 @@ def _parse_NEW_QUESTION_tag(self, node):
     self.context['RAW_CODE'] = None
     self.write(r'\pagebreak[3]\item\filbreak')
     self.write(r'\setcounter{answerNumber}{0}')
-    self._pick_and_parse_children(node, children=node.children[1:],
-                                  target='VERSION',
-                                  )
-
-
-# Same function, but name must be different so that shuffling does not apply.
-_parse_CONSECUTIVE_QUESTION_tag = _parse_NEW_QUESTION_tag
-
-
-def _parse_VERSION_tag(self, node):
     # This is used to improve message error when an error occured.
     self.current_question = l = []
     # The question itself is stored to make debuging easier (error messages will
