@@ -211,20 +211,31 @@ def set_up_ID_table(ids):
         for i, digit in enumerate(iD):
             digits[i].add(digit)
 
-    max_digits = max(len(s) for s in digits)
-    return ID_length, max_digits, digits
+    max_ndigits = max(len(set_) for set_ in digits)
+    return ID_length, max_ndigits, digits
 
 
-def student_ID_table(ids):
+def student_ID_table(ids=None, ID_format=None):
     """"Generate a table where the students can write its identification number.
 
     `ids` is a dictionnary who contains students names and ids.
     The table have a row for each digit, where the student check corresponding
     digit to indicate its number.
 
+    `ID_format` is a string, specifying a number of digits ('8 digits'...).
+
     Return: LaTeX code.
     """
-    ID_length, max_digits, digits = set_up_ID_table(ids)
+    if ID_format is None:
+        ID_length, max_ndigits, digits = set_up_ID_table(ids)
+    else:
+        n, ext = ID_format.split()
+        if ext not in ('digit', 'digits'):
+            raise ValueError('Unknown format : {ID_format!r}')
+        ID_length = n = int(n)
+        max_ndigits = 10
+        digits = n*[frozenset((0, 1, 2, 3, 4, 5, 6, 7, 8, 9))]
+
 
     content = []
     write = content.append
@@ -237,7 +248,7 @@ def student_ID_table(ids):
         for i, d in enumerate(sorted(digits[j])):
             write(fr'''\draw ({i},{-j}) rectangle ({i+1},{-j-1})
                     ({i+0.25},{-j-0.25}) node  {{\footnotesize\color{{black}}\textsf{{{d}}}}};''')
-        for i in range(i, max_digits):
+        for i in range(i, max_ndigits):
             write(fr'''\draw ({i},{-j}) rectangle ({i+1},{-j-1});''')
     write(r'\draw[black,->,thick] (-0.5, -0.5) -- (-0.5,%s);' % (0.5 - ID_length))
     write(r'\end{tikzpicture}')

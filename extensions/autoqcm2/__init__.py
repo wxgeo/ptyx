@@ -348,7 +348,9 @@ def _parse_QCM_HEADER_tag(self, node):
     sty=my_custom_sty_file
     scores=1 0 0
     mode=all
-    ids=~/my_students.csv
+    ids=~/my_students_ids_and_names.csv
+    names=~/my_students_names.csv
+    id_format=8 digits
     ===========================
     """
     sty = ''
@@ -359,46 +361,75 @@ def _parse_QCM_HEADER_tag(self, node):
         check_id_or_name = self.autoqcm_cache['check_id_or_name']
     except KeyError:
         code = ''
+
+        def format_key(key):
+            return key.strip().replace(' ', '_').lower()
+        alias = {'score': 'scores',
+                 'name': 'names',
+                 'student': 'names',
+                 'students': 'names',
+                 'id': 'ids',
+                 'package': 'sty',
+                 'packages': 'sty',
+                 'id_formats': 'id_format',
+                 'ids_formats': 'id_format',
+                 'ids_format': 'id_format',
+                 }
         # Read config
+        config = {}
         for line in node.arg(0).split('\n'):
-            if not line.strip():
+            if '=' not in line:
                 continue
-            key, val = line.split('=', maxsplit=1)
-            key = key.strip()
-            val = val.strip()
+            for key, val in line.split('=', maxsplit=1):
+                # Normalize key.
+                key = format_key(key)
+                key = alias.get(key, key)
+                config[key] = val.strip()
 
-            if key in ('scores', 'score'):
-                # Set how many points are won/lost for a correct/incorrect answer.
-                if ',' in val:
-                    vals = val.split(',')
-                else:
-                    vals = val.split()
-                vals = sorted(vals, key=float)
-                self.autoqcm_data['correct']['default'] = vals[-1]
-                assert 1 <= len(vals) <= 3, 'One must provide between 1 and 3 scores '\
-                        '(for correct answers, incorrect answers and no answer at all).'
-                if len(vals) >= 2:
-                    self.autoqcm_data['incorrect']['default'] = vals[0]
-                    if len(vals) >= 3:
-                        self.autoqcm_data['skipped']['default'] = vals[1]
 
-            elif key == 'mode':
-                self.autoqcm_data['mode']['default'] = val
+        if 'scores' in config:
+            # Set how many points are won/lost for a correct/incorrect answer.
+            val = config.pop('scores').replace(',', ' ')
+            # A correct answer should always give more points than an incorrect one !
+            vals = sorted(val.split(), key=float)
+            self.autoqcm_data['correct']['default'] = vals[-1]
+            if len(vals) > 3:
+                raise ValueError('`scores` should provide 3 values at most '\
+                        '(correct answer / incorrect answer / no answer).')
+            if len(vals) >= 2:
+                self.autoqcm_data['incorrect']['default'] = vals[0]
+                if len(vals) >= 3:
+                    self.autoqcm_data['skipped']['default'] = vals[1]
 
-            elif key in ('names', 'name', 'students', 'student') and not WITH_ANSWERS:
-                # val must be the path of a CSV file.
-                students = extract_NAME_from_csv(val, self.compiler.state['path'])
+        if 'mode' in config:
+            self.autoqcm_data['mode']['default'] = config.pop('mode')
+
+        if 'names' in config:
+            # the value must be the path of a CSV file.
+            csv = config.pop('names')
+            if not WITH_ANSWERS:
+                students = extract_NAME_from_csv(csv, self.compiler.state['path'])
                 code  = students_checkboxes(students)
                 self.autoqcm_data['students_list'] = students
 
-            elif key in ('id', 'ids') and not WITH_ANSWERS:
-                # val must be the path of a CSV file.
-                ids = extract_ID_NAME_from_csv(val, self.compiler.state['path'])
-                code = student_ID_table(ids)
-                self.autoqcm_data['ids'] = ids
+        if 'ids' in config or 'id_format' in config:
+            # config['ids'] must be the path of a CSV file.
+            csv = config.pop('ids', None)
+            fmt = config.pop('id_format', None)
+            if not WITH_ANSWERS:
+                if csv:
+                    ids = extract_ID_NAME_from_csv(csv, self.compiler.state['path'])
+                    self.autoqcm_data['ids'] = ids
+                else:
+                    ids=None
+                code = student_ID_table(ids, fmt)
 
-            elif key in ('sty', 'package'):
-                sty = val
+        if 'sty' in config:
+            sty = config.pop('sty')
+
+        # Config should be empty by now !
+        for key in config:
+            raise NameError(f'Unknown key {key!r} in the header of the pTyX file.')
 
         check_id_or_name = (code if not self.context.get('WITH_ANSWERS') else '')
         self.autoqcm_cache['check_id_or_name'] = check_id_or_name
