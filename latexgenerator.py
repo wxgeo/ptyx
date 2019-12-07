@@ -74,8 +74,8 @@ class Node(object):
     def arg(self, i):
         "Return argument number i content."
         child = self.children[i]
-        if child.name != i:
-            raise ValueError('Incorrect argument number.')
+        if getattr(child, 'name', None) != i:
+            raise ValueError(f'Incorrect argument number for node {child!r}.')
         children_number = len(child.children)
         if children_number > 1:
             raise ValueError("Don't use pTyX code inside %s argument number %s." % (self.name, i + 1))
@@ -599,7 +599,10 @@ class LatexGenerator:
                 # Nodes are either numbered, or have a name.
                 # Numbered nodes correspond to command arguments. Those should
                 # have been processed before, and not be passed to _parse_children().
-                assert isinstance(child.name, str), repr(child.name)
+                assert isinstance(child.name, str), (f'Argument {child.name!r}'
+                                         f" should have been"
+                                         " processed and removed"
+                                         " before calling _parse_children() !")
 
                 self.parse_node(child)
 

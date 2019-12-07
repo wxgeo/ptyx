@@ -147,7 +147,7 @@ def _parse_SECTION_tag(self, node):
 
 
 def _parse_NEW_QUESTION_tag(self, node):
-    self._pick_and_parse_children(node, children=node.children[1:],
+    self._pick_and_parse_children(node, children=node.children,
                                   target='VERSION',
                                   )
 
@@ -180,7 +180,7 @@ def _parse_VERSION_tag(self, node):
         i = self._child_index(node.children, 'ANSWERS_BLOCK')
     except ValueError:
         i = self._child_index(node.children, 'L_ANSWERS')
-    self._parse_children(node.children[:i],
+    self._parse_children(node.children[1:i],
                          function=partial(remember_last_question, l=l),
                          )
     # This is the end of the question itself.
@@ -380,11 +380,11 @@ def _parse_QCM_HEADER_tag(self, node):
         for line in node.arg(0).split('\n'):
             if '=' not in line:
                 continue
-            for key, val in line.split('=', maxsplit=1):
-                # Normalize key.
-                key = format_key(key)
-                key = alias.get(key, key)
-                config[key] = val.strip()
+            key, val = line.split('=', maxsplit=1)
+            # Normalize key.
+            key = format_key(key)
+            key = alias.get(key, key)
+            config[key] = val.strip()
 
 
         if 'scores' in config:
@@ -419,6 +419,8 @@ def _parse_QCM_HEADER_tag(self, node):
             if not WITH_ANSWERS:
                 if csv:
                     ids = extract_ID_NAME_from_csv(csv, self.compiler.state['path'])
+#                    print(ids)
+#                    input('-- PAUSE --')
                     self.autoqcm_data['ids'] = ids
                 else:
                     ids=None
@@ -506,13 +508,13 @@ def main(text, compiler):
     # Tags used to structure MCQ
     new_tag('QCM', (0, 0, ['@END_QCM']), _parse_QCM_tag)
     new_tag('SECTION', (0, 0, ['SECTION', 'END_QCM']), _parse_SECTION_tag)
-    new_tag('NEW_QUESTION', (1, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION',
+    new_tag('NEW_QUESTION', (0, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION',
                                     'SECTION', 'END_QCM']),
             _parse_NEW_QUESTION_tag)
-    new_tag('CONSECUTIVE_QUESTION', (1, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION',
+    new_tag('CONSECUTIVE_QUESTION', (0, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION',
                                             'SECTION', 'END_QCM']),
             _parse_NEW_QUESTION_tag)
-    new_tag('VERSION', (0, 0, ['VERSION', 'NEW_QUESTION', 'CONSECUTIVE_QUESTION',
+    new_tag('VERSION', (1, 0, ['VERSION', 'NEW_QUESTION', 'CONSECUTIVE_QUESTION',
                                     'SECTION', 'END_QCM']), _parse_VERSION_tag)
     new_tag('ANSWERS_BLOCK', (0, 0, ['@END_ANSWERS_BLOCK']),
             _parse_ANSWERS_BLOCK_tag)
