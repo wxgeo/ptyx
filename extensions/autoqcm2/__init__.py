@@ -68,7 +68,7 @@ from os.path import join, basename, dirname
 from .generate import generate_ptyx_code
 from .header import packages_and_macros, ID_band, extract_ID_NAME_from_csv, \
                     extract_NAME_from_csv, student_ID_table, \
-                    students_checkboxes
+                    students_checkboxes, IdentifiantError
 from .config_parser import dump
 from .. import extended_python
 import randfunc
@@ -419,12 +419,14 @@ def _parse_QCM_HEADER_tag(self, node):
             if not WITH_ANSWERS:
                 if csv:
                     ids = extract_ID_NAME_from_csv(csv, self.compiler.state['path'])
-#                    print(ids)
-#                    input('-- PAUSE --')
                     self.autoqcm_data['ids'] = ids
                 else:
                     ids=None
-                code = student_ID_table(ids, fmt)
+                try:
+                    code = student_ID_table(ids, fmt)
+                except IdentifiantError as e:
+                    msg = e.args[0]
+                    raise IdentifiantError(f'Error in {csv!r} : {msg!r}')
 
         if 'sty' in config:
             sty = config.pop('sty')

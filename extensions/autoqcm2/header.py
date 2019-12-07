@@ -13,7 +13,8 @@ from parameters import (CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM, # SQUARE_SIZE_IN_CM,
                         )
 from config_parser import correct_answers
 
-
+class IdentifiantError(RuntimeError):
+    pass
 
 def _byte_as_codebar(byte, n=0):
     '''Generate LaTeX code (TikZ) for byte number `n` in ID band.
@@ -197,14 +198,17 @@ def students_checkboxes(names, _n_student=None):
 
 def set_up_ID_table(ids):
     """Given a list of IDs (str), return:
-    - the length of an ID (or of the longest one if they are not of the same size),
+    - the length of an ID (or raise an error if they don't have the same size),
     - the maximal number of different digits in an ID caracter,
     - a list of sets corresponding to the different digits used for each ID caracter.
 
     >>> set_up_ID_table(['18', '19', '20', '21'])
     (2, 4, [{1, 2}, {8, 9, 0, 1}])
      """
-    ID_length = max(len(iD) for iD in ids)
+    lengths = {len(iD) for iD in ids}
+    if len(lengths) != 1:
+        raise IdentifiantError('All students ID must have the same length !')
+    ID_length = lengths.pop()
     # On crée la liste de l'ensemble des valeurs possibles pour chaque chiffre.
     digits = [set() for i in range(ID_length)]
     for iD in ids:
@@ -226,16 +230,20 @@ def student_ID_table(ids=None, ID_format=None):
 
     Return: LaTeX code.
     """
-    if ID_format is None:
+    ID_length = None
+    if ids is not None:
         ID_length, max_ndigits, digits = set_up_ID_table(ids)
-    else:
+    if ID_format is not None:
         n, ext = ID_format.split()
         if ext not in ('digit', 'digits'):
             raise ValueError('Unknown format : {ID_format!r}')
-        ID_length = n = int(n)
+        n = int(n)
+        if ID_length is None:
+            ID_length = n
+        elif ID_length != n:
+            raise IdentifiantError("Identifiants don't match given format !")
         max_ndigits = 10
         digits = n*[frozenset((0, 1, 2, 3, 4, 5, 6, 7, 8, 9))]
-
 
     content = []
     write = content.append
