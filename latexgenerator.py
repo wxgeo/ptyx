@@ -57,6 +57,9 @@ class Node(object):
         self.options = None
         self.children = []
 
+    def __repr__(self):
+        return f"<Node {self.name} at {hex(id(self))}>"
+
     def add_child(self, child):
         if not child:
             return None
@@ -878,16 +881,13 @@ class LatexGenerator:
                 groups[-1].append(item)
         # 2. Shuffle groups
         randfunc.shuffle(groups)
+#        print(groups)
+#        input('-- pause --')
         # 3. Flatten `groups` list
         items = sum(groups, [])
 
-#        for item in items:
-#            if not isinstance(item, Node) or item.name != target:
-#                log = ['This is current structure:']
-#                log.append(node.display())
-#                log.append(f'\nERROR: {item!r} is not an {target!r} node ! (See error above).')
-#                raise RuntimeError('\n'.join(log))
-        randfunc.shuffle(items)
+#        print(f'items: {items}')
+#        input('-- pause --')
         self._parse_children(children[:i] + items, **kw)
         #~ print('\n------------')
         #~ print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
