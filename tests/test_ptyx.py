@@ -148,7 +148,7 @@ def test_SEED_SHUFFLE():
     result = \
 '''Who said "Having nothing, nothing can he lose" ?
 
-\\begin{enumerate} \\item C. Doyle \\item W. Shakespeare \\item R. Bradsbury \\item R. Wallace
+\\begin{enumerate} \\item W. Shakespeare \\item R. Bradsbury \\item R. Wallace \\item C. Doyle
 \\end{enumerate}
 
 "The game is up."'''
@@ -157,7 +157,6 @@ def test_SEED_SHUFFLE():
     assertEq(latex, result)
 # ADD A TEST :
 # "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> test that 'message 3' is printed.
-
 
 def test_SEED_SHUFFLE_2():
     tests = []
@@ -193,15 +192,15 @@ c
     results = []
     for test in tests:
         results.append(c.parse(test))
-    assertEq(results[0], '%\nb\na\nc')
-    assertEq(results[1], '%\n\nb\na\nc')
-    assertEq(results[2], '%\nb\na\nc')
+    assertEq(results[0], '%\nc\na\nb')
+    assertEq(results[1], '%\n\nc\na\nb')
+    assertEq(results[2], '%\nc\na\nb')
 
 
 
 def test_PICK():
     test = '''
-    And the winner is: 
+    And the winner is:
     #PICK
     #ITEM
     1
@@ -217,7 +216,7 @@ def test_PICK():
     c.generate_syntax_tree(test)
     g = c.latex_generator
     assertEq(g.NUM, 0)
-    
+
     c.state['seed'] = 5
     assertEq(g.NUM, 0)
     latex = c.generate_latex()

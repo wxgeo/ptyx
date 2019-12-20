@@ -267,7 +267,7 @@ def _open_answer(self, n, k):
 
 def _close_answer(self):
     # Close 'AutoQCMTab{' written by `_parse_NEW_ANSWER_tag()`.
-    self.write(r'}\quad%' '\n')
+    self.write(r'}\quad' '\n')
 
 
 
