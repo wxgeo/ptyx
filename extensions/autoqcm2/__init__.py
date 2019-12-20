@@ -497,7 +497,7 @@ def main(text, compiler):
     #    }
     text = extended_python.main(text, compiler)
 
-    # Régister custom tags and corresponding handlers for this extension.
+    # Register custom tags and corresponding handlers for this extension.
     new_tag = partial(compiler.add_new_tag, extension_name='autoqcm2')
 
     # Note for closing tags:

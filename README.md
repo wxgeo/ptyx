@@ -23,7 +23,7 @@ Though not required, the following python libraries are recommanded :
 
 Note that geophar come with its own sympy version embedded, so *you won't need to install sympy yourself*.
 
-You may unzip geophar wherever you like, but you need to edit ptyx.py main script to indicate geophar path.
+You may unzip geophar wherever you like, but you need to edit the *config.py* script to indicate geophar path.
 Search for the following lines, and edit them according to your own path :
 
     # <personnal_configuration>
@@ -64,10 +64,10 @@ A special *write()* command is avalaible, to generate on the flow latex code fro
     write('%s - %s = %s\\' % (a, b, a - b))
     #END
 
-To access any python variable outside python code scope, simply add an hashtag before the variable name. 
+To access any python variable outside python code scope, simply add an hashtag before the variable name.
 
 Any valid python expression can also be evaluated this way, using syntax #{python_expr}.
-  
+
     $#a\mul#b=#{a*b}$
 
 However, pTyX has also reserved tags, like conditionals statements #IF, #ELSE, #ENDIF...

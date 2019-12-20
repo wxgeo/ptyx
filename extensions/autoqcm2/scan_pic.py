@@ -831,13 +831,13 @@ def scan_picture(filename, config, manual_verification=None,
                                      ev(m, i + half_cell, j, half_cell) +
                                      ev(m, i + half_cell, j + half_cell, half_cell)
                                      )/3
-
+                        color2debug(m, (i, j + half_cell), (i + half_cell, j + 2*half_cell), display=True)
                         black_cells.append((blackness, d))
                         print('Found:', d, blackness)
                         # ~ color2debug(m, (imin + i, j), (imin + i + cell_size, j + cell_size))
                         color2debug(m, (i, j), (i + cell_size, j + cell_size), color='cyan', display=False)
                     else:
-                        color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
+                        color2debug(m, (i, j), (i + cell_size, j + cell_size), display=True)
                 if black_cells:
                     black_cells.sort(reverse=True)
                     print(black_cells)
