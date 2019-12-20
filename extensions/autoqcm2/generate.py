@@ -79,11 +79,18 @@ def generate_ptyx_code(text):
             code.append('#END_QCM')
 
         elif level == 'ANSWERS_BLOCK':
-            # Remove  blank lines which may be placed between two answers
-            # when shuffling.
+            # If there are any blank lines after an answer, they must appear
+            # *after* #END_ANSWERS_BLOCK, so move them.
+            i = 0
             while code[-1].strip() == '':
                 code.pop()
+                i += 1
             code.append('#END_ANSWERS_BLOCK')
+            code.extend(i*[''])
+            # Note that since a single blank line is used to separate answers
+            # blocks, user must use two consecutive blanks lines to generate
+            # a new LaTeX paragraph (the first one is automatically stripped).
+            #XXX: This must appear in doc.
 
 
     previous_line = None
@@ -137,7 +144,7 @@ def generate_ptyx_code(text):
                 # If line starts with 'OR', this is not a new block, only another
                 # version of current question block.
                 # In all other cases, this is a new question.
-                
+
                 begin('QUESTION', consecutive=(line[0]=='>'))
             question_num += 1
             begin('VERSION', n=question_num)

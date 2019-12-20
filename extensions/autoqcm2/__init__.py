@@ -186,14 +186,14 @@ def _parse_VERSION_tag(self, node):
     # This is the end of the question itself.
 
     # And then, the answers follow.
-    self.write('\n\\nopagebreak[4]')
+    self.write('\n\\nopagebreak[4]\n')
+    self.write('\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
     self._parse_children(node.children[i:])
+    self.write('\\end{flushleft}\n\\end{minipage}')
 
 
 def _parse_ANSWERS_BLOCK_tag(self, node):
-    self.write('\n\n\\begin{minipage}{\\textwidth}\n\\begin{flushleft}')
     self._shuffle_and_parse_children(node, target='NEW_ANSWER')
-    self.write('\n\\end{flushleft}\n\\end{minipage}')
 
 
 def _parse_NEW_ANSWER_tag(self, node):
