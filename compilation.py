@@ -42,7 +42,14 @@ def execute(string, quiet=False):
 
 
 
-def make_files(input_name, correction=False, **options):
+def make_files(input_name, correction=False, _nums=None, **options):
+    # `_nums` is used when generating the answers of the quiz.
+    # In the first pass, when generating the quizzes, some numbers may
+    # have been skipped (because they don't satisfy the page number constraint).
+    if _nums is not None:
+        assert correction
+        _nums = list(_nums) # make a copy
+
     formats = options.get('formats', param['formats'])
     names = options.get('names', [])
 
@@ -75,18 +82,21 @@ def make_files(input_name, correction=False, **options):
         output_name += '-corr'
 
     filenames = []
-    start = options.get('start', 1)
+    nums = []
     n = options.get('number', param['total'])
-    for num in range(start, start + n):
+    total = 0
+    num = options.get('start', 1)
+    while total < n:
+        if _nums:
+            num = _nums.pop(0)
         if names:
-            name = names[num - 1]
+            name = names[total]
             filename = '%s-%s' % (output_name, name)
         else:
             name = ''
             filename = ('%s-%s' % (output_name, num) if n > 1
                         else output_name)
         #~ filename = filename.replace(' ', '\ ')
-        filenames.append(filename)
 
         # Output is redirected to a .log file
         sys.stdout = sys.stderr = CustomOutput((filename + '-python.log')
@@ -95,16 +105,22 @@ def make_files(input_name, correction=False, **options):
         options['context'].update(WITH_ANSWERS=correction, NUM=num, NAME=name,
                                   TOTAL=n)
         infos = make_file(filename, **options)
-        if infos.get('pages_number') and options.get('filter_by_pages_number'):
-            if infos.get('pages_number') != options.get('filter_by_pages_number'):
-                filename = filenames.pop()
-                print('Warning: removing %s (incorrect page number) !' % filename)
+        pages = infos.get('pages_number')
+        target = options.get('filter_by_pages_number')
+        if not correction and pages and target and pages != target:
+             print('Warning: skipping %s (incorrect page number) !' % filename)
+        else:
+            total += 1
+            filenames.append(filename)
+            nums.append(num)
+        num += 1
 
-    if len(filenames) < n:
-        msg1 = ('Warning: only %s pdf files generated (not %s) !' % (len(filenames), n))
-        msg2 = '(Unreleased pdf did not match page number constraints).'
-        sep = max(len(msg1), len(msg2))*'~'
-        print('\n'.join(('', sep, msg1, msg2, sep, '')))
+    assert len(filenames) == n
+    # ~ if len(filenames) < n:
+        # ~ msg1 = ('Warning: only %s pdf files generated (not %s) !' % (len(filenames), n))
+        # ~ msg2 = '(Unreleased pdf did not match page number constraints).'
+        # ~ sep = max(len(msg1), len(msg2))*'~'
+        # ~ print('\n'.join(('', sep, msg1, msg2, sep, '')))
 
     # Join different versions in a single pdf, and compress if asked to.
     join_files(output_name, filenames, **options)
@@ -130,7 +146,7 @@ def make_files(input_name, correction=False, **options):
     if options.get('remove'):
         shutil.rmtree(compilation_dir)
 
-    return filenames, output_name
+    return filenames, output_name, nums
 
 
 

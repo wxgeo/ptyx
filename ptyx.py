@@ -178,7 +178,7 @@ if __name__ == '__main__':
         # (The seed value is set in the ptyx file using special tag #SEED{}).
         compiler.read_seed()
         # Compile and generate output files (tex or pdf)
-        filenames, output_name = make_files(input_name, **vars(options))
+        filenames, output_name, nums = make_files(input_name, **vars(options))
 
         # Keep track of the seed used.
         seed_value = compiler.state['seed']
@@ -199,6 +199,7 @@ if __name__ == '__main__':
 
             tags = compiler.state['syntax_tree'].tags
             if any(tag in tags for tag in ANSWER_tags):
-                filenames, output_name = make_files(input_name, correction=True, **vars(options))
+                filenames, output_name, nums2 = make_files(input_name, correction=True, _nums=nums, **vars(options))
+            assert nums2 == nums, repr((nums, nums2))
 
         compiler.close()
