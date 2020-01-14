@@ -1,11 +1,11 @@
 """
 AutoQCM
 
-This extension enables computer corrected tests.
+This extension enables computer corrected quizzes.
 
 An example:
 
-    #LOAD{autoqcm}
+    #LOAD{autoqcm2}
     #SEED{8737545887}
 
     ===========================
@@ -340,6 +340,71 @@ def _parse_DEBUG_AUTOQCM_tag(self, node):
     #self.write(data)
 
 
+
+
+
+
+def _analyze_IDS(ids):
+    """Given a list of IDs (str), return:
+    - the length of an ID (or raise an error if they don't have the same size),
+    - the maximal number of different digits in an ID caracter,
+    - a list of sets corresponding to the different digits used for each ID caracter.
+
+    >>> _analyze_IDS(['18', '19', '20', '21'])
+    (2, 4, [{'1', '2'}, {'8', '9', '0', '1'}])
+     """
+    lengths = {len(iD) for iD in ids}
+    if len(lengths) != 1:
+        raise IdentifiantError('All students ID must have the same length !')
+    ID_length = lengths.pop()
+    # On crée la liste de l'ensemble des valeurs possibles pour chaque chiffre.
+    digits = [set() for i in range(ID_length)]
+    for iD in ids:
+        for i, digit in enumerate(iD):
+            digits[i].add(digit)
+
+    max_ndigits = max(len(set_) for set_ in digits)
+    return ID_length, max_ndigits, digits
+
+
+def _detect_ID_format(ids, id_format):
+    """Return IDs and ID format data.
+
+    `ids` is a dictionnary who contains students names and ids.
+    `id_format` is a string, specifying a number of digits ('8 digits'...).
+
+    Returned ID format data will consist of:
+    - the length of an ID,
+    - the maximal number of different digits in an ID caracter,
+    - a list of sets corresponding to the different digits used for each ID caracter.
+    """
+    ID_length = None
+    if ids:
+        # Analyze the IDs list even if `id_format` is provided.
+        # This enables to check the consistency between the IDs list and the
+        # given ID format.
+        ID_length, max_ndigits, digits = _analyze_IDS(ids)
+
+    if id_format:
+        n, ext = id_format.split()
+        # Test format syntax
+        if ext not in ('digit', 'digits'):
+            raise ValueError(f'Unknown format : {id_format!r}')
+        try:
+            n = int(n)
+        except ValueError:
+            raise ValueError(f'Unknown format : {id_format!r}')
+        # Test consistency between format and IDs
+        if ID_length is not None and ID_length != n:
+            raise IdentifiantError("Identifiants don't match given format !")
+        # Generate format data
+        ID_length = n
+        max_ndigits = 10
+        digits = n*[tuple('0123456789')]
+
+    return {'ids': ids, 'id_format': (ID_length, max_ndigits, digits)}
+
+
 def _parse_QCM_HEADER_tag(self, node):
     """Parse HEADER.
 
@@ -364,6 +429,7 @@ def _parse_QCM_HEADER_tag(self, node):
 
         def format_key(key):
             return key.strip().replace(' ', '_').lower()
+        # {alias: standard key name}
         alias = {'score': 'scores',
                  'name': 'names',
                  'student': 'names',
@@ -415,21 +481,26 @@ def _parse_QCM_HEADER_tag(self, node):
         if 'ids' in config or 'id_format' in config:
             # config['ids'] must be the path of a CSV file.
             csv = config.pop('ids', None)
-            fmt = config.pop('id_format', None)
+            id_format = config.pop('id_format', None)
+
             if not WITH_ANSWERS:
                 if csv:
                     ids = extract_ID_NAME_from_csv(csv, self.compiler.state['path'])
-                    self.autoqcm_data['ids'] = ids
                 else:
                     ids=None
+
                 try:
-                    code = student_ID_table(ids, fmt)
+                    data = _detect_ID_format(ids, id_format)
                 except IdentifiantError as e:
                     msg = e.args[0]
                     raise IdentifiantError(f'Error in {csv!r} : {msg!r}')
 
+                self.autoqcm_data.update(data)
+                code = student_ID_table(*data['id_format'])
+
         if 'sty' in config:
             sty = config.pop('sty')
+
 
         # Config should be empty by now !
         for key in config:
@@ -546,6 +617,7 @@ def main(text, compiler):
             'ids': {},
             'ordering': {}, # {NUM: {'questions': [2,1,3...], 'answers': {1: [2,1,3...], ...}}, ...}
             'boxes': {}, # {NUM: {'tag': 'p4, (23.456, 34.667)', ...}, ...}
+            'id_format': None,
             }
     assert isinstance(code, str)
     return code

@@ -1,7 +1,16 @@
-from json import loads, dumps as _dumps
+from json import loads, dumps as _dumps, JSONEncoder
+
+
+class CustomJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        # Save sets as tuples.
+        if isinstance(obj, set):
+            return tuple(obj)
+        # Let the base class default method raise the TypeError
+        return JSONEncoder.default(self, obj)
 
 def dumps(o):
-    return _dumps(o, ensure_ascii=False)
+    return _dumps(o, ensure_ascii=False, cls=CustomJSONEncoder)
 
 def fmt(s):
     return s.upper().center(40,"-")
@@ -27,7 +36,6 @@ def encode2js(o, fmt=(lambda s:s), _level=0):
                 l.append(f'{indent}"{k}": ' +
                          encode2js(v, _level=_level+1))
             return "{\n%s\n%s}" % (',\n'.join(l), indent)
-            return dumps(o)
     elif isinstance(o, (tuple, set, list)):
         assert _level != 0
         if _level == 1:

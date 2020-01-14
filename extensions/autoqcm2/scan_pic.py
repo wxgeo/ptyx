@@ -14,7 +14,6 @@ from config_parser import load, real2apparent, apparent2real
 from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM,
                         CALIBRATION_SQUARE_POSITION, CALIBRATION_SQUARE_SIZE
                         )
-from header import set_up_ID_table
 
 ANSI_RESET = "\u001B[0m";
 ANSI_BLACK = "\u001B[30m";
@@ -787,7 +786,7 @@ def scan_picture(filename, config, manual_verification=None,
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         #
         elif ids:
-            ID_length, max_digits, digits = set_up_ID_table(ids)
+            ID_length, max_digits, digits = config['id_format']
             # ~ height = ID_length*cell_size
 
             i0, j0 = xy2ij(*config['id-table-pos'])
@@ -831,13 +830,13 @@ def scan_picture(filename, config, manual_verification=None,
                                      ev(m, i + half_cell, j, half_cell) +
                                      ev(m, i + half_cell, j + half_cell, half_cell)
                                      )/3
-                        color2debug(m, (i, j + half_cell), (i + half_cell, j + 2*half_cell), display=True)
+                        # ~ color2debug(m, (i, j + half_cell), (i + half_cell, j + 2*half_cell), display=True)
                         black_cells.append((blackness, d))
                         print('Found:', d, blackness)
                         # ~ color2debug(m, (imin + i, j), (imin + i + cell_size, j + cell_size))
                         color2debug(m, (i, j), (i + cell_size, j + cell_size), color='cyan', display=False)
                     else:
-                        color2debug(m, (i, j), (i + cell_size, j + cell_size), display=True)
+                        color2debug(m, (i, j), (i + cell_size, j + cell_size), display=False)
                 if black_cells:
                     black_cells.sort(reverse=True)
                     print(black_cells)
@@ -851,7 +850,8 @@ def scan_picture(filename, config, manual_verification=None,
                 print("Student ID:", student_ID)
                 student_name = ids[student_ID]
             else:
-                print("Warning: invalid student id '%s' !" % student_ID)
+                print(f"ID list: {ids!r}")
+                print(f"Warning: invalid student id {student_ID!r} !")
                 # ~ color2debug(m)
 
 
