@@ -10,24 +10,31 @@ from latexgenerator import compiler
 from config import param
 
 
-class CustomOutput(object):
-    def __init__(self, logfile_name = ''):
-        self.log_file_created = False
-        self.logfile_name = logfile_name
+class Logging(object):
+    def __init__(self, logfile_name=''):
+        if logfile_name:
+            self.logfile = open(logfile_name, 'a')
+        else:
+            self.logfile = None
 
-    def write(self, string_):
-        try:
-            sys.__stdout__.write(string_)
-            if self.logfile_name:
-                with open(self.logfile_name, 'a', encoding='utf-8') as f:
-                    f.write(string_)
+    def __enter__(self):
+        self.previous = {'stdout': sys.stdout, 'stderr': sys.stderr}
+        sys.stdout = sys.stderr = self
 
-        except Exception:
-            sys.stderr = sys.__stderr__
-            raise
+    def write(self, s):
+        sys.__stdout__.write(s)
+        if self.logfile:
+            self.logfile.write(s)
 
     def flush(self):
         sys.__stdout__.flush()
+        self.logfile.flush()
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        sys.stdout = self.previous['stdout']
+        sys.stderr = self.previous['stderr']
+        self.logfile.close()
+
 
 
 def execute(string, quiet=False):
@@ -96,15 +103,17 @@ def make_files(input_name, correction=False, _nums=None, **options):
             name = ''
             filename = ('%s-%s' % (output_name, num) if n > 1
                         else output_name)
-        #~ filename = filename.replace(' ', '\ ')
 
-        # Output is redirected to a .log file
-        sys.stdout = sys.stderr = CustomOutput((filename + '-python.log')
-                                              if not options.get('remove') else '')
         options.setdefault('context', {})
         options['context'].update(WITH_ANSWERS=correction, NUM=num, NAME=name,
                                   TOTAL=n)
-        infos = make_file(filename, **options)
+
+        # Output is redirected to a .log file
+        logfile = (filename + '-python.log')
+        print('\nLog file:', logfile, '\n')
+        with Logging(logfile if not options.get('remove') else ''):
+            infos = make_file(filename, **options)
+
         pages = infos.get('pages_number')
         target = options.get('filter_by_pages_number')
         if not correction and pages and target and pages != target:

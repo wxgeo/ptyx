@@ -29,7 +29,7 @@ __api__ = "4.3"
 __release_date__ = (19, 8, 2019)
 
 
-import argparse, os, sys, codecs, csv
+import argparse, os, sys, csv
 from ast import literal_eval
 
 from config import param
@@ -39,93 +39,86 @@ from latexgenerator import compiler
 
 
 if sys.version_info.major == 2:
-    if sys.platform == 'win32':
-        sys.stdout = codecs.getwriter('cp850')(sys.stdout)
-    else:
-        sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+    raise RuntimeError("Python version 3.6+ requis !")
 
 
+# Options parsing
+parser = argparse.ArgumentParser(prog='pTyX',
+        description='Compile .ptyx files into .tex or .pdf files.',
+        usage="usage: %(prog)s [options] filename")
 
-if __name__ == '__main__':
+parser.add_argument("filenames", nargs='+')
 
-    # Options parsing
-    parser = argparse.ArgumentParser(prog='pTyX',
-            description='Compile .ptyx files into .tex or .pdf files.',
-            usage="usage: %(prog)s [options] filename")
+parser.add_argument("-n", "--number", type=int,
+        help="Number of pdf files to generate. Default is %s.\n \
+               Ex: ptyx -n 5 my_file.ptyx" % param['total']
+               )
+parser.add_argument("-f", "--formats", default=param['default_format'],
+        choices=['pdf', 'tex', 'pdf+tex', 'tex+pdf'],
+        help="Output format. Default is %(default)s.\n"
+               "Ex: ptyx -f tex my_file.ptyx"
+               )
+parser.add_argument("-r", "--remove", action="store_true",
+        help="Remove the `.compile` folder after compilation."
+                )
+parser.add_argument("-b", "--debug", action="store_true",
+        help="Debug mode."
+                )
+parser.add_argument("-q", "--quiet", action="store_true",
+        help="Suppress most of latex processor output."
+                )
+parser.add_argument("-s", "--start", default=1, type=int,
+        help="Number of the first generated file \
+               (initial value of internal NUM counter). Default is %(default)s."
+               )
+parser.add_argument("-c", "--cat", action="store_true",
+        help="Cat all generated pdf files inside a single one. \
+               The pdftk command must be installed."
+               )
+parser.add_argument("-C", "--compress", action="store_true",
+        help="Like --cat, but compress final pdf file using pdf2ps and ps2pdf."
+                )
+parser.add_argument("--reorder-pages", choices=['brochure', 'brochure-reversed'],
+        help="Reorder pages for printing.\n\
+        Currently, only 'brochure' and 'brochure-reversed' mode are supported.\
+        The `pdftk` command must be installed.\n\
+        Ex: ptyx --reorder-pages=brochure-reversed -f pdf myfile.ptyx."
+        )
+parser.add_argument("--names", metavar='CSV_FILE',
+        help="Name of a CSV file containing a column of names \
+               (and optionnaly a second column with fornames). \n \
+               The names will be used to generate the #NAME tag \
+               replacement value.\n \
+               Additionnaly, if `-n` option is not specified, \
+               default value will be the number of names in the CSV file."
+               )
 
-    parser.add_argument("filenames", nargs='+')
+parser.add_argument("-p", "--filter-by-pages-number", metavar='N', type=int,
+        help="Keep only pdf files whose pages number match N. \
+        This may be useful for printing pdf later. \
+        Note that the number of files may not be respected then, so \
+        you may have to adjust the number of files manually."
+        )
 
-    parser.add_argument("-n", "--number", type=int,
-            help="Number of pdf files to generate. Default is %s.\n \
-                   Ex: ptyx -n 5 my_file.ptyx" % param['total']
-                   )
-    parser.add_argument("-f", "--formats", default=param['default_format'],
-            choices=['pdf', 'tex', 'pdf+tex', 'tex+pdf'],
-            help="Output format. Default is %(default)s.\n"
-                   "Ex: ptyx -f tex my_file.ptyx"
-                   )
-    parser.add_argument("-r", "--remove", action="store_true",
-            help="Remove the `.compile` folder after compilation."
-                    )
-    parser.add_argument("-b", "--debug", action="store_true",
-            help="Debug mode."
-                    )
-    parser.add_argument("-q", "--quiet", action="store_true",
-            help="Suppress most of latex processor output."
-                    )
-    parser.add_argument("-s", "--start", default=1, type=int,
-            help="Number of the first generated file \
-                   (initial value of internal NUM counter). Default is %(default)s."
-                   )
-    parser.add_argument("-c", "--cat", action="store_true",
-            help="Cat all generated pdf files inside a single one. \
-                   The pdftk command must be installed."
-                   )
-    parser.add_argument("-C", "--compress", action="store_true",
-            help="Like --cat, but compress final pdf file using pdf2ps and ps2pdf."
-                    )
-    parser.add_argument("--reorder-pages", choices=['brochure', 'brochure-reversed'],
-            help="Reorder pages for printing.\n\
-            Currently, only 'brochure' and 'brochure-reversed' mode are supported.\
-            The `pdftk` command must be installed.\n\
-            Ex: ptyx --reorder-pages=brochure-reversed -f pdf myfile.ptyx."
-            )
-    parser.add_argument("--names", metavar='CSV_FILE',
-            help="Name of a CSV file containing a column of names \
-                   (and optionnaly a second column with fornames). \n \
-                   The names will be used to generate the #NAME tag \
-                   replacement value.\n \
-                   Additionnaly, if `-n` option is not specified, \
-                   default value will be the number of names in the CSV file."
-                   )
+parser.add_argument("-nc", "--no-correction", action="store_true",
+        help="Don't generate a correction of the test."
+               )
 
-    parser.add_argument("-p", "--filter-by-pages-number", metavar='N', type=int,
-            help="Keep only pdf files whose pages number match N. \
-            This may be useful for printing pdf later. \
-            Note that the number of files may not be respected then, so \
-            you may have to adjust the number of files manually."
-            )
-
-    parser.add_argument("-nc", "--no-correction", action="store_true",
-            help="Don't generate a correction of the test."
-                   )
-
-    parser.add_argument("-g", "--generate-batch-for-windows-printing", action="store_true",
-            help="Generate a batch file for printing all pdf files using SumatraPDF."
-            )
-    parser.add_argument("--context", default='',
-            help="Manually customize context (ie. internal namespace).\n \
-                   Ex: ptyx --context \"a = 3; b = 2; t = 'hello'\""
-                   )
-    parser.add_argument("--version", action='version', version='%(prog)s ' +
-                        '%s (%s/%s/%s)' % ((__version__,) + __release_date__))
-
-    options = parser.parse_args()
+parser.add_argument("-g", "--generate-batch-for-windows-printing", action="store_true",
+        help="Generate a batch file for printing all pdf files using SumatraPDF."
+        )
+parser.add_argument("--context", default='',
+        help="Manually customize context (ie. internal namespace).\n \
+               Ex: ptyx --context \"a = 3; b = 2; t = 'hello'\""
+               )
+parser.add_argument("--version", action='version', version='%(prog)s ' +
+                    '%s (%s/%s/%s)' % ((__version__,) + __release_date__))
 
 
+def main(options):
     # First, parse all arguments (filenames, options...)
     # --------------------------------------------------
-
+    options = parser.parse_args()
     options.formats = options.formats.split('+')
 
     if options.compress or options.cat:
@@ -163,6 +156,7 @@ if __name__ == '__main__':
 
     for input_name in options.filenames:
         # Read pTyX file.
+        print(f'Reading {input_name}...')
         input_name = pth(input_name)
         compiler.read_file(input_name)
         # Load extensions if needed.
@@ -176,7 +170,7 @@ if __name__ == '__main__':
 
         # Set the seed used for pseudo-random numbers generation.
         # (The seed value is set in the ptyx file using special tag #SEED{}).
-        compiler.read_seed()
+#        compiler.read_seed()
         # Compile and generate output files (tex or pdf)
         filenames, output_name, nums = make_files(input_name, **vars(options))
 
@@ -200,6 +194,12 @@ if __name__ == '__main__':
             tags = compiler.state['syntax_tree'].tags
             if any(tag in tags for tag in ANSWER_tags):
                 filenames, output_name, nums2 = make_files(input_name, correction=True, _nums=nums, **vars(options))
-            assert nums2 == nums, repr((nums, nums2))
+                assert nums2 == nums, repr((nums, nums2))
 
         compiler.close()
+
+
+
+if __name__ == '__main__':
+    main(parser)
+

@@ -19,10 +19,10 @@ param = {
         }
 # </default_configuration>
 
-# <personnal_configuration>
+# <personal_configuration>
 param['sympy_path'] = '~/Dropbox/Programmation/wxgeometrie/wxgeometrie'
 param['wxgeometrie_path'] = '~/Dropbox/Programmation/wxgeometrie'
-# </personnal_configuration>
+# </personal_configuration>
 
 for pathname in ('sympy_path', 'wxgeometrie_path'):
     path = param[pathname]

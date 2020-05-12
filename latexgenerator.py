@@ -1341,8 +1341,9 @@ class Compiler(object):
             code = self.state['raw_text']
         i = code.find("#SEED{")
         if i == -1:
-            print('Warning: #SEED not found, using hash of ptyx file path (if any) as seed.')
-            value = hash(self.state.get('path'))
+            path = self.state.get('path')
+            print(f'Warning: #SEED not found, using hash of ptyx file path ({path!r}) as seed.')
+            value = hash(path)
         else:
             pos = code.find('}', i)
             if pos == -1:
