@@ -1,4 +1,3 @@
-
 import os, sys, locale, re
 import subprocess
 import tempfile
@@ -10,31 +9,43 @@ from latexgenerator import compiler
 from config import param
 
 
+class _LoggedStream(object):
+    """Add logging to a data stream, like stdout or stderr.
+
+    * `logfile` is a file already opened in apending mode ;
+    * `default` is default output (`sys.stdout` or `sys.stderr`).
+    """
+    def __init__(self, logfile, default):
+        self.logfile = logfile
+        self.default = default
+
+    def write(self, s):
+        self.default.write(s)
+        self.logfile.write(s)
+
+    def flush(self):
+        self.default.flush()
+        self.logfile.flush()
+
+
+class _DevNull(object):
+    def write(self, *_): pass
+    close = flush = write
+
+
 class Logging(object):
     def __init__(self, logfile_name=''):
-        if logfile_name:
-            self.logfile = open(logfile_name, 'a')
-        else:
-            self.logfile = None
+        self.logfile = (open(logfile_name, 'a') if logfile_name else _DevNull())
 
     def __enter__(self):
         self.previous = {'stdout': sys.stdout, 'stderr': sys.stderr}
-        sys.stdout = sys.stderr = self
-
-    def write(self, s):
-        sys.__stdout__.write(s)
-        if self.logfile:
-            self.logfile.write(s)
-
-    def flush(self):
-        sys.__stdout__.flush()
-        self.logfile.flush()
+        sys.stdout = _LoggedStream(self.logfile, sys.stdout)
+        sys.stderr = _LoggedStream(self.logfile, sys.stderr)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        sys.stdout = self.previous['stdout']
-        sys.stderr = self.previous['stderr']
+        sys.stdout = sys.stdout.default
+        sys.stderr = sys.stderr.default
         self.logfile.close()
-
 
 
 def execute(string, quiet=False):

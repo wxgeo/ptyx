@@ -2,7 +2,7 @@ from __future__ import division, unicode_literals, absolute_import, print_functi
 
 import sys
 from os import fsync
-from os.path import isfile, join, normpath, split
+from os.path import isfile, join, split
 from tempfile import NamedTemporaryFile
 #import re
 
