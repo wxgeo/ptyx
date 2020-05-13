@@ -34,6 +34,10 @@ class _DevNull(object):
 
 
 class Logging(object):
+    """Context manager. All output (sys.stdout/stderr) will be logged in a file.
+
+    Note this logging occurs in addition to standard output, which is not suppressed.
+    """
     def __init__(self, logfile_name=''):
         self.logfile = (open(logfile_name, 'a') if logfile_name else _DevNull())
 
