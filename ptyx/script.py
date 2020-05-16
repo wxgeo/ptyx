@@ -32,10 +32,10 @@ __release_date__ = (19, 8, 2019)
 import argparse, os, sys, csv
 from ast import literal_eval
 
-from config import param
-from utilities import pth
-from compilation import make_files
-from latexgenerator import compiler
+from ptyx.config import param
+from ptyx.utilities import pth
+from ptyx.compilation import make_files
+from ptyx.latexgenerator import compiler
 
 
 if sys.version_info.major == 2:
@@ -115,7 +115,7 @@ parser.add_argument("--version", action='version', version='%(prog)s ' +
                     '%s (%s/%s/%s)' % ((__version__,) + __release_date__))
 
 
-def main(options):
+def ptyx(options):
     # First, parse all arguments (filenames, options...)
     # --------------------------------------------------
     options = parser.parse_args()
@@ -201,5 +201,5 @@ def main(options):
 
 
 if __name__ == '__main__':
-    main(parser)
+    ptyx(parser)
 

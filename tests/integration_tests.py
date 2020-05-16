@@ -4,18 +4,9 @@ import sys
 from os import fsync
 from os.path import isfile, join, split
 from tempfile import NamedTemporaryFile
-#import re
 
-#~ print sys.path
-sys.path.append('..')
 
-#from latexgenerator import SyntaxTreeGenerator, Compiler#, parse
-#from utilities import find_closing_bracket, round, print_sympy_expr
-#from randfunc import randchoice, srandchoice, randfrac
-#
-#from testlib import assertEq
-
-from ptyx import parser, main
+from ptyx.script import parser, ptyx
 
 def test_basic_test():
     with NamedTemporaryFile(suffix='.ptyx', delete=False) as f:
@@ -35,7 +26,7 @@ Is $x \mapsto #{a*x+b}$ a linear function~?
         f.flush()
         fsync(f.fileno())
     sys.argv = ['ptyx', f.name]
-    main(parser)
+    ptyx(parser)
     folder, fname = split(f.name)
     assert isfile(join(folder, '.compile', fname, f"{fname[:-5]}.tex"))
     assert isfile(join(folder, '.compile', fname, f"{fname[:-5]}.pdf"))

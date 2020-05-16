@@ -3,7 +3,7 @@ import re
 from math import ceil, floor, isnan, isinf
 from os.path import realpath, normpath, expanduser
 
-from config import param, sympy, wxgeometrie, custom_latex
+from ptyx.config import param, sympy, wxgeometrie, custom_latex
 
 if sympy is not None:
     from sympy import preorder_traversal, Symbol

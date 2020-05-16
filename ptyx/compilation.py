@@ -5,8 +5,8 @@ import shutil
 from os.path import dirname, basename, join, isdir, isfile
 from os import chdir, mkdir
 
-from latexgenerator import compiler
-from config import param
+from ptyx.latexgenerator import compiler
+from ptyx.config import param
 
 
 class _LoggedStream(object):

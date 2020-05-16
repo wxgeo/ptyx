@@ -1,11 +1,10 @@
-
 import random
 import functools
 from collections import namedtuple
 
-from fractions import gcd
+from math import gcd
 
-from config import param, sympy
+from ptyx.config import param, sympy
 
 if sympy is not None:
     from sympy import S

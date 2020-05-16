@@ -4,9 +4,9 @@ import random, math
 
 import numpy
 
-import randfunc
-from utilities import print_sympy_expr
-from config import sympy
+import ptyx.randfunc as randfunc
+from ptyx.utilities import print_sympy_expr
+from ptyx.config import sympy
 
 if sympy is not None:
     from sympy import sympify, SympifyError
@@ -50,7 +50,7 @@ global_context['round'] = round
 global_context['min'] = min
 global_context['max'] = max
 global_context['rand'] = global_context['random'] = random.random
-global_context['ceil'] = (global_context['ceiling'] if sympy is not None 
+global_context['ceil'] = (global_context['ceiling'] if sympy is not None
                           else math.ceil)
 global_context['float'] = float
 global_context['int'] = int

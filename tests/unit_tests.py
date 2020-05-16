@@ -1,16 +1,10 @@
-from __future__ import division, unicode_literals, absolute_import, print_function
-
 import sys
 import re
 
-#~ print sys.path
-sys.path.append('..')
+from ptyx.latexgenerator import SyntaxTreeGenerator, Compiler#, parse
+from ptyx.utilities import find_closing_bracket, round, print_sympy_expr
+from ptyx.randfunc import randchoice, srandchoice, randfrac
 
-from latexgenerator import SyntaxTreeGenerator, Compiler#, parse
-from utilities import find_closing_bracket, round, print_sympy_expr
-from randfunc import randchoice, srandchoice, randfrac
-
-from testlib import assertEq
 
 def test_find_closing_bracket():
     text = '{hello{world} !} etc.'
@@ -21,32 +15,32 @@ def test_find_closing_bracket():
     assert find_closing_bracket(text, 1, detect_strings=False) == 2
 
 def test_round():
-    assertEq(round(1.775, 2), 1.78)
+    assert round(1.775, 2) == 1.78
 
-    assertEq(round(1.454, -2), 0)
-    assertEq(round(1.454, -1), 0)
-    assertEq(round(1.454), 1)
-    assertEq(round(1.454, 1), 1.5)
-    assertEq(round(1.454, 2), 1.45)
-    assertEq(round(1.454, 3), 1.454)
-    assertEq(round(1.454, 4), 1.454)
+    assert round(1.454, -2) == 0
+    assert round(1.454, -1) == 0
+    assert round(1.454) == 1
+    assert round(1.454, 1) == 1.5
+    assert round(1.454, 2) == 1.45
+    assert round(1.454, 3) == 1.454
+    assert round(1.454, 4) == 1.454
 
-    assertEq(round(-9.545, -2), 0)
-    assertEq(round(-9.545, -1), -10)
-    assertEq(round(-9.545), -10)
-    assertEq(round(-9.545, 1), -9.5)
-    assertEq(round(-9.545, 2), -9.55)
-    assertEq(round(-9.545, 3), -9.545)
-    assertEq(round(-9.545, 4), -9.545)
+    assert round(-9.545, -2) == 0
+    assert round(-9.545, -1) == -10
+    assert round(-9.545) == -10
+    assert round(-9.545, 1) == -9.5
+    assert round(-9.545, 2) == -9.55
+    assert round(-9.545, 3) == -9.545
+    assert round(-9.545, 4) == -9.545
 
-    assertEq(round(float('inf'), 4), float('inf'))
-    assertEq(round(float('-inf'), 4), float('-inf'))
-    assertEq(str(round(float('nan'), 4)), 'nan')
+    assert round(float('inf'), 4) == float('inf')
+    assert round(float('-inf'), 4) == float('-inf')
+    assert str(round(float('nan'), 4)) == 'nan'
 
 def test_print_sympy_expr():
-    assertEq(print_sympy_expr(0.0), "0")
-    assertEq(print_sympy_expr(-2.0), "-2")
-    assertEq(print_sympy_expr(-0.0), "0")
+    assert print_sympy_expr(0.0) == "0"
+    assert print_sympy_expr(-2.0) == "-2"
+    assert print_sympy_expr(-0.0) == "0"
 
 
 def test_syntax_tree():
@@ -58,7 +52,7 @@ def test_syntax_tree():
 + Node ROOT
   - text: 'hello world !'
 """.strip()
-    assertEq(s.syntax_tree.display(color=False), tree)
+    assert s.syntax_tree.display(color=False) == tree
 
     text = "#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END"
     s.preparse(text)
@@ -85,7 +79,7 @@ def test_syntax_tree():
           - text: 'variable+1'
       - text: ' !'
 """.strip()
-    assertEq(s.syntax_tree.display(color=False), tree)
+    assert s.syntax_tree.display(color=False) == tree
 
 
     text = "#PYTHON#some comment\nvariable = 2\n#END#ASSERT{variable == 2}"
@@ -99,20 +93,20 @@ def test_syntax_tree():
     + Node 0
       - text: 'variable == 2'
 """.strip()
-    assertEq(s.syntax_tree.display(color=False), tree)
+    assert s.syntax_tree.display(color=False) == tree
 
 
 def test_latex_code_generator():
     test = "#{variable=3;b=1;}#{a=2}#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END ok"
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, '2some text here ok')
+    assert latex == '2some text here ok'
 
 def test_CALC():
     test = "$#CALC{\dfrac{2}{3}+1}=#RESULT$ et $#CALC[a]{\dfrac{2}{3}-1}=#a$"
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, r'$\dfrac{2}{3}+1=\frac{5}{3}$ et $\dfrac{2}{3}-1=- \frac{1}{3}$')
+    assert latex == r'$\dfrac{2}{3}+1=\frac{5}{3}$ et $\dfrac{2}{3}-1=- \frac{1}{3}$'
 
 def test_TABVAR():
     test = "$#{a=2;}\\alpha=#{alpha=3},\\beta=#{beta=5}\n\n#TABVAR[limites=False,derivee=False]f(x)=#a*(x-#alpha)^2+#beta#END$"
@@ -130,7 +124,7 @@ def test_TABVAR():
 % f(x)=2*(x-3)^2+5\n$'''
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, result)
+    assert latex == result
 
 def test_SEED_SHUFFLE():
     test = '''#SEED{16}Who said "Having nothing, nothing can he lose" ?
@@ -154,7 +148,7 @@ def test_SEED_SHUFFLE():
 "The game is up."'''
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, result)
+    assert latex == result
 # ADD A TEST :
 # "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> test that 'message 3' is printed.
 
@@ -192,9 +186,9 @@ c
     results = []
     for test in tests:
         results.append(c.parse(test))
-    assertEq(results[0], '%\nc\na\nb')
-    assertEq(results[1], '%\n\nc\na\nb')
-    assertEq(results[2], '%\nc\na\nb')
+    assert results[0] == '%\nc\na\nb'
+    assert results[1] == '%\n\nc\na\nb'
+    assert results[2] == '%\nc\na\nb'
 
 
 
@@ -215,46 +209,46 @@ def test_PICK():
     c.state['seed'] = 1
     c.generate_syntax_tree(test)
     g = c.latex_generator
-    assertEq(g.NUM, 0)
+    assert g.NUM == 0
 
     c.state['seed'] = 5
-    assertEq(g.NUM, 0)
+    assert g.NUM == 0
     latex = c.generate_latex()
     latex = re.sub('\s+', ' ', latex).strip()
-    assertEq(latex, 'And the winner is: 3')
+    assert latex == 'And the winner is: 3'
 
 def test_CASE():
     test = "#CASE{0}first case#CASE{1}second case#CASE{2}third one#END#CASE{1} bonus#END this is something else."
     result = "second case bonus this is something else."
     c = Compiler()
     latex = c.parse(test, NUM=1)
-    assertEq(latex, result)
+    assert latex == result
 
 def test_IF_ELIF_ELSE():
     test = r"#{a=1;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=0;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=2;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END."
     result = r"10{}2."
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, result)
+    assert latex == result
 
 def test_MACRO():
     test = r"#MACRO{a0}#IF{a==0}$a=0$#ELSE$a\neq 0$#END#END_MACRO#{a=0;}Initially #CALL{a0}#{a=2;}, but now #CALL{a0}."
     result = r"Initially $a=0$, but now $a\neq 0$."
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, result)
+    assert latex == result
 
 def test_randchoice():
     for i in range(1000):
-        assertEq(randchoice(0, 1, exclude=[0]), 1)
-        assertEq(srandchoice(0, 1, exclude=[0, 1]), -1)
+        assert randchoice(0, 1, exclude=[0]) == 1
+        assert srandchoice(0, 1, exclude=[0, 1]) == -1
         assert randchoice([0, 1, 2], exclude=[0]) in [1, 2]
         assert srandchoice([0, 1, 2], exclude=[0, 1]) in [-1, -2, 2]
 
 
 def test_randfrac():
     for i in range(1000):
-        assertEq(randfrac(2, 7, den=6).q, 6)
+        assert randfrac(2, 7, den=6).q == 6
 
 
 def test_latex_newcommand():
@@ -263,14 +257,14 @@ def test_latex_newcommand():
     result = test
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, result)
+    assert latex == result
 
 def test_TEST():
     test = r'''#{hxA=2;}#{yA=3;}\fbox{#TEST{hxA==yA}{is in}{isn't in}}'''
     result = r'''\fbox{isn't in}'''
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, result)
+    assert latex == result
 
 def test_MUL():
     # Test 1
@@ -286,14 +280,14 @@ $\dfrac{#a#*(#{c*x+d})#-#{a*x+b}#*#c}{(#{c*x+d})^2}$'''
 $\dfrac{-8\times (5 x + 8)-\left(- 8 x + 4\right)\times 5}{(5 x + 8)^2}$'''
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, result)
+    assert latex == result
 
     # Test 2
     test = "2#*3"
     result = r"2\times 3"
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, result)
+    assert latex == result
 
 def test_MUL_SUB_Add_expr():
     test = r'''
@@ -309,7 +303,7 @@ $6\times \left(6 x + 5\right)$
 $6-\left(6 x + 5\right)$'''
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, result)
+    assert latex == result
 
 def test_ADD():
     test = r'''
@@ -322,7 +316,7 @@ $#a#+\dfrac{#b}{x}$'''
 $2+\dfrac{3}{x}$'''
     c = Compiler()
     latex = c.parse(test)
-    assertEq(latex, result)
+    assert latex == result
 
 
 if __name__ == '__main__':

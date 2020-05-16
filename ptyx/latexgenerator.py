@@ -4,10 +4,10 @@ from os.path import dirname, basename, join #, realpath
 import random
 from importlib import import_module
 
-from context import global_context, SympifyError
-from config import param, sympy, wxgeometrie
-import randfunc
-from utilities import (print_sympy_expr, find_closing_bracket,
+from ptyx.context import global_context, SympifyError
+from ptyx.config import param, sympy, wxgeometrie
+import ptyx.randfunc as randfunc
+from ptyx.utilities import (print_sympy_expr, find_closing_bracket,
                       numbers_to_floats, _float_me_if_you_can, term_color,
                       advanced_split,
                       )
