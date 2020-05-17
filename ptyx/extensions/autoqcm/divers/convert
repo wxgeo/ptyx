@@ -1,2 +1,0 @@
-#!/usr/bin/env bash
-inkscape -f test.pdf -b white -d 150 -e test.png
