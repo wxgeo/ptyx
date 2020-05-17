@@ -3,6 +3,7 @@ from functools import partial
 from os.path import dirname, basename, join #, realpath
 import random
 from importlib import import_module
+import traceback
 
 from ptyx.context import global_context, SympifyError
 from ptyx.config import param, sympy, wxgeometrie
@@ -1317,7 +1318,11 @@ class Compiler(object):
             names.append(code[i + 6:pos])
         extensions = {}
         for name in names:
-            extensions[name] = import_module('extensions.%s' % name)
+            try:
+                extensions[name] = import_module(f'ptyx.extensions.{name}')
+            except ImportError as e:
+                traceback.print_exc()
+                raise ImportError(f'Extension {name} not found.')
             # execute `main()` function of extension.
             code = extensions[name].main(code, self)
         if extensions:

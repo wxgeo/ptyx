@@ -60,19 +60,21 @@ One may include some PTYX code of course.
 
     """
 
-#TODO: support things like `#NEW INT(2,10) a, b, c, d WITH a*b - c*d != 0`.
+#TODO: support things like `#NEW INT(2,10) a, b, c, d WITH a*b - c*d != 0` ?
 
 from functools import partial
 from os.path import join, basename, dirname
 
-from .generate import generate_ptyx_code
-from .header import packages_and_macros, ID_band, extract_ID_NAME_from_csv, \
+from ptyx.extensions import extended_python
+import ptyx.randfunc as randfunc
+from ptyx.utilities import print_sympy_expr
+
+from .compile.generate import generate_ptyx_code
+from .compile.header import packages_and_macros, ID_band, extract_ID_NAME_from_csv, \
                     extract_NAME_from_csv, student_ID_table, \
                     students_checkboxes, IdentifiantError
-from .config_parser import dump
-from .. import extended_python
-import randfunc
-from utilities import print_sympy_expr
+from .tools.config_parser import dump
+
 
 def test_singularity_and_append(code, l, question):
     code = code.strip()

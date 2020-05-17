@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from .square_detection import COLORS
 
+
 def _correct_checkboxes(draw, pos, checked, correct, size):
     i, j = pos
     margin = size//2

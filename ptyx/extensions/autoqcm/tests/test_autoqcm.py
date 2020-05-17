@@ -6,17 +6,30 @@ This extension offers a new syntaw to write tests and answers.
 
 
 #import sys, os
-#from os.path import join, dirname, realpath
+from os.path import dirname, join
 #import random
 
 #from testlib import assertEq
-from latexgenerator import Compiler, Node
+from ptyx.latexgenerator import Compiler, Node
 
-def test_MCQ_basics():
+TEST_DIR = dirname(__file__)
+
+
+def load_ptyx_file(filename):
+    """Load ptyx file, create a `Compiler` instance and call extensions to
+    generate a plain ptyx file.
+
+    Return the `Compiler` instance."""
+    path = join(TEST_DIR, filename)
     c = Compiler()
-    c.read_file('extensions/autoqcm/tests/test-partiel.ptyx')
+    c.read_file(path)
     c.read_seed()
     c.call_extensions()
+    return c
+
+
+def test_MCQ_basics():
+    c = load_ptyx_file('test-partiel.ptyx')
     assert 'VERSION' in c.syntax_tree_generator.tags
     assert 'VERSION' in c.latex_generator.preparser.tags
     assert 'END_QCM' in c.syntax_tree_generator.tags
@@ -43,11 +56,8 @@ def test_MCQ_basics():
     assert "Jean de la Fontaine" in latex
 
 
-def test_MCQ_shuffling(path='extensions/autoqcm/tests/test_shuffle2.ptyx'):
-    c = Compiler()
-    c.read_file(path)
-    c.read_seed()
-    c.call_extensions()
+def test_MCQ_shuffling():
+    c = load_ptyx_file('test_shuffle.ptyx')
     root = c.generate_syntax_tree()
     assert isinstance(root, Node)
     assert root.name == 'ROOT'
@@ -113,5 +123,6 @@ def test_MCQ_shuffling(path='extensions/autoqcm/tests/test_shuffle2.ptyx'):
 
 
 if __name__ == '__main__':
-    latex = test_MCQ_shuffling(path='test_shuffle2.ptyx')
+    latex = test_MCQ_shuffling()
     #print(latex)
+    print('OK')

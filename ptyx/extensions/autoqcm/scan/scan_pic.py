@@ -7,11 +7,11 @@ from PIL import Image
 from numpy import array, flipud, fliplr, dot, amin, amax, zeros, int8#, percentile, clip
 
 
-from square_detection import test_square_color, find_black_square, \
+from .square_detection import test_square_color, find_black_square, \
                              eval_square_color, adjust_checkbox, \
                              color2debug
-from config_parser import load, real2apparent, apparent2real
-from parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM,
+from ..tools.config_parser import load, real2apparent, apparent2real
+from ..parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM,
                         CALIBRATION_SQUARE_POSITION, CALIBRATION_SQUARE_SIZE
                         )
 

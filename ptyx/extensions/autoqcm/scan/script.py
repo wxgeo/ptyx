@@ -34,20 +34,19 @@ import argparse
 import csv
 import sys
 
-# File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
-script_path = dirname(abspath(sys._getframe().f_code.co_filename))
-sys.path.insert(0, join(script_path, '../..'))
+## File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
+#script_path = dirname(abspath(sys._getframe().f_code.co_filename))
+#sys.path.insert(0, join(script_path, '../..'))
 
-from header import answers_and_score
-from config_parser import load
-from scan_pic import (scan_picture, ANSI_YELLOW, ANSI_RESET, ANSI_CYAN,
+from ..compile.header import answers_and_score
+from ..tools.config_parser import load
+from .scan_pic import (scan_picture, ANSI_YELLOW, ANSI_RESET, ANSI_CYAN,
                       ANSI_GREEN, ANSI_RED, color2debug, CalibrationError,
                       store_as_WEBP)
-from amend import amend_all
+from .amend import amend_all
+
 
 PIC_EXTS = ('.jpg', '.jpeg', '.png')
-
-
 
 
 def search_by_extension(directory, ext):
