@@ -569,7 +569,7 @@ def main(text, compiler):
     text = extended_python.main(text, compiler)
 
     # Register custom tags and corresponding handlers for this extension.
-    new_tag = partial(compiler.add_new_tag, extension_name='autoqcm2')
+    new_tag = partial(compiler.add_new_tag, extension_name='autoqcm')
 
     # Note for closing tags:
     # '@END' means closing tag #END must be consumed, unlike 'END'.

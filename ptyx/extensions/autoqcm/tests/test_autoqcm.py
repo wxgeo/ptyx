@@ -14,7 +14,7 @@ from latexgenerator import Compiler, Node
 
 def test_MCQ_basics():
     c = Compiler()
-    c.read_file('extensions/autoqcm2/tests/test-partiel.ptyx')
+    c.read_file('extensions/autoqcm/tests/test-partiel.ptyx')
     c.read_seed()
     c.call_extensions()
     assert 'VERSION' in c.syntax_tree_generator.tags
@@ -43,7 +43,7 @@ def test_MCQ_basics():
     assert "Jean de la Fontaine" in latex
 
 
-def test_MCQ_shuffling(path='extensions/autoqcm2/tests/test_shuffle2.ptyx'):
+def test_MCQ_shuffling(path='extensions/autoqcm/tests/test_shuffle2.ptyx'):
     c = Compiler()
     c.read_file(path)
     c.read_seed()
