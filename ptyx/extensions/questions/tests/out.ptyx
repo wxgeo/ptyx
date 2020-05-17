@@ -1,0 +1,87 @@
+\begin{enumerate}
+#ENUM
+#ITEM
+\item
+#ASK
+
+What's your name ?
+#END
+#ANS
+
+Abraham Lincoln
+#END
+#ITEM
+\item
+#ASK
+
+How old are you ?
+
+#END
+#ANS
+
+I'm actually very old.
+
+#END
+#ITEM
+\item
+#ASK
+
+Do you like icecream ?
+
+#END
+#ANS
+
+Yes, pretty much.
+
+#END
+#ITEM
+\item
+#ASK
+
+Would you like to eat some...
+
+#END
+\begin{enumerate}
+#ENUM
+#ITEM
+\item
+#ASK
+
+...chocolate cake ?
+
+#END
+#ANS
+
+yes, of course.
+
+#END
+#ITEM
+\item
+#ASK
+
+Or maybe fried spider legs ?
+
+#END
+#ANS
+
+I'm afraid not, sorry.
+
+#END
+#END
+\end{enumerate}
+
+#ITEM
+\item
+#ASK
+
+No more questions.
+
+#END
+#ANS
+
+ok, have a nice day then.
+
+#END
+#END
+\end{enumerate}
+

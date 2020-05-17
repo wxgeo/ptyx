@@ -83,10 +83,8 @@ An other simpler example, with no enumeration (only one question):
     ~~~~~~~~~~~~~~~~~~~
 """
 
-from __future__ import division, unicode_literals, absolute_import, print_function
-
 from re import sub, DOTALL, match
-from extensions import extended_python
+from ptyx.extensions import extended_python
 
 
 

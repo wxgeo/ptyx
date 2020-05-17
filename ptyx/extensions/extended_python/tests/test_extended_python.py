@@ -4,13 +4,10 @@ EXTENDED PYTHON
 """
 
 
-import sys
-from os.path import join, dirname, realpath
-
-from testlib import assertEq
+from ptyx.extensions.extended_python import main
 
 
-def test_question():
+def test_extended_python():
     text = r"""
 
 ................................
@@ -33,11 +30,5 @@ u, v, = many(2, randint, a=-5, b=-2)
 #END
 
 """
-    print(sys.executable)
-    this_file = realpath(sys._getframe().f_code.co_filename)
-    filename = join(dirname(dirname(this_file)), 'extended_python.py')
-
-    d = {}
-    exec(compile(open(filename).read(), filename, 'exec'), d)
-    assertEq(d['main'](text, None), text2)
+    assert main(text, None) == text2
 

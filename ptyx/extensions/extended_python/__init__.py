@@ -22,8 +22,6 @@ An example:
     ...........................
     """
 
-from __future__ import division, unicode_literals, absolute_import, print_function
-
 from re import sub, DOTALL
 
 
