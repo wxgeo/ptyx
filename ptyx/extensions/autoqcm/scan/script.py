@@ -169,59 +169,68 @@ def read_name_manually(matrix, config, msg='', default=None):
 
 
 
+
+
+parser = argparse.ArgumentParser(description="Extract information from numerised tests.")
+parser.add_argument('path', nargs='?', default='.',
+                    help=("Path to a directory which must contain "
+                    "a .autoqcm.config file and a .scan.pdf file "
+                    "(alternatively, this path may point to any file in this folder)."))
+group = parser.add_mutually_exclusive_group()
+# Following options can't be used simultaneously.
+group.add_argument("-p", "--page", metavar="P", type=int,
+                                    help="Read only page P of pdf file.")
+group.add_argument("-sk", "--skip", "--skip-pages", metavar="P", type=int, nargs='+', default=[],
+                                    help="Skip page(s) P [P ...] of pdf file.")
+
+parser.add_argument("-n", "--names", metavar="CSV_FILENAME", type=str,
+                                    help="Read names from file CSV_FILENAME.")
+parser.add_argument("-P", "--print", action='store_true',
+                    help='Print scores and solutions on default printer.')
+parser.add_argument("-m", "--mail", metavar="CSV_file",
+                                            help='Mail scores and solutions.')
+parser.add_argument("--reset", action="store_true", help='Delete `scan` directory.')
+parser.add_argument("--picture", metavar="P", type=str,
+                    help='Scan only given picture (useful for debugging).')
+# Following options can't be used simultaneously.
+group2 = parser.add_mutually_exclusive_group()
+group2.add_argument("--never-ask", action="store_false", dest='manual_verification', default=None,
+                    help="Always assume algorithm is right, never ask user in case of ambiguity.")
+group2.add_argument("--manual-verification", action="store_true", default=None,
+                    help="For each page scanned, display a picture of "
+                    "the interpretation by the detection algorithm.")
+
+parser.add_argument("--ask-for-name", action="store_true", default=None,
+                    help="For each first page, display a picture of "
+                    "the top of the page and ask for the student name.")
+parser.add_argument("-d", "--dir", type=str,
+                    help='Specify a directory with write permission.')
+parser.add_argument("-s", "--scan", "--scan-dir", type=str, metavar='DIR',
+                    help='Specify the directory where the scanned tests can be found.')
+parser.add_argument("-c", "--correction", action='store_true',
+            help="For each test, generate a pdf file with the answers.")
+parser.add_argument("--hide-scores", action='store_true',
+            help="Print only answers, not scores, in generated pdf files.")
+
+
 ########################################################################
 #                                                                      #
 #                                                                      #
-#                             MAIN SCRIPT                              #
+#                             MAIN PROCEDURE                           #
 #                                                                      #
 #                                                                      #
 ########################################################################
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Extract information from numerised tests.")
-    parser.add_argument('path', nargs='?', default='.',
-                        help=("Path to a directory which must contain "
-                        "a .autoqcm.config file and a .scan.pdf file "
-                        "(alternatively, this path may point to any file in this folder)."))
-    group = parser.add_mutually_exclusive_group()
-    # Following options can't be used simultaneously.
-    group.add_argument("-p", "--page", metavar="P", type=int,
-                                        help="Read only page P of pdf file.")
-    group.add_argument("-sk", "--skip", "--skip-pages", metavar="P", type=int, nargs='+', default=[],
-                                        help="Skip page(s) P [P ...] of pdf file.")
+def scan(parser=parser):
+    """Main procedure : mark the examination papers.
 
-    parser.add_argument("-n", "--names", metavar="CSV_FILENAME", type=str,
-                                        help="Read names from file CSV_FILENAME.")
-    parser.add_argument("-P", "--print", action='store_true',
-                        help='Print scores and solutions on default printer.')
-    parser.add_argument("-m", "--mail", metavar="CSV_file",
-                                                help='Mail scores and solutions.')
-    parser.add_argument("--reset", action="store_true", help='Delete `scan` directory.')
-    parser.add_argument("--picture", metavar="P", type=str,
-                        help='Scan only given picture (useful for debugging).')
-    # Following options can't be used simultaneously.
-    group2 = parser.add_mutually_exclusive_group()
-    group2.add_argument("--never-ask", action="store_false", dest='manual_verification', default=None,
-                        help="Always assume algorithm is right, never ask user in case of ambiguity.")
-    group2.add_argument("--manual-verification", action="store_true", default=None,
-                        help="For each page scanned, display a picture of "
-                        "the interpretation by the detection algorithm.")
-
-    parser.add_argument("--ask-for-name", action="store_true", default=None,
-                        help="For each first page, display a picture of "
-                        "the top of the page and ask for the student name.")
-    parser.add_argument("-d", "--dir", type=str,
-                        help='Specify a directory with write permission.')
-    parser.add_argument("-s", "--scan", "--scan-dir", type=str, metavar='DIR',
-                        help='Specify the directory where the scanned tests can be found.')
-    parser.add_argument("-c", "--correction", action='store_true',
-                help="For each test, generate a pdf file with the answers.")
-    parser.add_argument("--hide-scores", action='store_true',
-                help="Print only answers, not scores, in generated pdf files.")
+    Usually, one will call script `bin/scan` from command line,
+    which itself calls `scan()` (this procedure).
+    `parser` must be the `ArgumentParser` instance defined in the same file,
+    but may be tuned for testing before passing it to `scan()`.
+    """
     args = parser.parse_args()
-
-
     DIR = abspath(expanduser(args.path))
     if not isdir(DIR):
         DIR = dirname(DIR)

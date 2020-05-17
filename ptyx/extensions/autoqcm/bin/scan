@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 # --------------------------------------
-#                  pTyX
-#              main script
+#                  SCAN
+# automatically mark examination papers
 # --------------------------------------
 #    pTyX - Python LaTeX preprocessor
 #    Copyright (C) 2009-2020  Nicolas Pourcelot
 
 
-from ptyx.script import ptyx
+from ptyx.extensions.autoqcm.scan.script import scan
 
-ptyx()
+scan()

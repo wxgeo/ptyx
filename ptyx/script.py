@@ -115,7 +115,7 @@ parser.add_argument("--version", action='version', version='%(prog)s ' +
                     '%s (%s/%s/%s)' % ((__version__,) + __release_date__))
 
 
-def ptyx(options):
+def ptyx(parser=parser):
     # First, parse all arguments (filenames, options...)
     # --------------------------------------------------
     options = parser.parse_args()

@@ -8,7 +8,7 @@ Created on Thu Aug 29 14:49:37 2019
 from os.path import join
 from PIL import Image, ImageDraw, ImageFont
 
-from square_detection import COLORS
+from .square_detection import COLORS
 
 def _correct_checkboxes(draw, pos, checked, correct, size):
     i, j = pos
@@ -20,11 +20,11 @@ def _correct_checkboxes(draw, pos, checked, correct, size):
     if checked and not correct:
         # Circle checkbox with red pen.
         try:
-            draw.ellipse((j-margin, i-margin, j+size+margin, i+size+margin), 
+            draw.ellipse((j-margin, i-margin, j+size+margin, i+size+margin),
                          width=2, outline=red)
         except TypeError:
             # old PIL versions (<5.1.3)
-            draw.ellipse((j-margin, i-margin, j+size+margin, i+size+margin), 
+            draw.ellipse((j-margin, i-margin, j+size+margin, i+size+margin),
                          outline=red)
     elif not checked and correct:
         # Check (cross) the box (with red pen).
