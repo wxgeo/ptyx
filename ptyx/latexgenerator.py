@@ -84,7 +84,7 @@ class Node(object):
         if children_number > 1:
             raise ValueError("Don't use pTyX code inside %s argument number %s." % (self.name, i + 1))
         elif children_number == 0:
-            if self.name is 'EVAL':
+            if self.name == 'EVAL':
                 # EVAL isn't a real tag name: if a variable `#myvar` is found
                 # somewhere, it is parsed as an `#EVAL` tag with `myvar` as argument.
                 # So, a lonely `#` is parsed as an `#EVAL` with no argument at all.
@@ -511,7 +511,7 @@ class LatexGenerator:
 
     convert_tags = {'+': 'ADD', '-': 'SUB', '*': 'MUL', '=': 'EQUAL', '?': 'SIGN', '#': 'SHARP'}
 
-    re_varname = re.compile('[A-Za-z_][A-Za-z0-9_]*([[].+[]])?$')
+    re_varname = re.compile(r'[A-Za-z_][A-Za-z0-9_]*(\[.+\])?$')
 
     def __init__(self, compiler=None):
         self.clear()
