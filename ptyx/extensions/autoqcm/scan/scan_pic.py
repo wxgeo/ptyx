@@ -49,10 +49,19 @@ def round(f, n=None):
 
 
 def store_as_WEBP(m):
+    "Convert matrix to WEBP image, for compression."
     output = io.BytesIO()
     im = Image.fromarray((255*m).astype(int8))
     im.save(output, format="WEBP")
     return output
+
+def load_WEBP(path):
+    "Retrieve matrix from WEBP image."
+    im = Image.open(path)
+    return array(im)/255
+
+def load_as_matrix(pic_path):
+    return array(Image.open(pic_path).convert("L"))/255
 
 #def uncompress_array(buffer):
 #    im = Image.open(buffer)
@@ -882,7 +891,7 @@ def scan_picture(filename, config, manual_verification=None,
               f'Maybe ID {test_ID!r} - page {page!r} is an empty page ?')
         return output
 
-    ordering = config['ordering'][test_ID]
+    # ordering = config['ordering'][test_ID]
     mode = config['mode']
     correct_answers = config['correct_answers']
 
