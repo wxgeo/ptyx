@@ -275,19 +275,19 @@ def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=Fal
     if len(positions) <= 2:
         color2debug(m)
         raise CalibrationError('Only 2 squares found, calibration failed !')
-
-    # If there are 4 squares, and one is less dark than the others,
-    # let's drop it and use only the 3 darkers.
-    # (The 4th square will be generated again using the position of the 3 others).
-
-    for V in 'tb':
-        if positions[f'{V}r'][0] - positions[f'{V}l'][0] > max_alignment_error_cm*cm:
-            print("Warning: Horizontal alignment problem in corners squares !")
-            debug = True
-    for H in 'lr':
-        if positions[f'b{H}'][1] - positions[f't{H}'][1] > max_alignment_error_cm*cm:
-            print("Warning: Vertical alignment problem in corners squares !")
-            debug = True
+        
+    if len(positions) == 4:
+        # If there are 4 squares, and one is less dark than the others,
+        # let's drop it and use only the 3 darkers.
+        # (The 4th square will be generated again using the position of the 3 others).
+        for V in 'tb':
+            if positions[f'{V}r'][0] - positions[f'{V}l'][0] > max_alignment_error_cm*cm:
+                print("Warning: Horizontal alignment problem in corners squares !")
+                debug = True
+        for H in 'lr':
+            if positions[f'b{H}'][1] - positions[f't{H}'][1] > max_alignment_error_cm*cm:
+                print("Warning: Vertical alignment problem in corners squares !")
+                debug = True
 
     # Try to detect false positives.
     if len(positions) == 4:
@@ -879,17 +879,30 @@ def scan_picture(filename, config, manual_verification=None,
     answered = {}
     positions = {}
     displayed_questions_numbers = {}
-    output = {'ID': test_ID, 'page': page, 'name': student_name, 'file': filename,
-            'answered': answered, 'positions': positions, 'matrix': m,
-            'cell_size': cell_size, 'questions_nums': displayed_questions_numbers,
-            'verified': None}
+    pic_data = {
+            # ID of the test:
+            'ID': test_ID, # int 
+            # page number:
+            'page': page, # int
+            'name': student_name, # str
+            'pic_path': filename, # str
+            # answers checked by the student for each question:
+            'answered': answered, # dict[int, set[int]] 
+            # Position of each checkbox in the page:
+            'positions': positions, # dict[tuple[int, int], tuple[int, int]]
+            'cell_size': cell_size, # int
+            # Translation table ({question number before shuffling: after shuffling})
+            'questions_nums': displayed_questions_numbers, # dict[int, int]
+            # Manual verification by the user ?
+            'verified': None, # bool|None
+            }
 
     try:
         boxes = config['boxes'][test_ID][page]
     except KeyError:
         print(f'WARNING: ID {test_ID!r} - page {page!r} not found in config file !\n'
               f'Maybe ID {test_ID!r} - page {page!r} is an empty page ?')
-        return output
+        return pic_data, m
 
     # ordering = config['ordering'][test_ID]
     mode = config['mode']
@@ -1017,6 +1030,8 @@ def scan_picture(filename, config, manual_verification=None,
     else:
         color2debug()
 
-    output['verified'] = manual_verification
-    return output
+    pic_data['verified'] = manual_verification
+    # Keep matrix separate from other output data, as it is often not wanted 
+    # when debugging.
+    return pic_data, m
 

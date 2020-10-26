@@ -33,6 +33,7 @@ import subprocess
 import argparse
 import csv
 import sys
+import pickle
 
 ## File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
 #script_path = dirname(abspath(sys._getframe().f_code.co_filename))
@@ -116,8 +117,97 @@ def read_name_manually(matrix_or_path, config, msg='', default=None):
 
 
 
+def test_integrity(config, data):
+    """For every test:
+    - all pages must have been scanned,
+    - all questions must have been seen."""
+    questions_not_seen = {}
+    pages_not_seen = {}
+    for ID in data:
+        questions = set(config['ordering'][ID]['questions'])
+        diff = questions - set(data[ID]['answered'])
+        if diff:
+            questions_not_seen[ID] = ', '.join(str(q) for q in diff)
+        # All tests may not have the same number of pages, since
+        # page breaking will occur at a different place for each test.
+        pages = set(config['boxes'][ID])
+        diff = pages - set(data[ID]['pages'])
+        if diff:
+            pages_not_seen[ID] = ', '.join(str(p) for p in diff)
+    if pages_not_seen:
+        print('= WARNING =')
+        print('Pages not seen:')
+        for ID in sorted(pages_not_seen):
+            print(f'    • Test {ID}: page(s) {pages_not_seen[ID]}')
+    if questions_not_seen:
+        print('=== ERROR ===')
+        print('Questions not seen !')
+        for ID in sorted(questions_not_seen):
+            print(f'    • Test {ID}: question(s) {questions_not_seen[ID]}')
+
+    if questions_not_seen:
+        # Don't raise an error for pages not found (only a warning in log)
+        # if all questions were found, this was probably empty pages.
+        raise RuntimeError(f"Questions not seen ! (Look at message above).")
 
 
+def keep_previous_version(ID, p, already_seen, data, pic_path):
+    """Test if a previous version of the same page exist.
+    
+    If so, it probably means the page has been scanned twice, but it could
+    also indicate a more serious problem (for example, tests with the same ID
+    have been given to different students !). 
+    As a precaution, we should signal the problem to the user, and ask him
+    what he wants to do.
+    """
+    if (ID, p) not in already_seen:
+        # Everything OK.
+        already_seen.add((ID, p))
+        return False
+    # We have a problem: this is is a duplicate.
+    # In other words, we have 2 different versions of the same page.
+    # Ask the user what to do. 
+    print(f'Error: Page {p} of test #{ID} seen twice '
+                f'(in "{data[ID]["pic"]}" and "{pic_path}") !')
+    while True:
+        print('What must we do ?')
+        print('- See pictures (s)')
+        print('- Keep only first one (f)')
+        print('- Keep only last one (l)')
+        # ~ print('- Modify this test ID and enter student name (m)')
+        # ~ print('  (This will not modify correction)')
+        # ~ print('Hint: options f/l are useful if the same page was '
+              # ~ 'scanned twice, option m if the same test was given '
+              # ~ 'to 2 different students.')
+
+        ans = input('Answer:')
+        if ans in ('l', 'f'):
+            # if ans == 'l', do nothing.
+            # (By default, last version will overwrite first one).
+            return (ans == 'f')
+        # ~ elif ans == 'm':
+            # ~ ID = input('Enter some digits as new test ID:')
+            # ~ ans = input(f'New ID: {ID!r}. Is it correct (Y/n) ?')
+            # ~ if not ans.isdecimal():
+                # ~ print('ID must only contain digits.')
+            # ~ elif ans.lower() in ("y", "yes", ""):
+                # ~ pic_data['name'] = ''
+                # ~ # Have a negative ID to avoid conflict with existing ID.
+                # ~ pic_data['ID'] = -int(ID)
+                # ~ break
+        elif ans == 's':
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                path = join(tmpdirname, 'test.png')
+                # https://stackoverflow.com/questions/39141694/how-to-display-multiple-images-in-unix-command-line
+                subprocess.run(["convert", data[ID]["pic"], pic_path, "-append", path])
+                subprocess.run(["feh", "-F", path])
+                input('-- pause --')
+
+
+def pic_names_iterator(data):
+    for d in data.values():
+        for pic_data in d['pages'].values():
+            yield basename(pic_data['pic_path'])
 
 
 
@@ -133,22 +223,28 @@ group.add_argument("-p", "--page", metavar="P", type=int,
 group.add_argument("-sk", "--skip", "--skip-pages", metavar="P", type=int, nargs='+', default=[],
                                     help="Skip page(s) P [P ...] of pdf file.")
 
-parser.add_argument("-n", "--names", metavar="CSV_FILENAME", type=str,
-                                    help="Read names from file CSV_FILENAME.")
-parser.add_argument("-P", "--print", action='store_true',
-                    help='Print scores and solutions on default printer.')
-parser.add_argument("-m", "--mail", metavar="CSV_file",
-                                            help='Mail scores and solutions.')
-parser.add_argument("--reset", action="store_true", help='Delete `scan` directory.')
+#parser.add_argument("-n", "--names", metavar="CSV_FILENAME", type=str,
+#                                    help="Read names from file CSV_FILENAME.")
+#parser.add_argument("-P", "--print", action='store_true',
+#                    help='Print scores and solutions on default printer.')
+#parser.add_argument("-m", "--mail", metavar="CSV_file",
+#                                            help='Mail scores and solutions.')
+parser.add_argument("--reset", action="store_true", help='Delete all cached data.'
+                    'The scanning process will restart from the beginning.'
+                    )
 parser.add_argument("--picture", metavar="P", type=str,
                     help='Scan only given picture (useful for debugging).')
 # Following options can't be used simultaneously.
 group2 = parser.add_mutually_exclusive_group()
-group2.add_argument("--never-ask", action="store_false", dest='manual_verification', default=None,
-                    help="Always assume algorithm is right, never ask user in case of ambiguity.")
-group2.add_argument("--manual-verification", action="store_true", default=None,
+group2.add_argument("--never-ask", action="store_false", 
+                    dest='manual_verification', 
+                    default=None, help="Always assume algorithm is right, "
+                    "never ask user in case of ambiguity.")
+group2.add_argument("--always-ask", action="store_true", default=None,
+                    dest='manual_verification',
                     help="For each page scanned, display a picture of "
-                    "the interpretation by the detection algorithm.")
+                    "the interpretation by the detection algorithm, "
+                    "for manual verification.")
 
 parser.add_argument("--ask-for-name", action="store_true", default=None,
                     help="For each first page, display a picture of "
@@ -207,9 +303,7 @@ def scan(parser=parser):
         if not isfile(pic_path):
             pic_path = join(DIR, '.scan', 'pic', args.picture)
         verify = (args.manual_verification is not False)
-        pic_data = scan_picture(pic_path, config, manual_verification=verify)
-        # Keeping matrix would made output unreadable !
-        pic_data.pop('matrix')
+        pic_data, _ = scan_picture(pic_path, config, manual_verification=verify)
         print(pic_data)
         sys.exit(0)
 
@@ -249,25 +343,25 @@ def scan(parser=parser):
     scores_pdf_path = join(PDF_DIR, '%s-scores' % base_name)
     data_path = join(CFG_DIR, 'data.csv')
 
-    # Print scores and solutions (a first scan must have been done earlier).
-    if args.print:
-        #TODO: test this section.
-        if not isfile(data_path):
-            raise RuntimeError('Data file not found ! Run ./scan.py once before.')
-        print('\nPREPARING TO PRINT SCORES...')
-        print("Insert test papers in printer (to print score and solutions on other side).")
-        with open(data_path, 'r', newline='') as csvfile:
-            reader = csv.reader(csvfile)
-            for i, row in enumerate(reader):
-                identifier, name, score = row
-                print('Student:', name, '(subject number: %s, score %s)' % (identifier, score))
-                input('-pause- (Press ENTER to process, CTRL^C to quit)')
-                subprocess.run(["lp", "-P %s" % (i + 1), "-o sides=one-sided",
-                                scores_pdf_path], stdout=subprocess.PIPE)
-        sys.exit()
-    elif args.mail:
-        #TODO
-        pass
+#    # Print scores and solutions (a first scan must have been done earlier).
+#    if args.print:
+#        #TODO: test this section.
+#        if not isfile(data_path):
+#            raise RuntimeError('Data file not found ! Run ./scan.py once before.')
+#        print('\nPREPARING TO PRINT SCORES...')
+#        print("Insert test papers in printer (to print score and solutions on other side).")
+#        with open(data_path, 'r', newline='') as csvfile:
+#            reader = csv.reader(csvfile)
+#            for i, row in enumerate(reader):
+#                identifier, name, score = row
+#                print('Student:', name, '(subject number: %s, score %s)' % (identifier, score))
+#                input('-pause- (Press ENTER to process, CTRL^C to quit)')
+#                subprocess.run(["lp", "-P %s" % (i + 1), "-o sides=one-sided",
+#                                scores_pdf_path], stdout=subprocess.PIPE)
+#        sys.exit()
+#    elif args.mail:
+#        #TODO
+#        pass
 
     # Read configuration file.
     configfile = search_by_extension(DIR, '.autoqcm.config.json')
@@ -276,12 +370,12 @@ def scan(parser=parser):
 
 
 
-    if args.names is not None:
-        with open(args.names, newline='') as csvfile:
-            passed_names = [' '.join(row) for row in csv.reader(csvfile) 
-                                          if row and row[0]]
-    else:
-        passed_names = None
+#    if args.names is not None:
+#        with open(args.names, newline='') as csvfile:
+#            passed_names = [' '.join(row) for row in csv.reader(csvfile) 
+#                                          if row and row[0]]
+#    else:
+#        passed_names = None
 
     # Extract images from all the PDF files of the input directory.
     # If images are already cached in `.scan` directory, this step will be skipped.
@@ -294,9 +388,9 @@ def scan(parser=parser):
 
     # Read manually entered informations (if any).
     more_infos = {} # sheet_id: name
-    cfg_path = join(CFG_DIR, 'more_infos.csv')
-    if isfile(cfg_path):
-        with open(cfg_path, 'r', newline='') as csvfile:
+    CFG_PATH = join(CFG_DIR, 'more_infos.csv')
+    if isfile(CFG_PATH):
+        with open(CFG_PATH, 'r', newline='') as csvfile:
             reader = csv.reader(csvfile)
             for row in reader:
                 sheet_id, name = row
@@ -306,45 +400,21 @@ def scan(parser=parser):
     # List manually verified pages.
     # They should not be verified anymore.
     verified = set()
-    verif_path = join(CFG_DIR, 'verified.csv')
-    if isfile(verif_path):
-        with open(verif_path, 'r', newline='') as csvfile:
+    VERIF_PATH = join(CFG_DIR, 'verified.csv')
+    if isfile(VERIF_PATH):
+        with open(VERIF_PATH, 'r', newline='') as csvfile:
             reader = csv.reader(csvfile)
             for row in reader:
                 sheet_id, page = row
                 verified.add((int(sheet_id), int(page)))
             print("Pages manually verified:", verified)
 
-    # List skipped pictures.
-    # Next time, they will be skipped with no warning.
-    skipped = set()
-    skip_path = join(CFG_DIR, 'skipped.csv')
-    if isfile(skip_path):
-        with open(skip_path, 'r', newline='') as csvfile:
-            reader = csv.reader(csvfile)
-            for row in reader:
-                picture, = row
-                skipped.add(picture)
-            print("Pictures skipped:", skipped)
-
-
-    # ---------------------------------------
-    # Extract informations from the pictures.
-    # ---------------------------------------
-
-    index = {}
-    # `index` is used to retrieve the data associated with a name.
-    # FORMAT: {name: test ID}
-
-    pic_list = sorted(f for f in listdir(PIC_DIR)
-                    if any(f.lower().endswith(ext) for ext in PIC_EXTS))
-
-    already_seen = set()
-    # Set `already_seen` will contain all seen (ID, page) couples.
-    # It is used to catch an hypothetic scanning problem:
-    # we have to be sure that the same page on the same test is not seen
-    # twice.
-    data = {}
+    PICKLE_PATH = join(CFG_DIR, '.tmp_datafile')
+    if isfile(PICKLE_PATH):
+        with open(PICKLE_PATH, 'rb') as f:
+            data = pickle.load(f)
+    else:
+        data = {}
     # Dict `data` will collect data from all scanned tests.
     #...............................................................
     # FORMAT: {ID: {'pages': (dict) the pages seen, and all related informations,
@@ -356,7 +426,39 @@ def scan(parser=parser):
     #           ...
     #          }
     #...............................................................
+    # 
+    
+    skipped = set(pic_names_iterator(data))    
+    
+    # List skipped pictures.
+    # Next time, they will be skipped with no warning.
+    SKIP_PATH = join(CFG_DIR, 'skipped.csv')
+    if isfile(SKIP_PATH):
+        with open(SKIP_PATH, 'r', newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                picture, = row
+                skipped.add(picture)
+            print("Pictures skipped:", skipped)
 
+    
+    # ---------------------------------------
+    # Extract informations from the pictures.
+    # ---------------------------------------
+
+    index = {d['name']: ID for ID, d in data.items()}
+    # `index` is used to retrieve the data associated with a name.
+    # FORMAT: {name: test ID}
+
+
+    already_seen = set((ID, p) for ID, d in data.items() for p in d['pages'])
+    # Set `already_seen` will contain all seen (ID, page) couples.
+    # It is used to catch an hypothetic scanning problem:
+    # we have to be sure that the same page on the same test is not seen
+    # twice.
+
+    pic_list = sorted(f for f in listdir(PIC_DIR)
+                    if any(f.lower().endswith(ext) for ext in PIC_EXTS))
 
     for i, pic in enumerate(pic_list):
         if args.page is not None and args.page != i + 1:
@@ -374,76 +476,38 @@ def scan(parser=parser):
 
         pic_path = join(PIC_DIR, pic)
         try:
-            pic_data = scan_picture(pic_path, config,
+            pic_data, matrix = scan_picture(pic_path, config,
                                 manual_verification=args.manual_verification,
                                 already_verified=verified)
-            # Don't store all matrices ! It would consume too much memory.
-            matrix = pic_data.pop('matrix')
-            # However, we will store a compressed version.
+            # `pic_data` FORMAT is specified in `scan_pic.py`.
+            # (Search for `pic_data =` in `scan_pic.py`).
+            
+            # We will store a compressed version of the matrix.
+            # (It would consume too much memory else).
             pic_data['webp'] = store_as_WEBP(matrix)
         except CalibrationError:
             print(f'WARNING: {pic_path} seems invalid ! Skipping...')
             input('-- PAUSE --')
-            with open(skip_path, 'a', newline='') as csvfile:
+            with open(SKIP_PATH, 'a', newline='') as csvfile:
                 writerow = csv.writer(csvfile).writerow
                 writerow([pic])
             continue
 
-        #...........................................................
-        # `pic_data` FORMAT: {'ID': (int) ID of the test,
-        #                     'page': (int) page number (for the test),
-        #                     'name': (str) student name,
-        #                     'answered': (dict={int:set}) score,
-        #                     }
-        #...........................................................
         if pic_data['verified']:
             # If the page has been manually verified, keep track of it,
             # so it won't be verified next time if a second pass is needed.
-            with open(verif_path, 'a', newline='') as csvfile:
+            with open(VERIF_PATH, 'a', newline='') as csvfile:
                 writerow = csv.writer(csvfile).writerow
                 writerow([str(pic_data['ID']), str(pic_data['page'])])
 
+        
         ID = pic_data['ID']
         p = pic_data['page']
-        if (ID, p) not in already_seen:
-            already_seen.add((ID, p))
-        else:
-            print(f'Error: Page {p} of test #{ID} seen twice '
-                        f'(in "{data[ID]["pic"]}" and "{pic_path}") !')
-            while True:
-                print('What must we do ?')
-                print('- See pictures (s)')
-                print('- Keep only first one (f)')
-                print('- Keep only last one (l)')
-                # ~ print('- Modify this test ID and enter student name (m)')
-                # ~ print('  (This will not modify correction)')
-                # ~ print('Hint: options f/l are useful if the same page was '
-                      # ~ 'scanned twice, option m if the same test was given '
-                      # ~ 'to 2 different students.')
-
-                ans = input('Answer:')
-                if ans in ('l', 'f'):
-                    break
-                # ~ elif ans == 'm':
-                    # ~ ID = input('Enter some digits as new test ID:')
-                    # ~ ans = input(f'New ID: {ID!r}. Is it correct (Y/n) ?')
-                    # ~ if not ans.isdecimal():
-                        # ~ print('ID must only contain digits.')
-                    # ~ elif ans.lower() in ("y", "yes", ""):
-                        # ~ pic_data['name'] = ''
-                        # ~ # Have a negative ID to avoid conflict with existing ID.
-                        # ~ pic_data['ID'] = -int(ID)
-                        # ~ break
-                elif ans == 's':
-                    with tempfile.TemporaryDirectory() as tmpdirname:
-                        path = join(tmpdirname, 'test.png')
-                        # https://stackoverflow.com/questions/39141694/how-to-display-multiple-images-in-unix-command-line
-                        subprocess.run(["convert", data[ID]["pic"], pic_path, "-append", path])
-                        subprocess.run(["feh", "-F", path])
-                        input('-- pause --')
-            if ans == 'f':
-                continue
-            # if ans == 'l', do nothing.
+        
+        if keep_previous_version(ID, p, already_seen, data, pic_path):
+            continue
+        
+        
 
 
         # 2) Gather data
@@ -453,7 +517,7 @@ def scan(parser=parser):
                                  'answered': {},
                                  'score': 0,
                                  'score_per_question': {}})
-        d['pages'][pic_data['page']] = pic_data
+        d['pages'][p] = pic_data
         d['last_pic'] = pic_path
 #        d['pictures'].add(pic_path)
         for q in pic_data['answered']:
@@ -478,20 +542,28 @@ def scan(parser=parser):
             #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
 
             if not name:
-                # (i) Test if names were passed as command line arguments.
-                if passed_names is not None:
-                    if not passed_names:
-                        raise RuntimeError(f'Not enough names in {args.names} !')
-                    name = args.names.pop(0)
-                # (ii) If not, ask user for the name.
-                else:
-                    name = read_name_manually(matrix, config, msg=name)
-                    more_infos[ID] = name
-                    # Keep track of manually entered information (will be useful
-                    # if `scan.py` has to be run again later !)
-                    with open(cfg_path, 'a', newline='') as csvfile:
-                        writerow = csv.writer(csvfile).writerow
-                        writerow([str(ID), name])
+                name = read_name_manually(matrix, config, msg=name)
+                more_infos[ID] = name
+                # Keep track of manually entered information (will be useful
+                # if `scan.py` has to be run again later !)
+                with open(CFG_PATH, 'a', newline='') as csvfile:
+                    writerow = csv.writer(csvfile).writerow
+                    writerow([str(ID), name])
+
+#                # (i) Test if names were passed as command line arguments.
+#                if passed_names is not None:
+#                    if not passed_names:
+#                        raise RuntimeError(f'Not enough names in {args.names} !')
+#                    name = args.names.pop(0)
+#                # (ii) If not, ask user for the name.
+#                else:
+#                    name = read_name_manually(matrix, config, msg=name)
+#                    more_infos[ID] = name
+#                    # Keep track of manually entered information (will be useful
+#                    # if `scan.py` has to be run again later !)
+#                    with open(CFG_PATH, 'a', newline='') as csvfile:
+#                        writerow = csv.writer(csvfile).writerow
+#                        writerow([str(ID), name])
 
             # (c) A name must not appear twice
             #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
@@ -504,7 +576,7 @@ def scan(parser=parser):
                 # Remove twin name from index, and get the corresponding previous test ID.
                 ID0 = index.pop(name)
                 # Ask for a new name.
-                name0 = read_name_manually(data[ID0]['last_pic'], config, msg, default=name)
+                name0 = read_name_manually(data[ID0]['pages'][1]['pic_path'], config, msg, default=name)
                 # Update all infos.
                 index[name0] = ID0
                 more_infos[ID0] = name0
@@ -517,7 +589,11 @@ def scan(parser=parser):
             assert name, 'Name should not be left empty at this stage !'
             index[name] = ID
             d['name'] = name
-
+            
+        # Store work in progress, so we can resume process if something fails...
+        with open(PICKLE_PATH, 'wb') as f:
+            pickle.dump(data, f)
+        
     # ---------------------------
     # Test integrity
     # ---------------------------
@@ -525,36 +601,7 @@ def scan(parser=parser):
     # - all pages must have been scanned,
     # - all questions must have been seen.
 
-
-    questions_not_seen = {}
-    pages_not_seen = {}
-    for ID in data:
-        questions = set(config['ordering'][ID]['questions'])
-        diff = questions - set(data[ID]['answered'])
-        if diff:
-            questions_not_seen[ID] = ', '.join(str(q) for q in diff)
-        # All tests may not have the same number of pages, since
-        # page breaking will occur at a different place for each test.
-        pages = set(config['boxes'][ID])
-        diff = pages - set(data[ID]['pages'])
-        if diff:
-            pages_not_seen[ID] = ', '.join(str(p) for p in diff)
-    if pages_not_seen:
-        print('= WARNING =')
-        print('Pages not seen:')
-        for ID in sorted(pages_not_seen):
-            print(f'    • Test {ID}: page(s) {pages_not_seen[ID]}')
-    if questions_not_seen:
-        print('=== ERROR ===')
-        print('Questions not seen !')
-        for ID in sorted(questions_not_seen):
-            print(f'    • Test {ID}: question(s) {questions_not_seen[ID]}')
-
-    if questions_not_seen:
-        # Don't raise an error for pages not found (only a warning in log)
-        # if all questions were found, this was probably empty pages.
-        raise RuntimeError(f"Questions not seen ! (Look at message above).")
-
+    test_integrity(config, data)
 
 
     # ---------------------------
@@ -619,9 +666,9 @@ def scan(parser=parser):
     # Time to synthetize & store all those informations !
     # ---------------------------------------------------
 
-    # Names list should be empty now.
-    if passed_names:
-        raise RuntimeError(f'Too many names in {args.names!r} !')
+#    # Names list should be empty now.
+#    if passed_names:
+#        raise RuntimeError(f'Too many names in {args.names!r} !')
 
 
     # Generate CSV file with results.
@@ -644,7 +691,7 @@ def scan(parser=parser):
 
     # Generate CSV file with ID and pictures names for all students.
     info_path = join(SCAN_DIR, 'info.csv')
-    info = [(d['name'], ID, d['score'], [d['pages'][p]['file'] for p in d['pages']])
+    info = [(d['name'], ID, d['score'], [d['pages'][p]['pic_path'] for p in d['pages']])
                                                   for ID, d in data.items()]
     print(f'{ANSI_CYAN}SCORES (/{MAX_SCORE:g}):{ANSI_RESET}')
     with open(info_path, 'w', newline='') as csvfile:
