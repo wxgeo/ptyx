@@ -28,7 +28,6 @@ from os.path import (isdir, isfile, join, expanduser, abspath,
 from os import listdir, mkdir
 import tempfile
 from shutil import rmtree
-from glob import glob
 import subprocess
 import argparse
 import csv
@@ -45,7 +44,7 @@ from .scan_pic import (scan_picture, ANSI_YELLOW, ANSI_RESET, ANSI_CYAN,
                       ANSI_GREEN, ANSI_RED, color2debug, CalibrationError,
                       store_as_WEBP, load_as_matrix)
 from .amend import amend_all
-from .pdftools import pdf2pic, number_of_pages, PIC_EXTS
+from .pdftools import extract_pictures_from_pdf, PIC_EXTS
 
 
 
@@ -216,19 +215,11 @@ parser.add_argument('path', nargs='?', default='.',
                     help=("Path to a directory which must contain "
                     "a .autoqcm.config file and a .scan.pdf file "
                     "(alternatively, this path may point to any file in this folder)."))
-group = parser.add_mutually_exclusive_group()
-# Following options can't be used simultaneously.
-group.add_argument("-p", "--page", metavar="P", type=int,
-                                    help="Read only page P of pdf file.")
-group.add_argument("-sk", "--skip", "--skip-pages", metavar="P", type=int, nargs='+', default=[],
-                                    help="Skip page(s) P [P ...] of pdf file.")
+parser.add_argument("--start", metavar="N", type=int, default=1,
+                                    help="Start at picture N (skip first pages).")
+parser.add_argument("--end", metavar="N", type=int, default=float('inf'),
+                                    help="End at picture N (skip last pages).")
 
-#parser.add_argument("-n", "--names", metavar="CSV_FILENAME", type=str,
-#                                    help="Read names from file CSV_FILENAME.")
-#parser.add_argument("-P", "--print", action='store_true',
-#                    help='Print scores and solutions on default printer.')
-#parser.add_argument("-m", "--mail", metavar="CSV_file",
-#                                            help='Mail scores and solutions.')
 parser.add_argument("--reset", action="store_true", help='Delete all cached data.'
                     'The scanning process will restart from the beginning.'
                     )
@@ -325,6 +316,7 @@ def scan(parser=parser):
     # .scan/cfg/verified.csv -> pages already verified.
     # .scan/cfg/skipped.csv -> pages to skip.
     # .scan/scores.csv
+    # .scan/.tmp_datafile
     SCAN_DIR = join(args.dir or DIR, '.scan')
     CFG_DIR = join(SCAN_DIR, 'cfg')
     PIC_DIR = join(SCAN_DIR, 'pic')
@@ -339,52 +331,16 @@ def scan(parser=parser):
             mkdir(directory)
 
     base_name = basename(search_by_extension(DIR, '.ptyx'))[:-5]
-    # ~ scan_pdf_path = search_by_extension(DIR, '.scan.pdf')
     scores_pdf_path = join(PDF_DIR, '%s-scores' % base_name)
     data_path = join(CFG_DIR, 'data.csv')
 
-#    # Print scores and solutions (a first scan must have been done earlier).
-#    if args.print:
-#        #TODO: test this section.
-#        if not isfile(data_path):
-#            raise RuntimeError('Data file not found ! Run ./scan.py once before.')
-#        print('\nPREPARING TO PRINT SCORES...')
-#        print("Insert test papers in printer (to print score and solutions on other side).")
-#        with open(data_path, 'r', newline='') as csvfile:
-#            reader = csv.reader(csvfile)
-#            for i, row in enumerate(reader):
-#                identifier, name, score = row
-#                print('Student:', name, '(subject number: %s, score %s)' % (identifier, score))
-#                input('-pause- (Press ENTER to process, CTRL^C to quit)')
-#                subprocess.run(["lp", "-P %s" % (i + 1), "-o sides=one-sided",
-#                                scores_pdf_path], stdout=subprocess.PIPE)
-#        sys.exit()
-#    elif args.mail:
-#        #TODO
-#        pass
 
     # Read configuration file.
     configfile = search_by_extension(DIR, '.autoqcm.config.json')
     config = load(configfile)
-    #~ print(config)
-
-
-
-#    if args.names is not None:
-#        with open(args.names, newline='') as csvfile:
-#            passed_names = [' '.join(row) for row in csv.reader(csvfile) 
-#                                          if row and row[0]]
-#    else:
-#        passed_names = None
 
     # Extract images from all the PDF files of the input directory.
-    # If images are already cached in `.scan` directory, this step will be skipped.
-    pdf_files =  glob(join(INPUT_DIR, '**/*.pdf'), recursive=True)
-    # ~ pdf_files = [join(INPUT_DIR, name) for name in listdir(INPUT_DIR) if name.endswith('.pdf')]
-    total_page_number = sum(number_of_pages(pdf) for pdf in pdf_files)
-
-    if len(listdir(PIC_DIR)) != total_page_number or args.page:
-        pdf2pic(*pdf_files, dest=PIC_DIR, page=args.page)
+    extract_pictures_from_pdf(INPUT_DIR, PIC_DIR)
 
     # Read manually entered informations (if any).
     more_infos = {} # sheet_id: name
@@ -409,7 +365,7 @@ def scan(parser=parser):
                 verified.add((int(sheet_id), int(page)))
             print("Pages manually verified:", verified)
 
-    PICKLE_PATH = join(CFG_DIR, '.tmp_datafile')
+    PICKLE_PATH = join(SCAN_DIR, '.tmp_datafile')
     if isfile(PICKLE_PATH):
         with open(PICKLE_PATH, 'rb') as f:
             data = pickle.load(f)
@@ -460,10 +416,8 @@ def scan(parser=parser):
     pic_list = sorted(f for f in listdir(PIC_DIR)
                     if any(f.lower().endswith(ext) for ext in PIC_EXTS))
 
-    for i, pic in enumerate(pic_list):
-        if args.page is not None and args.page != i + 1:
-            continue
-        if i + 1 in args.skip:
+    for i, pic in enumerate(pic_list, start=1):
+        if not (args.start <= i <= args.end):
             continue
         if pic in skipped:
             continue
@@ -550,20 +504,7 @@ def scan(parser=parser):
                     writerow = csv.writer(csvfile).writerow
                     writerow([str(ID), name])
 
-#                # (i) Test if names were passed as command line arguments.
-#                if passed_names is not None:
-#                    if not passed_names:
-#                        raise RuntimeError(f'Not enough names in {args.names} !')
-#                    name = args.names.pop(0)
-#                # (ii) If not, ask user for the name.
-#                else:
-#                    name = read_name_manually(matrix, config, msg=name)
-#                    more_infos[ID] = name
-#                    # Keep track of manually entered information (will be useful
-#                    # if `scan.py` has to be run again later !)
-#                    with open(CFG_PATH, 'a', newline='') as csvfile:
-#                        writerow = csv.writer(csvfile).writerow
-#                        writerow([str(ID), name])
+
 
             # (c) A name must not appear twice
             #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾

@@ -10,6 +10,7 @@ import subprocess
 from os.path import join, basename
 from shutil import rmtree
 from os import listdir, mkdir, rename
+from glob import glob
 
 PIC_EXTS = ('.jpg', '.jpeg', '.png')
 
@@ -54,6 +55,14 @@ def pdf2pic(*pdf_files, dest, page=None):
             rename(join(tmp_dir, pic), join(dest, f'f{i}-{pic}'))
     rmtree(tmp_dir)
 
+def extract_pictures_from_pdf(source, dest):
+    # If images are already cached in `.scan` directory, this step will be skipped.
+    pdf_files =  glob(join(source, '**/*.pdf'), recursive=True)
+    # ~ pdf_files = [join(INPUT_DIR, name) for name in listdir(INPUT_DIR) if name.endswith('.pdf')]
+    total_page_number = sum(number_of_pages(pdf) for pdf in pdf_files)
+
+    if len(listdir(dest)) != total_page_number:
+        pdf2pic(*pdf_files, dest=dest)
 
 
 
