@@ -1,35 +1,27 @@
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
-
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    
-    <title>PtYx user guide &mdash; PtYx 2.0 documentation</title>
-    
-    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <title>pTyX user guide &#8212; PtYx 19.8 documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     
-    <script type="text/javascript">
-      var DOCUMENTATION_OPTIONS = {
-        URL_ROOT:    './',
-        VERSION:     '2.0',
-        COLLAPSE_INDEX: false,
-        FILE_SUFFIX: '.html',
-        HAS_SOURCE:  true
-      };
-    </script>
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <link rel="top" title="PtYx 2.0 documentation" href="index.html" />
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Alphabetical PtYx tags reference" href="alphabetical_tags_reference.html" />
-    <link rel="prev" title="Introduction to PtYx" href="introduction.html" /> 
-  </head>
-  <body>
-    <div class="related">
+    <link rel="prev" title="Introduction to pTyX" href="introduction.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
       <h3>Navigation</h3>
       <ul>
         <li class="right" style="margin-right: 10px">
@@ -42,35 +34,36 @@
           <a href="alphabetical_tags_reference.html" title="Alphabetical PtYx tags reference"
              accesskey="N">next</a> |</li>
         <li class="right" >
-          <a href="introduction.html" title="Introduction to PtYx"
+          <a href="introduction.html" title="Introduction to pTyX"
              accesskey="P">previous</a> |</li>
-        <li><a href="index.html">PtYx 2.0 documentation</a> &raquo;</li> 
+        <li class="nav-item nav-item-0"><a href="index.html">PtYx 19.8 documentation</a> &#187;</li> 
       </ul>
     </div>  
 
     <div class="document">
       <div class="documentwrapper">
         <div class="bodywrapper">
-          <div class="body">
+          <div class="body" role="main">
             
   <div class="section" id="ptyx-user-guide">
-<h1>PtYx user guide<a class="headerlink" href="#ptyx-user-guide" title="Permalink to this headline">¶</a></h1>
+<h1>pTyX user guide<a class="headerlink" href="#ptyx-user-guide" title="Permalink to this headline">¶</a></h1>
 <p><em>Copyright © 2009-2013 Nicolas Pourcelot</em></p>
 <div class="section" id="ptyx-syntax-reference">
-<h2>PtYx syntax reference<a class="headerlink" href="#ptyx-syntax-reference" title="Permalink to this headline">¶</a></h2>
+<h2>pTyX syntax reference<a class="headerlink" href="#ptyx-syntax-reference" title="Permalink to this headline">¶</a></h2>
 <p>Any valid LaTeX file is also a valide pTyX file.</p>
-<p>Additionnaly, PtYx include several new directives, using tags.</p>
+<p>Additionnaly, pTyX include several new directives, using tags.</p>
 <div class="section" id="generalities">
 <h3>Generalities<a class="headerlink" href="#generalities" title="Permalink to this headline">¶</a></h3>
 <p>All tags start with a <cite>#</cite> character, followed by uppercase letters or underscore.</p>
-<p>Tags defining blocks (<tt class="docutils literal"><span class="pre">#IF</span></tt>, <tt class="docutils literal"><span class="pre">#NEW_MACRO</span></tt>...) have to be closed using <tt class="docutils literal"><span class="pre">#END</span></tt> tag.</p>
-<p>Arguments must be passed to tags using curly brackets: <tt class="docutils literal"><span class="pre">#IF{a</span> <span class="pre">==</span> <span class="pre">2}</span></tt>.</p>
+<p>Tags defining blocks (<code class="docutils literal notranslate"><span class="pre">#IF</span></code>, <code class="docutils literal notranslate"><span class="pre">#NEW_MACRO</span></code>…) have to be closed using <code class="docutils literal notranslate"><span class="pre">#END</span></code> tag.</p>
+<p>Arguments must be passed to tags using curly brackets: <code class="docutils literal notranslate"><span class="pre">#IF{a</span> <span class="pre">==</span> <span class="pre">2}</span></code>.</p>
+<p>Note that tags can be nested without limitation.</p>
 </div>
 <div class="section" id="if-elif-else-tags">
 <h3>IF, ELIF, ELSE tags<a class="headerlink" href="#if-elif-else-tags" title="Permalink to this headline">¶</a></h3>
-<p>To conditionaly include a block of LaTeX code in a document, use <tt class="docutils literal"><span class="pre">#IF</span></tt>, <tt class="docutils literal"><span class="pre">#ELIF</span></tt> and <tt class="docutils literal"><span class="pre">#ELSE</span></tt> tags.</p>
+<p>To conditionaly include a block of LaTeX code in a document, use <code class="docutils literal notranslate"><span class="pre">#IF</span></code>, <code class="docutils literal notranslate"><span class="pre">#ELIF</span></code> and <code class="docutils literal notranslate"><span class="pre">#ELSE</span></code> tags.</p>
 <p>Example:</p>
-<div class="highlight-c"><div class="highlight"><pre><span class="cp">#IF{AB == AC == BC}</span>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="cp">#IF{AB == AC == BC}</span>
 <span class="n">ABC</span> <span class="n">is</span> <span class="n">an</span> <span class="n">equilateral</span> <span class="n">triangle</span>
 <span class="cp">#ELIF{AB == AC or AB == BC or BC == AC}</span>
 <span class="n">ABC</span> <span class="n">is</span> <span class="n">a</span> <span class="p">(</span><span class="n">non</span> <span class="n">equilateral</span><span class="p">)</span> <span class="n">isosceles</span> <span class="n">triangle</span>
@@ -82,13 +75,13 @@
 </div>
 <div class="section" id="case-else-tags">
 <h3>CASE, ELSE tags<a class="headerlink" href="#case-else-tags" title="Permalink to this headline">¶</a></h3>
-<p>PtYx may compile the same document many times to produce different versions of the same document
+<p>pTyX may compile the same document many times to produce different versions of the same document
 (useful for exam tests, for example).</p>
-<p>Doing so, it uses an internal counter (<tt class="docutils literal"><span class="pre">NUM</span></tt> python variable),
+<p>Doing so, it uses an internal counter (<code class="docutils literal notranslate"><span class="pre">NUM</span></code> python variable),
 starting from 0 for the first compiled document, and incrementing for each compilation.</p>
-<p>Tag <tt class="docutils literal"><span class="pre">#CASE</span></tt> allows</p>
+<p>Tag <code class="docutils literal notranslate"><span class="pre">#CASE</span></code> allows to generate different text according to document number.</p>
 <p>Note that:</p>
-<div class="highlight-c"><div class="highlight"><pre><span class="cp">#CASE{0}</span>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="cp">#CASE{0}</span>
 <span class="n">This</span> <span class="n">sentence</span> <span class="n">will</span> <span class="n">only</span> <span class="n">appear</span> <span class="n">in</span> <span class="n">the</span> <span class="n">first</span> <span class="n">compiled</span> <span class="n">document</span><span class="p">.</span>
 <span class="cp">#CASE{1}</span>
 <span class="n">This</span> <span class="n">one</span> <span class="n">will</span> <span class="n">only</span> <span class="n">appear</span> <span class="n">in</span> <span class="n">the</span> <span class="n">second</span> <span class="n">compiled</span> <span class="n">document</span><span class="p">.</span>
@@ -98,16 +91,158 @@ starting from 0 for the first compiled document, and incrementing for each compi
 </pre></div>
 </div>
 <p>is exactly equivalent to:</p>
-<div class="highlight-c"><div class="highlight"><pre><span class="cp">#IF{NUM == 0}</span>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="cp">#IF{NUM == 0}</span>
 <span class="n">This</span> <span class="n">sentence</span> <span class="n">will</span> <span class="n">only</span> <span class="n">appear</span> <span class="n">in</span> <span class="n">the</span> <span class="n">first</span> <span class="n">compiled</span> <span class="n">document</span><span class="p">.</span>
-<span class="cp">#IF{NUM == 1}</span>
+<span class="cp">#ELIF{NUM == 1}</span>
 <span class="n">This</span> <span class="n">one</span> <span class="n">will</span> <span class="n">only</span> <span class="n">appear</span> <span class="n">in</span> <span class="n">the</span> <span class="n">second</span> <span class="n">compiled</span> <span class="n">document</span><span class="p">.</span>
 <span class="cp">#ELSE</span>
 <span class="n">And</span> <span class="n">the</span> <span class="n">last</span> <span class="n">one</span><span class="p">,</span> <span class="n">in</span> <span class="n">all</span> <span class="n">others</span> <span class="n">compiled</span> <span class="n">document</span> <span class="p">(</span><span class="k">if</span> <span class="n">any</span><span class="p">).</span>
 <span class="cp">#END</span>
 </pre></div>
 </div>
+<p>Example:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="cp">#CASE{0}</span>
+<span class="n">Sujet</span> <span class="n">A</span>
+<span class="cp">#CASE{1}</span>
+<span class="n">Sujet</span> <span class="n">B</span>
+<span class="cp">#END</span>
+</pre></div>
 </div>
+</div>
+<div class="section" id="assert-tag">
+<h3>ASSERT tag<a class="headerlink" href="#assert-tag" title="Permalink to this headline">¶</a></h3>
+<p>#ASSERT{arg1} evaluates arg1 as a python expression and raises an error if arg1 evaluate to False.</p>
+</div>
+</div>
+<div class="section" id="small-memento">
+<h2>Small memento<a class="headerlink" href="#small-memento" title="Permalink to this headline">¶</a></h2>
+<p>Tags are sorted by alphabetical order.</p>
+<ul>
+<li><p class="first">#ANS: Begins an <strong>answer block</strong>.</p>
+<blockquote>
+<div><p>This block will be processed if and only if internal variable WITH_ANSWERS is set to True.</p>
+<p>Closed by : #ANS, #ASK_ONLY, #ASK, #END.</p>
+</div></blockquote>
+</li>
+<li><p class="first">#ANSWER{arg1}: arg1 will be processed if and only if internal variable WITH_ANSWERS is set to True.</p>
+</li>
+<li><p class="first">#ASK: Begins a <strong>question block</strong>.</p>
+<blockquote>
+<div><p>If <strong>format_ask</strong> is defined, <strong>format_ask</strong> will be applied.</p>
+<p><strong>format_ask</strong> has to be a python function with exactly one argument.</p>
+<p>Example:</p>
+</div></blockquote>
+</li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1">#PYTHON</span>
+<span class="k">def</span> <span class="nf">format_ask</span><span class="p">(</span><span class="n">string</span><span class="p">):</span>
+    <span class="k">return</span> <span class="sa">r</span><span class="s1">&#39;emph{</span><span class="si">%s</span><span class="s1">}&#39;</span> <span class="o">%</span> <span class="n">string</span>
+<span class="c1">#END</span>
+
+<span class="n">Closed</span> <span class="n">by</span> <span class="p">:</span> <span class="c1">#ANS, #ASK_ONLY, #ASK, #END.</span>
+</pre></div>
+</div>
+<ul>
+<li><p class="first">#ASK: Begins a <strong>question-only block</strong>.</p>
+<blockquote>
+<div><p>If <strong>format_ask</strong> is defined, <strong>format_ask</strong> will be applied.</p>
+<blockquote>
+<div><p>This block will be processed if and only if internal variable WITH_ANSWERS is set to False.</p>
+</div></blockquote>
+<p>Closed by : #ANS, #ASK_ONLY, #ASK, #END.</p>
+</div></blockquote>
+</li>
+<li><p class="first">#ASSERT{assertion}: Raise an error if assertion is False.</p>
+<blockquote>
+<div><p><em>assertation</em> has to be a valid Python expression.</p>
+</div></blockquote>
+</li>
+<li><p class="first">#CALC{expr}: Evaluate expression using <em>geophar</em> parser.</p>
+<blockquote>
+<div><p>Note that <em>geophar</em> needs to be installed separately.</p>
+</div></blockquote>
+</li>
+<li><p class="first">#CASE{integer}: Begins a <strong>case</strong> conditional block.</p>
+<blockquote>
+<div><p>Block will be processed if and only if internal variable NUM matches given integer.</p>
+<p>Closed by : #CASE, #ELSE, #END.</p>
+</div></blockquote>
+</li>
+<li><p class="first">#COMMENT: Begins a comment block.</p>
+<blockquote>
+<div><p>This block will never be processed.</p>
+<p>Closed by : #END.</p>
+</div></blockquote>
+</li>
+<li><p class="first">#CONDITIONAL_BLOCK:  Don’t use this tag (used for internal purpose only).</p>
+<blockquote>
+<div><p>Closed by : #END.</p>
+</div></blockquote>
+</li>
+<li><p class="first">#DEBUG: Pause compilation and ask user what to do.</p>
+<blockquote>
+<div><p>Commands may be executed and values of variables may be displayed before compilation resumes.</p>
+</div></blockquote>
+</li>
+<li><dl class="first docutils">
+<dt>#ELIF{condition}: Following block will be processed only if previous blocks where</dt>
+<dd><p class="first">not processed and if condition is True.</p>
+<p class="last">Condition must be a valid python expression.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>#ELSE: Following block will be processed only if previous blocks where</dt>
+<dd><p class="first last">not processed.</p>
+</dd>
+</dl>
+</li>
+<li><p class="first">#EVAL[options]{arg}: Don’t use this tag (used for internal purpose only).</p>
+</li>
+<li><p class="first">#FREEZE_RANDOM_STATE: Used internally.</p>
+</li>
+<li><p class="first">#GEO: Generate a tikz figure from <em>geophar</em> instructions.</p>
+<blockquote>
+<div><p>Note that <em>geophar</em> needs to be installed separately.</p>
+<p>Closed by : #END.</p>
+</div></blockquote>
+</li>
+<li><p class="first">#IF{condition}: Following block will be processed only if condition is True.</p>
+</li>
+<li><p class="first">#IFNUM{integer}{arg}: Process arg only if internal variable NUM matches
+given integer.</p>
+</li>
+<li><p class="first">#LOAD{extension}: Extend pTyX syntax by loading an extension.</p>
+<blockquote>
+<div><p>‘GCALC’:        (0, 0, [<a class="reference external" href="mailto:'&#37;&#52;&#48;END">‘<span>&#64;</span>END</a>’]),
+‘MACRO’:        (0, 1, None),
+‘NEW_MACRO’:    (0, 1, [<a class="reference external" href="mailto:'&#37;&#52;&#48;END">‘<span>&#64;</span>END</a>’]),
+‘PICK’:         (1, 0, None),
+‘PYTHON’:       (0, 0, [<a class="reference external" href="mailto:'&#37;&#52;&#48;END">‘<span>&#64;</span>END</a>’]),
+‘QUESTION’:     (0, 1, None),
+‘RAND’:         (1, 0, None),
+# ROOT isn’t a real tag, and is never closed.
+‘ROOT’:         (0, 0, []),
+‘SEED’:         (1, 0, None),
+‘SHUFFLE’:      (0, 0, [<a class="reference external" href="mailto:'&#37;&#52;&#48;END">‘<span>&#64;</span>END</a>’]),
+# Do <em>NOT</em> consume #END tag, which must be used to end #SHUFFLE block.
+‘ITEM’:         (0, 0, [‘ITEM’, ‘END’]),
+‘SIGN’:         (0, 0, None),
+‘SYMPY’:        (0, 0, [<a class="reference external" href="mailto:'&#37;&#52;&#48;END">‘<span>&#64;</span>END</a>’]),
+‘TABSIGN’:      (0, 0, [<a class="reference external" href="mailto:'&#37;&#52;&#48;END">‘<span>&#64;</span>END</a>’]),
+‘TABVAL’:       (0, 0, [<a class="reference external" href="mailto:'&#37;&#52;&#48;END">‘<span>&#64;</span>END</a>’]),
+‘TABVAR’:       (0, 0, [<a class="reference external" href="mailto:'&#37;&#52;&#48;END">‘<span>&#64;</span>END</a>’]),
+‘TEST’:         (1, 2, None),
+‘-‘:            (0, 0, None),
+‘+’:            (0, 0, None),
+‘*’:            (0, 0, None),
+‘=’:            (0, 0, None),
+‘?’:            (0, 0, None),
+‘#’:            (0, 0, None),
+}</p>
+</div></blockquote>
+</li>
+</ul>
 </div>
 <div class="section" id="examples">
 <h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h2>
@@ -118,17 +253,19 @@ starting from 0 for the first compiled document, and incrementing for each compi
           </div>
         </div>
       </div>
-      <div class="sphinxsidebar">
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
         <div class="sphinxsidebarwrapper">
-  <h3><a href="index.html">Table Of Contents</a></h3>
+  <h3><a href="index.html">Table of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">PtYx user guide</a><ul>
-<li><a class="reference internal" href="#ptyx-syntax-reference">PtYx syntax reference</a><ul>
+<li><a class="reference internal" href="#">pTyX user guide</a><ul>
+<li><a class="reference internal" href="#ptyx-syntax-reference">pTyX syntax reference</a><ul>
 <li><a class="reference internal" href="#generalities">Generalities</a></li>
 <li><a class="reference internal" href="#if-elif-else-tags">IF, ELIF, ELSE tags</a></li>
 <li><a class="reference internal" href="#case-else-tags">CASE, ELSE tags</a></li>
+<li><a class="reference internal" href="#assert-tag">ASSERT tag</a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#small-memento">Small memento</a></li>
 <li><a class="reference internal" href="#examples">Examples</a></li>
 </ul>
 </li>
@@ -136,33 +273,34 @@ starting from 0 for the first compiled document, and incrementing for each compi
 
   <h4>Previous topic</h4>
   <p class="topless"><a href="introduction.html"
-                        title="previous chapter">Introduction to PtYx</a></p>
+                        title="previous chapter">Introduction to pTyX</a></p>
   <h4>Next topic</h4>
   <p class="topless"><a href="alphabetical_tags_reference.html"
                         title="next chapter">Alphabetical PtYx tags reference</a></p>
-  <h3>This Page</h3>
-  <ul class="this-page-menu">
-    <li><a href="_sources/user-guide.txt"
-           rel="nofollow">Show Source</a></li>
-  </ul>
-<div id="searchbox" style="display: none">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/user-guide.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
   <h3>Quick search</h3>
+    <div class="searchformwrapper">
     <form class="search" action="search.html" method="get">
       <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
     </form>
-    <p class="searchtip" style="font-size: 90%">
-    Enter search terms or a module, class or function name.
-    </p>
+    </div>
 </div>
 <script type="text/javascript">$('#searchbox').show(0);</script>
         </div>
       </div>
       <div class="clearer"></div>
     </div>
-    <div class="related">
+    <div class="related" role="navigation" aria-label="related navigation">
       <h3>Navigation</h3>
       <ul>
         <li class="right" style="margin-right: 10px">
@@ -175,14 +313,14 @@ starting from 0 for the first compiled document, and incrementing for each compi
           <a href="alphabetical_tags_reference.html" title="Alphabetical PtYx tags reference"
              >next</a> |</li>
         <li class="right" >
-          <a href="introduction.html" title="Introduction to PtYx"
+          <a href="introduction.html" title="Introduction to pTyX"
              >previous</a> |</li>
-        <li><a href="index.html">PtYx 2.0 documentation</a> &raquo;</li> 
+        <li class="nav-item nav-item-0"><a href="index.html">PtYx 19.8 documentation</a> &#187;</li> 
       </ul>
     </div>
-    <div class="footer">
-        &copy; Copyright 2014, Nicolas Pourcelot.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2014, Nicolas Pourcelot.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
     </div>
   </body>
 </html>

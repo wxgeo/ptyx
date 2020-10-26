@@ -23,10 +23,6 @@
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-__version__ = "19.8"
-# API version number changes only when backward compatibility is broken.
-__api__ = "4.3"
-__release_date__ = (19, 8, 2019)
 
 
 import argparse, os, sys, csv
@@ -37,6 +33,7 @@ from ptyx.utilities import pth
 from ptyx.compilation import make_files
 from ptyx.latexgenerator import compiler
 
+from ptyx import __version__, __release_date__
 
 if sys.version_info.major == 2:
     raise RuntimeError("Python version 3.6+ requis !")
