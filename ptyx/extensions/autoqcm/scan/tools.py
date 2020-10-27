@@ -5,6 +5,9 @@ Created on Tue Oct 27 22:40:40 2020
 
 @author: nicolas
 """
+from os import listdir
+from os.path import join
+
 
 def search_by_extension(directory, ext):
     """Search for a file with extension `ext` in given directory.
