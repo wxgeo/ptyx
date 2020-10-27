@@ -885,6 +885,7 @@ def scan_picture(filename, config, manual_verification=None,
             # page number:
             'page': page, # int
             'name': student_name, # str
+            'student ID': student_ID, #str
             'pic_path': filename, # str
             # answers checked by the student for each question:
             'answered': answered, # dict[int, set[int]] 

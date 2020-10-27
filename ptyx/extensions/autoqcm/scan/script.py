@@ -29,7 +29,6 @@ from os import listdir, mkdir
 import tempfile
 from shutil import rmtree
 import subprocess
-import argparse
 import csv
 import sys
 import pickle
@@ -45,7 +44,7 @@ from .scan_pic import (scan_picture, ANSI_YELLOW, ANSI_RESET, ANSI_CYAN,
                       store_as_WEBP, load_as_matrix)
 from .amend import amend_all
 from .pdftools import extract_pictures_from_pdf, PIC_EXTS
-
+from .args import parser
 
 
 def search_by_extension(directory, ext):
@@ -66,21 +65,22 @@ def search_by_extension(directory, ext):
     return join(directory, names[0])
 
 
+def print_framed_msg(msg):
+    decoration = max(len(line) for line in msg.split('\n'))*'-'
+    print(decoration)
+    print(msg)
+    print(decoration)
+    
 
 
 
-
-def read_name_manually(matrix_or_path, config, msg='', default=None):
+def read_name_manually(matrix_or_path, ID, config, more_infos, default=None):
     if isinstance(matrix_or_path, str):
         matrix = load_as_matrix(matrix_or_path)
     else:
         matrix = matrix_or_path
-    ids = config['ids']
-    if msg:
-        decoration = max(len(line) for line in msg.split('\n'))*'-'
-        print(decoration)
-        print(msg)
-        print(decoration)
+    student_ids = config['ids']
+    student_ID = ''
     print('Name can not be read automatically.')
     print('Please read the name on the picture which will be displayed now.')
     input('-- Press enter --')
@@ -99,9 +99,9 @@ def read_name_manually(matrix_or_path, config, msg='', default=None):
             if default is None:
                 continue
             name = default
-        if ids:
-            if name in ids:
-                name = ids[name]
+        if student_ids:
+            if name in student_ids:
+                name, student_ID = student_ids[name], name
             elif any((d in name) for d in '0123456789'):
                 # This is not a student name !
                 print('Unknown ID.')
@@ -112,7 +112,8 @@ def read_name_manually(matrix_or_path, config, msg='', default=None):
         if name:
             break
     process.terminate()
-    return name
+    more_infos[ID] = (name, student_ID)
+    return name, student_ID
 
 
 
@@ -209,45 +210,107 @@ def pic_names_iterator(data):
             yield basename(pic_data['pic_path'])
 
 
+def extract_name(ID, d, data, pic_path, pic_data, CFG_PATH, args, matrix, config, more_infos, name2sheetID):
+    # (a) The first page should contain the name
+    #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
+    # However, if the name was already set (using `more_infos`),
+    # don't overwrite it.
+    if not d['name']:
+        # Store the name read (except if ask not to do so).
+        if not args.ask_for_name:
+            d['name'] = pic_data['name']
 
-parser = argparse.ArgumentParser(description="Extract information from numerised tests.")
-parser.add_argument('path', nargs='?', default='.',
-                    help=("Path to a directory which must contain "
-                    "a .autoqcm.config file and a .scan.pdf file "
-                    "(alternatively, this path may point to any file in this folder)."))
-parser.add_argument("--start", metavar="N", type=int, default=1,
-                                    help="Start at picture N (skip first pages).")
-parser.add_argument("--end", metavar="N", type=int, default=float('inf'),
-                                    help="End at picture N (skip last pages).")
+    name = d['name']
 
-parser.add_argument("--reset", action="store_true", help='Delete all cached data.'
-                    'The scanning process will restart from the beginning.'
-                    )
-parser.add_argument("--picture", metavar="P", type=str,
-                    help='Scan only given picture (useful for debugging).')
-# Following options can't be used simultaneously.
-group2 = parser.add_mutually_exclusive_group()
-group2.add_argument("--never-ask", action="store_false", 
-                    dest='manual_verification', 
-                    default=None, help="Always assume algorithm is right, "
-                    "never ask user in case of ambiguity.")
-group2.add_argument("--always-ask", action="store_true", default=None,
-                    dest='manual_verification',
-                    help="For each page scanned, display a picture of "
-                    "the interpretation by the detection algorithm, "
-                    "for manual verification.")
+    # (b) Update name manually if it was not found
+    #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
 
-parser.add_argument("--ask-for-name", action="store_true", default=None,
-                    help="For each first page, display a picture of "
-                    "the top of the page and ask for the student name.")
-parser.add_argument("-d", "--dir", type=str,
-                    help='Specify a directory with write permission.')
-parser.add_argument("-s", "--scan", "--scan-dir", type=str, metavar='DIR',
-                    help='Specify the directory where the scanned tests can be found.')
-parser.add_argument("-c", "--correction", action='store_true',
-            help="For each test, generate a pdf file with the answers.")
-parser.add_argument("--hide-scores", action='store_true',
-            help="Print only answers, not scores, in generated pdf files.")
+    if not name:
+        name, student_ID = read_name_manually(matrix, ID, config, more_infos)
+        # Keep track of manually entered information (will be useful
+        # if `scan.py` has to be run again later !)
+        with open(CFG_PATH, 'a', newline='') as csvfile:
+            writerow = csv.writer(csvfile).writerow
+            writerow([str(ID), name])
+
+
+
+    # (c) A name must not appear twice
+    #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
+
+    while name in name2sheetID:
+        print(f"Test #{name2sheetID[name]}: {name}")
+        print(f'Test #{ID}: {name}')
+        print_framed_msg(f'Error : 2 tests for same student ({name}) !\n'
+              "Please modify at least one name (enter nothing to keep a name).")
+        # Remove twin name from name2sheetID, and get the corresponding previous test ID.
+        ID0 = name2sheetID.pop(name)
+        # Ask for a new name.
+        name0, student_ID0 = read_name_manually(data[ID0]['pages'][1]['pic_path'], ID, config, more_infos, default=name)
+        # Update all infos.
+        name2sheetID[name0] = ID0
+        data[ID0]['name'] = name0
+        data[ID0]['student ID'] = student_ID0
+        # Ask for a new name for new test too.
+        name, student_ID = read_name_manually(pic_path, ID, config, more_infos, default=name)
+
+    assert name, 'Name should not be left empty at this stage !'
+    name2sheetID[name] = ID
+    d['name'] = name
+
+
+
+def calculate_scores(data, config):
+    default_mode = config['mode']['default']
+    default_correct = config['correct']['default']
+    default_incorrect = config['incorrect']['default']
+    default_skipped = config['skipped']['default']
+
+    # Maximal score = (number of questions)x(score when answer is correct)
+    MAX_SCORE = 0
+    for q in config['correct_answers']:
+        if config['mode'].get(q, default_mode) != 'skip':
+            MAX_SCORE += int(config['correct'].get(q, default_correct))
+    config['max_score'] = MAX_SCORE
+
+    for ID in data:
+        print(f'Test {ID} - {data[ID]["name"]}')
+        d = data[ID]
+        for q in sorted(d['answered']):
+            answered = set(d['answered'][q])
+            correct_ones = set(config['correct_answers'][q])
+            mode = config['mode'].get(q, default_mode)
+
+            if mode == 'all':
+                ok = (answered == correct_ones)
+            elif mode == 'some':
+                # Answer is valid if and only if :
+                # (proposed ≠ ∅ and proposed ⊆ correct) or (proposed = correct = ∅)
+                ok = ((answered and answered.issubset(correct_ones))
+                       or (not answered and not correct_ones))
+            elif mode == 'skip':
+                print(f'Question {q} skipped...')
+                continue
+            else:
+                raise RuntimeError('Invalid mode (%s) !' % mode)
+            if ok:
+                earn = float(config['correct'].get(q, default_correct))
+                color = ANSI_GREEN
+            elif not answered:
+                earn = float(config['skipped'].get(q, default_skipped))
+                color = ANSI_YELLOW
+            else:
+                earn = float(config['incorrect'].get(q, default_incorrect))
+                color = ANSI_RED
+            print(f'-  {color}Rating (Q{q}): {color}{earn:g}{ANSI_RESET}')
+            d['score'] += earn
+            d['score_per_question'][q] = earn
+            
+    return MAX_SCORE
+
+
+
+
 
 
 ########################################################################
@@ -331,8 +394,8 @@ def scan(parser=parser):
             mkdir(directory)
 
     base_name = basename(search_by_extension(DIR, '.ptyx'))[:-5]
-    scores_pdf_path = join(PDF_DIR, '%s-scores' % base_name)
-    data_path = join(CFG_DIR, 'data.csv')
+    SCORES_PDF_PATH = join(PDF_DIR, '%s-scores' % base_name)
+
 
 
     # Read configuration file.
@@ -343,14 +406,18 @@ def scan(parser=parser):
     extract_pictures_from_pdf(INPUT_DIR, PIC_DIR)
 
     # Read manually entered informations (if any).
-    more_infos = {} # sheet_id: name
+    more_infos = {} # sheet_id: (name, student_id)
     CFG_PATH = join(CFG_DIR, 'more_infos.csv')
     if isfile(CFG_PATH):
         with open(CFG_PATH, 'r', newline='') as csvfile:
             reader = csv.reader(csvfile)
             for row in reader:
-                sheet_id, name = row
-                more_infos[int(sheet_id)] = name
+                try:            
+                    sheet_ID, name, student_ID = row
+                except ValueError:
+                    sheet_ID, name = row
+                    student_ID = ''
+                more_infos[int(sheet_ID)] = (name, student_ID)
             print("Retrieved infos:", more_infos)
 
     # List manually verified pages.
@@ -402,8 +469,8 @@ def scan(parser=parser):
     # Extract informations from the pictures.
     # ---------------------------------------
 
-    index = {d['name']: ID for ID, d in data.items()}
-    # `index` is used to retrieve the data associated with a name.
+    name2sheetID = {d['name']: ID for ID, d in data.items()}
+    # `name2sheetID` is used to retrieve the data associated with a name.
     # FORMAT: {name: test ID}
 
 
@@ -422,7 +489,7 @@ def scan(parser=parser):
         if pic in skipped:
             continue
         print('-------------------------------------------------------')
-        print('Page', i + 1)
+        print('Page', i)
         print('File:', pic)
 
         # 1) Extract all the data of an image
@@ -466,8 +533,10 @@ def scan(parser=parser):
 
         # 2) Gather data
         #    ‾‾‾‾‾‾‾‾‾‾‾
+        name, student_ID = more_infos.get(ID, ('', ''))
         d = data.setdefault(ID, {'pages': {}, 'score': 0,
-                                 'name': more_infos.get(ID, ''),
+                                 'name': name,
+                                 'student ID': student_ID,
                                  'answered': {},
                                  'score': 0,
                                  'score_per_question': {}})
@@ -481,55 +550,7 @@ def scan(parser=parser):
         # 3) 1st page of the test => retrieve the student name
         #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
         if p == 1:
-            # (a) The first page should contain the name
-            #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
-            # However, if the name was already set (using `more_infos`),
-            # don't overwrite it.
-            if not d['name']:
-                # Store the name read (except if ask not to do so).
-                if not args.ask_for_name:
-                    d['name'] = pic_data['name']
-
-            name = d['name']
-
-            # (b) Update name manually if it was not found
-            #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
-
-            if not name:
-                name = read_name_manually(matrix, config, msg=name)
-                more_infos[ID] = name
-                # Keep track of manually entered information (will be useful
-                # if `scan.py` has to be run again later !)
-                with open(CFG_PATH, 'a', newline='') as csvfile:
-                    writerow = csv.writer(csvfile).writerow
-                    writerow([str(ID), name])
-
-
-
-            # (c) A name must not appear twice
-            #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
-
-            while name in index:
-                print(f"Test #{index[name]}: {name}")
-                print(f'Test #{ID}: {name}')
-                msg = f'Error : 2 tests for same student ({name}) !\n' \
-                      "Please modify at least one name (enter nothing to keep a name)."
-                # Remove twin name from index, and get the corresponding previous test ID.
-                ID0 = index.pop(name)
-                # Ask for a new name.
-                name0 = read_name_manually(data[ID0]['pages'][1]['pic_path'], config, msg, default=name)
-                # Update all infos.
-                index[name0] = ID0
-                more_infos[ID0] = name0
-                data[ID0]['name'] = name0
-                # Ask for a new name for new test too.
-                name = read_name_manually(pic_path, config, default=name)
-                # Update infos
-                more_infos[ID] = name
-
-            assert name, 'Name should not be left empty at this stage !'
-            index[name] = ID
-            d['name'] = name
+            extract_name(ID, d, data, pic_path, pic_data, CFG_PATH, args, matrix, config, more_infos, name2sheetID)
             
         # Store work in progress, so we can resume process if something fails...
         with open(PICKLE_PATH, 'wb') as f:
@@ -557,50 +578,7 @@ def scan(parser=parser):
     # 'some', then student has only to check a subset of correct propositions
     # for his answer to be considered correct.
 
-    default_mode = config['mode']['default']
-    default_correct = config['correct']['default']
-    default_incorrect = config['incorrect']['default']
-    default_skipped = config['skipped']['default']
-
-    # Maximal score = (number of questions)x(score when answer is correct)
-    MAX_SCORE = 0
-    for q in config['correct_answers']:
-        if config['mode'].get(q, default_mode) != 'skip':
-            MAX_SCORE += int(config['correct'].get(q, default_correct))
-    config['max_score'] = MAX_SCORE
-
-    for ID in data:
-        print(f'Test {ID} - {data[ID]["name"]}')
-        d = data[ID]
-        for q in sorted(d['answered']):
-            answered = set(d['answered'][q])
-            correct_ones = set(config['correct_answers'][q])
-            mode = config['mode'].get(q, default_mode)
-
-            if mode == 'all':
-                ok = (answered == correct_ones)
-            elif mode == 'some':
-                # Answer is valid if and only if :
-                # (proposed ≠ ∅ and proposed ⊆ correct) or (proposed = correct = ∅)
-                ok = ((answered and answered.issubset(correct_ones))
-                       or (not answered and not correct_ones))
-            elif mode == 'skip':
-                print(f'Question {q} skipped...')
-                continue
-            else:
-                raise RuntimeError('Invalid mode (%s) !' % mode)
-            if ok:
-                earn = float(config['correct'].get(q, default_correct))
-                color = ANSI_GREEN
-            elif not answered:
-                earn = float(config['skipped'].get(q, default_skipped))
-                color = ANSI_YELLOW
-            else:
-                earn = float(config['incorrect'].get(q, default_incorrect))
-                color = ANSI_RED
-            print(f'-  {color}Rating (Q{q}): {color}{earn:g}{ANSI_RESET}')
-            d['score'] += earn
-            d['score_per_question'][q] = earn
+    MAX_SCORE = calculate_scores(data, config)
     print()
 
     # ---------------------------------------------------
@@ -619,6 +597,7 @@ def scan(parser=parser):
     print(f'{ANSI_CYAN}SCORES (/{MAX_SCORE:g}):{ANSI_RESET}')
     with open(scores_path, 'w', newline='') as csvfile:
         writerow = csv.writer(csvfile).writerow
+        writerow(('Name', 'Score'))
         for name in sorted(scores):
             print(f' - {name}: {scores[name]:g}')
             writerow([name, scores[name]])
@@ -631,17 +610,17 @@ def scan(parser=parser):
 
 
     # Generate CSV file with ID and pictures names for all students.
-    info_path = join(SCAN_DIR, 'info.csv')
-    info = [(d['name'], ID, d['score'], [d['pages'][p]['pic_path'] for p in d['pages']])
+    info_path = join(SCAN_DIR, 'infos.csv')
+    info = [(d['name'], d['student ID'], ID, d['score'], [d['pages'][p]['pic_path'] for p in d['pages']])
                                                   for ID, d in data.items()]
     print(f'{ANSI_CYAN}SCORES (/{MAX_SCORE:g}):{ANSI_RESET}')
     with open(info_path, 'w', newline='') as csvfile:
         writerow = csv.writer(csvfile).writerow
-        writerow(('Name', 'Test ID', 'Score', 'Pictures'))
-        for name, ID, score, paths in sorted(info):
+        writerow(('Name', 'Student ID', 'Test ID', 'Score', 'Pictures'))
+        for name, student_ID, ID, score, paths in sorted(info):
             paths = ', '.join(pth.replace(SCAN_DIR, '', 1) for pth in paths)
-            writerow([name, f'#{ID}', score, paths])
-    print(f"\Infos stored in {info_path!r}\n")
+            writerow([name, student_ID, f'#{ID}', score, paths])
+    print(f"Infos stored in {info_path!r}\n")
 
     amend_all(data, config, save_dir=PDF_DIR)
 
@@ -664,16 +643,8 @@ def scan(parser=parser):
                                 formats=['pdf'],
                                 quiet=True,
                                 )
-        join_files(scores_pdf_path, pdf_paths, remove_all=True, compress=True)
+        join_files(SCORES_PDF_PATH, pdf_paths, remove_all=True, compress=True)
 
-    # Generate an hidden CSV file for printing or mailing results later.
-    with open(data_path, 'w', newline='') as csvfile:
-        writerow = csv.writer(csvfile).writerow
-        writerow(('Test ID', 'Name', 'Score'))
-        for ID, d in data.items():
-            #~ (identifier, answers, name, score, students, ids)
-            writerow([ID, d['name'], d['score']])
-    print("Data file generated for printing or mailing later.")
 
 
 
