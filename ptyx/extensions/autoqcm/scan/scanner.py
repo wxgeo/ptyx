@@ -118,7 +118,12 @@ class MCQPictureParser:
             if name:
                 break
         process.terminate()
-        self.more_infos[ID] = (name, student_ID)
+        # Keep track of manually entered information (will be useful
+        # if `scan.py` has to be run again later !)
+#        self.more_infos[ID] = (name, student_ID)
+        with open(self.files['cfg'], 'a', newline='') as csvfile:
+            writerow = csv.writer(csvfile).writerow
+            writerow([str(ID), name, student_ID])
         return name, student_ID
 
 
@@ -229,11 +234,6 @@ class MCQPictureParser:
 
         if not name:
             name = self._read_name_manually(matrix, ID)[0]
-            # Keep track of manually entered information (will be useful
-            # if `scan.py` has to be run again later !)
-            with open(self.files['cfg'], 'a', newline='') as csvfile:
-                writerow = csv.writer(csvfile).writerow
-                writerow([str(ID), name])
 
         # (c) A name must not appear twice
         #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
@@ -246,7 +246,7 @@ class MCQPictureParser:
             ID0 = self.name2sheetID.pop(name)
             # Ask for a new name.
             pic_path0 = self.data[ID0]['pages'][1]['pic_path']
-            name0, student_ID0 = self._read_name_manually(pic_path0, ID, default=name)
+            name0, student_ID0 = self._read_name_manually(pic_path0, ID0, default=name)
             # Update all infos.
             self.name2sheetID[name0] = ID0
             self.data[ID0]['name'] = name0
