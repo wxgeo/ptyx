@@ -15,17 +15,17 @@ from ..parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM,
                         CALIBRATION_SQUARE_POSITION, CALIBRATION_SQUARE_SIZE
                         )
 
-ANSI_RESET = "\u001B[0m";
-ANSI_BLACK = "\u001B[30m";
-ANSI_RED = "\u001B[31m";
-ANSI_GREEN = "\u001B[32m";
-ANSI_YELLOW = "\u001B[33m";
-ANSI_BLUE = "\u001B[34m";
-ANSI_PURPLE = "\u001B[35m";
-ANSI_CYAN = "\u001B[1;36m";
-ANSI_WHITE = "\u001B[37m";
-ANSI_BOLD = "\u001B[1m";
-ANSI_REVERSE = "\u001B[45m";
+ANSI_RESET = "\u001B[0m"
+ANSI_BLACK = "\u001B[30m"
+ANSI_RED = "\u001B[31m"
+ANSI_GREEN = "\u001B[32m"
+ANSI_YELLOW = "\u001B[33m"
+ANSI_BLUE = "\u001B[34m"
+ANSI_PURPLE = "\u001B[35m"
+ANSI_CYAN = "\u001B[1;36m"
+ANSI_WHITE = "\u001B[37m"
+ANSI_BOLD = "\u001B[1m"
+ANSI_REVERSE = "\u001B[45m"
 
 CORNERS = frozenset(('tl', 'tr', 'bl', 'br'))
 CORNER_NAMES = {'tl': 'top-left', 'tr': 'top-right', 'bl': 'bottom-left',
@@ -36,8 +36,7 @@ CORNER_NAMES = {'tl': 'top-left', 'tr': 'top-right', 'bl': 'bottom-left',
 # Black - Gray - Light gray - White - Light gray - Gray - Black
 
 class CalibrationError(RuntimeError):
-    "Error if calibration failed."
-    pass
+    "Error raised if calibration failed."
 
 
 def round(f, n=None):
@@ -275,7 +274,7 @@ def detect_four_squares(m, square_size, cm, max_alignment_error_cm=.4, debug=Fal
     if len(positions) <= 2:
         color2debug(m)
         raise CalibrationError('Only 2 squares found, calibration failed !')
-        
+
     if len(positions) == 4:
         # If there are 4 squares, and one is less dark than the others,
         # let's drop it and use only the 3 darkers.
@@ -516,7 +515,7 @@ def calibrate(pic, m, debug=False):
 
 
     print(positions)
-    for c, (i, j) in positions.items():
+    for (i, j) in positions.values():
         color2debug(m, (i, j), (i + CALIBRATION_SQUARE_SIZE,
                                 j + CALIBRATION_SQUARE_SIZE), display=False)
     color2debug(m, (i3, j3), (i3 + square_size, j3 + square_size), display=False)
@@ -881,14 +880,14 @@ def scan_picture(filename, config, manual_verification=None,
     displayed_questions_numbers = {}
     pic_data = {
             # ID of the test:
-            'ID': test_ID, # int 
+            'ID': test_ID, # int
             # page number:
             'page': page, # int
             'name': student_name, # str
             'student ID': student_ID, #str
             'pic_path': filename, # str
             # answers checked by the student for each question:
-            'answered': answered, # dict[int, set[int]] 
+            'answered': answered, # dict[int, set[int]]
             # Position of each checkbox in the page:
             'positions': positions, # dict[tuple[int, int], tuple[int, int]]
             'cell_size': cell_size, # int
@@ -993,7 +992,7 @@ def scan_picture(filename, config, manual_verification=None,
     # Add 0.03 to 1.5*mean, in case mean is almost 0.
     ceil = 1.5*sum(blackness.values())/len(blackness) + 0.02
     core_ceil = 1.2*sum(core_blackness.values())/len(core_blackness) + 0.01
-    for (q, a) in blackness:
+    for (q, a) in blackness: # pylint: disable=dict-iter-missing-items
         if a not in answered[q] and (blackness[(q, a)] > ceil
                                   or core_blackness[(q, a)] > core_ceil):
             print('False negative detected', (q, a))
@@ -1008,7 +1007,7 @@ def scan_picture(filename, config, manual_verification=None,
     # it is very probably a false positive.
     floor = max(.2*max(blackness.values()), max(blackness.values()) - 0.3)
     core_floor = max(.2*max(core_blackness.values()), max(core_blackness.values()) - 0.3)
-    for (q, a) in blackness:
+    for (q, a) in blackness: # pylint: disable=dict-iter-missing-items
         if a in answered[q] and (blackness[(q, a)] < floor
                                 or core_blackness[(q, a)] < core_floor):
             print('False positive detected', (q, a))
@@ -1032,7 +1031,7 @@ def scan_picture(filename, config, manual_verification=None,
         color2debug()
 
     pic_data['verified'] = manual_verification
-    # Keep matrix separate from other output data, as it is often not wanted 
+    # Keep matrix separate from other output data, as it is often not wanted
     # when debugging.
     return pic_data, m
 

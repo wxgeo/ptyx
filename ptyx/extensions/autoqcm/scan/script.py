@@ -29,7 +29,7 @@
 #script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 #sys.path.insert(0, join(script_path, '../..'))
 
-from .args import parser
+from .args import create_parser
 from .scanner import MCQPictureParser
 
 
@@ -42,7 +42,7 @@ from .scanner import MCQPictureParser
 ########################################################################
 
 
-def scan(parser=parser):
+def scan():
     """Main procedure : mark the examination papers.
 
     Usually, one will call script `bin/scan` from command line,
@@ -50,5 +50,5 @@ def scan(parser=parser):
     `parser` must be the `ArgumentParser` instance defined in the same file,
     but may be tuned for testing before passing it to `scan()`.
     """
-    args = parser.parse_args()
-    MCQPictureParser().parse(args)
+    args = create_parser().parse_args()
+    MCQPictureParser(args).run()

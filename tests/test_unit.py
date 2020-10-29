@@ -103,7 +103,7 @@ def test_latex_code_generator():
     assert latex == '2some text here ok'
 
 def test_CALC():
-    test = "$#CALC{\dfrac{2}{3}+1}=#RESULT$ et $#CALC[a]{\dfrac{2}{3}-1}=#a$"
+    test = r"$#CALC{\dfrac{2}{3}+1}=#RESULT$ et $#CALC[a]{\dfrac{2}{3}-1}=#a$"
     c = Compiler()
     latex = c.parse(test)
     assert latex == r'$\dfrac{2}{3}+1=\frac{5}{3}$ et $\dfrac{2}{3}-1=- \frac{1}{3}$'
@@ -131,10 +131,10 @@ def test_SEED_SHUFFLE():
 
 \\begin{enumerate}
 #SHUFFLE
-#ITEM \item W. Shakespeare
-#ITEM \item R. Wallace
-#ITEM \item C. Doyle
-#ITEM \item R. Bradsbury
+#ITEM \\item W. Shakespeare
+#ITEM \\item R. Wallace
+#ITEM \\item C. Doyle
+#ITEM \\item R. Bradsbury
 #END
 \\end{enumerate}
 

@@ -48,7 +48,7 @@ def wxgeometrie_needed(f):
 
 
 
-class Node(object):
+class Node:
     """A node.
 
     name is the tag name, or the argument number."""
@@ -82,8 +82,9 @@ class Node(object):
             raise ValueError(f'Incorrect argument number for node {child!r}.')
         children_number = len(child.children)
         if children_number > 1:
-            raise ValueError("Don't use pTyX code inside %s argument number %s." % (self.name, i + 1))
-        elif children_number == 0:
+            raise ValueError("Don't use pTyX code inside %s argument number %s."
+                             % (self.name, i + 1))
+        if children_number == 0:
             if self.name == 'EVAL':
                 # EVAL isn't a real tag name: if a variable `#myvar` is found
                 # somewhere, it is parsed as an `#EVAL` tag with `myvar` as argument.
@@ -111,12 +112,13 @@ class Node(object):
                 texts.append('%s  - text: %s' % (indent*' ', text))
         return '\n'.join(texts)
 
-    def _format(self, val, color):
+    @staticmethod
+    def _format(val, color):
         if not color:
             return str(val)
         if isinstance(val, str):
             return term_color(val, 'yellow')
-        elif isinstance(val, int):
+        if isinstance(val, int):
             return term_color(str(val), 'blue')
         return val
 
@@ -218,7 +220,8 @@ class SyntaxTreeGenerator:
         self.update_tags()
 
 
-    def only_closing(self, tag):
+    @staticmethod
+    def only_closing(tag):
         "Return `True` if tag is only a closing tag, `False` else."
         return tag == 'END' or tag.startswith('END_')
 
@@ -495,17 +498,6 @@ class SyntaxTreeGenerator:
 
 
 
-
-# XXX: Currently, ptyx files are opened as string, not as unicode.
-# Pro:
-# - Ptyx doesn't have to be encoding aware (no need to specify encoding before proceeding).
-# Contra:
-# - Python variables defined in a ptyx file must not contain unicode context.
-# - This will break in Python 3+.
-# TODO: Use unicode instead. Autodetect encoding on Linux (`file --mime-encoding FILENAME`).
-
-
-
 class LatexGenerator:
     """Convert text containing ptyx tags to plain LaTeX."""
 
@@ -603,10 +595,9 @@ class LatexGenerator:
                 # Nodes are either numbered, or have a name.
                 # Numbered nodes correspond to command arguments. Those should
                 # have been processed before, and not be passed to _parse_children().
-                assert isinstance(child.name, str), (f'Argument {child.name!r}'
-                                         f" should have been"
-                                         " processed and removed"
-                                         " before calling _parse_children() !")
+                assert isinstance(child.name, str), \
+                       (f"Argument {child.name!r} should have been processed "
+                        "and removed before calling _parse_children() !")
 
                 self.parse_node(child)
 
@@ -620,7 +611,8 @@ class LatexGenerator:
             self.write(code)
 
 
-    def _parse_options(self, node):
+    @staticmethod
+    def _parse_options(node):
         'Parse a tag options, following the syntax {key1=val1,...}.'
         options = node.options
         args = []
@@ -675,7 +667,8 @@ class LatexGenerator:
         if v(__version__) < version:
             print("Warning: pTyX engine is too old (v%s required)." % version)
         if version < v(__api__):
-            print("Warning: pTyX file uses an old API. You may have to update your pTyX file code before compiling it.")
+            print("Warning: pTyX file uses an old API. You may have to update "
+                  "your pTyX file code before compiling it.")
         #TODO: display a short list of API changes which broke compatibility.
         self.context['API_VERSION'] = version
 
@@ -685,7 +678,7 @@ class LatexGenerator:
     def _parse_ASK_ONLY_tag(self, node):
         if not self.context.get('WITH_ANSWERS'):
             self._parse_children(node.children,
-                    function=self.context.get('format_ask_only'))
+                                 function=self.context.get('format_ask_only'))
         else:
             print('Skipping ASK_ONLY section...')
 
@@ -766,13 +759,17 @@ class LatexGenerator:
         assert len(args) <= 1 and len(kw) == 0
         name = (args[0] if args else 'RESULT')
         from wxgeometrie.mathlib.parsers import traduire_formule
-        fonctions = [key for key, val in self.context.items() if isinstance(val, (type(sympy.sqrt), type(sympy.cos)))]
+        fonctions = [key for key, val in self.context.items()
+                     if isinstance(val, (type(sympy.sqrt), type(sympy.cos)))]
+
         def eval_and_store(txt, name):
             formule = traduire_formule(txt, fonctions=fonctions)
             print('Formule interpretation:', txt, ' → ', formule)
             self.context[name] = self._eval_python_expr(formule)
             return txt
-        self._parse_children(node.children[0].children, function=eval_and_store, name=name)
+
+        self._parse_children(node.children[0].children, function=eval_and_store,
+                             name=name)
 
     def _parse_ASSERT_tag(self, node):
         code = node.arg(0)
@@ -829,7 +826,8 @@ class LatexGenerator:
         # This tag does nothing by itself, but is used by some extensions.
         self._parse_children(node.children)
 
-    def _child_index(self, children, name):
+    @staticmethod
+    def _child_index(children, name):
         """Return the index of the first child of name `name` in `children` list.
 
         Argument `name` must be a `Node` name.
@@ -839,8 +837,7 @@ class LatexGenerator:
         for i, child in enumerate(children):
             if isinstance(child, Node) and child.name == name:
                 return i
-        else:
-            raise ValueError(f'No {name} Node found.')
+        raise ValueError(f'No {name} Node found.')
 
     def _shuffle_and_parse_children(self, node, children=None, target='ITEM', **kw):
         # Shuffles all the #ITEM sections inside a #SHUFFLE block.
@@ -1012,7 +1009,8 @@ class LatexGenerator:
 
     def _parse_ADD_tag(self, node):
         # a '+' will be displayed at the beginning of the next result if positive ;
-        # if result is negative, nothing will be done, and if null, no result at all will be displayed.
+        # if result is negative, nothing will be done, and if null,
+        # no result at all will be displayed.
         self.flags['+'] = True
 
     def _parse_SUB_tag(self, node):
@@ -1083,7 +1081,8 @@ class LatexGenerator:
                     print(e)
 
 
-    def _exec(self, code, context):
+    @staticmethod
+    def _exec(code, context):
         """exec is encapsulated in this function so as to avoid problems
         with free variables in nested functions."""
         try:
@@ -1135,7 +1134,7 @@ class LatexGenerator:
             code += " else ''"
         if sympy_code:
             try:
-                result = sympy.sympify(code, locals = context)
+                result = sympy.sympify(code, locals=context)
                 if isinstance(result, str):
                     result = result.replace('**', '^')
             except (SympifyError, AttributeError):
@@ -1150,7 +1149,7 @@ class LatexGenerator:
                 raise
         if not sympy_code:
             result = eval(code, context)
-        result = context['_']  = self._apply_flag(result)
+        result = context['_'] = self._apply_flag(result)
         i = varname.find('[')
         # for example, varname == 'mylist[i]' or 'mylist[2]'
         context['LAST'] = result
@@ -1228,8 +1227,10 @@ class LatexGenerator:
     def _apply_flag(self, result):
         '''Apply special parameters like [num], [rand], [floats] or [round] to result.
 
-        Note that [num] and [rand] parameters require that result is iterable, otherwise, nothing occures.
-        If result is iterable, an element of result is returned, choosed according to current flag.'''
+        Note that [num] and [rand] parameters require that result is iterable,
+        otherwise, nothing occures.
+        If result is iterable, an element of result is returned, choosed according
+        to current flag.'''
         flags = self.flags
         context = self.context
         if  hasattr(result, '__iter__'):
@@ -1293,7 +1294,7 @@ class Compiler(object):
     def read_file(self, path):
         "Set the path of the file to be compiled."
         self.state['path'] = path
-        with open(path, 'rU') as input_file:
+        with open(path, 'r') as input_file:
             raw_text = self.state['raw_text'] = input_file.read()
         return raw_text
 
@@ -1320,7 +1321,7 @@ class Compiler(object):
         for name in names:
             try:
                 extensions[name] = import_module(f'ptyx.extensions.{name}')
-            except ImportError as e:
+            except ImportError:
                 traceback.print_exc()
                 raise ImportError(f'Extension {name} not found.')
             # execute `main()` function of extension.
@@ -1397,7 +1398,7 @@ class Compiler(object):
         return self.latex
 
     def close(self):
-        for name, module in self.state['extensions_loaded'].items():
+        for module in self.state['extensions_loaded'].values():
             if hasattr(module, 'close'):
                 module.close(self)
 
