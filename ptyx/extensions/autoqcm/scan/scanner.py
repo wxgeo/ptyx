@@ -31,8 +31,11 @@ from shutil import rmtree
 import subprocess
 import csv
 import sys
-import pickle
+from ast import literal_eval
+from glob import glob
 
+from PIL import Image
+from numpy import int8, array
 ## File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
 #script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 #sys.path.insert(0, join(script_path, '../..'))
@@ -40,8 +43,7 @@ import pickle
 from ..compile.header import answers_and_score
 from ..tools.config_parser import load
 from .scan_pic import (scan_picture, ANSI_YELLOW, ANSI_RESET, ANSI_CYAN,
-                      ANSI_GREEN, ANSI_RED, color2debug, CalibrationError,
-                      store_as_WEBP, load_as_matrix)
+                       ANSI_GREEN, ANSI_RED, color2debug, CalibrationError)
 from .amend import amend_all
 from .pdftools import extract_pictures_from_pdf, PIC_EXTS
 from .tools import search_by_extension, print_framed_msg
@@ -79,12 +81,32 @@ class MCQPictureParser:
         self.already_seen = set()
         self.skipped = set()
 
+    def load_data(self):
+        if isdir(self.dirs['data']):
+            for filename in glob(join(self.dirs['data'], '*.scandata')):
+                ID = int(basename(filename).split('.')[0])
+                with open(filename) as f:
+                    self.data[ID] = literal_eval(f.read())
 
-    def _read_name_manually(self, matrix_or_path, ID, default=None):
-        if isinstance(matrix_or_path, str):
-            matrix = load_as_matrix(matrix_or_path)
-        else:
-            matrix = matrix_or_path
+    def store_data(self, ID, p, matrix):
+        directory = self.dirs['data']
+        with open(join(directory, f'{ID}.scandata'), 'w') as f:
+            f.write(repr(self.data[ID]))
+        # We will store a compressed version of the matrix.
+        # (It would consume too much memory else).
+        webp = join(directory, f'{ID}-{p}.webp')
+        Image.fromarray((255*matrix).astype(int8)).save(webp, format="WEBP")
+
+    def get_pic(self, ID, p, as_matrix=False):
+        webp = join(self.dirs['data'], f'{ID}-{p}.webp')
+        im = Image.open(webp)
+        if as_matrix:
+            return array(im.convert("L"))/255
+        return im
+
+    def _read_name_manually(self, ID, matrix=None, p=None, default=None):
+        if matrix is None:
+            matrix = self.get_pic(ID, p, as_matrix=True)
         student_ids = self.config['ids']
         student_ID = ''
         print('Name can not be read automatically.')
@@ -217,7 +239,6 @@ class MCQPictureParser:
 
     def _extract_name(self, ID, d, matrix):
         pic_data = d['pages'][1]
-        pic_path = pic_data['pic_path']
         # (a) The first page should contain the name
         #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
         # However, if the name was already set (using `more_infos`),
@@ -233,7 +254,7 @@ class MCQPictureParser:
         #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
 
         if not name:
-            name = self._read_name_manually(matrix, ID)[0]
+            name = self._read_name_manually(ID, matrix)[0]
 
         # (c) A name must not appear twice
         #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
@@ -245,14 +266,13 @@ class MCQPictureParser:
             # Remove twin name from name2sheetID, and get the corresponding previous test ID.
             ID0 = self.name2sheetID.pop(name)
             # Ask for a new name.
-            pic_path0 = self.data[ID0]['pages'][1]['pic_path']
-            name0, student_ID0 = self._read_name_manually(pic_path0, ID0, default=name)
+            name0, student_ID0 = self._read_name_manually(ID0, p=1, default=name)
             # Update all infos.
             self.name2sheetID[name0] = ID0
             self.data[ID0]['name'] = name0
             self.data[ID0]['student ID'] = student_ID0
             # Ask for a new name for new test too.
-            name = self._read_name_manually(pic_path, ID, default=name)[0]
+            name = self._read_name_manually(ID, matrix, default=name)[0]
 
         assert name, 'Name should not be left empty at this stage !'
         self.name2sheetID[name] = ID
@@ -309,12 +329,12 @@ class MCQPictureParser:
 
 
     def _generate_outcome(self):
-        MAX_SCORE = self.config["max_score"]
+        max_score = self.config["max_score"]
         # Generate CSV file with results.
         scores = {d['name']: d['score'] for d in self.data.values()}
         #~ print(scores)
         scores_path = join(self.dirs['scan'], 'scores.csv')
-        print(f'{ANSI_CYAN}SCORES (/{MAX_SCORE:g}):{ANSI_RESET}')
+        print(f'{ANSI_CYAN}SCORES (/{max_score:g}):{ANSI_RESET}')
         with open(scores_path, 'w', newline='') as csvfile:
             writerow = csv.writer(csvfile).writerow
             writerow(('Name', 'Score'))
@@ -323,7 +343,7 @@ class MCQPictureParser:
                 writerow([name, scores[name]])
         if scores.values():
             mean = round(sum(scores.values())/len(scores.values()), 2)
-            print(f'{ANSI_YELLOW}Mean: {mean:g}/{MAX_SCORE:g}{ANSI_RESET}')
+            print(f'{ANSI_YELLOW}Mean: {mean:g}/{max_score:g}{ANSI_RESET}')
         else:
             print('No score found !')
         print(f"\nResults stored in {scores_path!r}\n")
@@ -334,7 +354,7 @@ class MCQPictureParser:
         info = [(d['name'], d['student ID'], ID, d['score'],
                  [d['pages'][p]['pic_path'] for p in d['pages']])
                                             for ID, d in self.data.items()]
-        print(f'{ANSI_CYAN}SCORES (/{MAX_SCORE:g}):{ANSI_RESET}')
+        print(f'{ANSI_CYAN}SCORES (/{max_score:g}):{ANSI_RESET}')
         with open(info_path, 'w', newline='') as csvfile:
             writerow = csv.writer(csvfile).writerow
             writerow(('Name', 'Student ID', 'Test ID', 'Score', 'Pictures'))
@@ -343,7 +363,7 @@ class MCQPictureParser:
                 writerow([name, student_ID, f'#{ID}', score, paths])
         print(f"Infos stored in {info_path!r}\n")
 
-        amend_all(self.data, self.config, save_dir=self.dirs['pdf'])
+        amend_all(self)
 
         if self.args.correction:
             from ....compilation import make_file, join_files
@@ -358,7 +378,7 @@ class MCQPictureParser:
                 print('Generating pdf file for student %s (subject %s, score %s)...'
                                                         % (name, ID, score))
                 latex = answers_and_score(self.config, name, ID,
-                                (score if not self.args.hide_scores else None), MAX_SCORE)
+                                (score if not self.args.hide_scores else None), max_score)
                 make_file(path, plain_latex=latex,
                                     remove=True,
                                     formats=['pdf'],
@@ -393,8 +413,9 @@ class MCQPictureParser:
         # .scan/cfg/verified.csv -> pages already verified.
         # .scan/cfg/skipped.csv -> pages to skip.
         # .scan/scores.csv
-        # .scan/.tmp_datafile
+        # .scan/data -> data stored as .scandata files (used to resume interrupted scan).
         self.dirs['scan'] = join(self.args.dir or self.dirs['root'], '.scan')
+        self.dirs['data'] = join(self.dirs['scan'], 'data')
         self.dirs['cfg'] = join(self.dirs['scan'], 'cfg')
         self.dirs['pic'] = join(self.dirs['scan'], 'pic')
         self.dirs['pdf'] = join(self.dirs['scan'], 'pdf')
@@ -403,7 +424,6 @@ class MCQPictureParser:
             rmtree(self.dirs['scan'])
 
         for directory in self.dirs.values():
-            print(directory)
             if not isdir(directory):
                 mkdir(directory)
 
@@ -411,12 +431,9 @@ class MCQPictureParser:
         self.dirs['results'] = join(self.dirs['pdf'], '%s-results' % self.files['base'])
 
 
-    def _load_info(self):
-        self.files['tmp_data'] = join(self.dirs['scan'], '.tmp_datafile')
-        if isfile(self.files['tmp_data']):
-            with open(self.files['tmp_data'], 'rb') as f:
-                self.data.update(pickle.load(f))
-
+    def load_all_info(self):
+        "Load all informations from files."
+        self.load_data()
 
         # Read manually entered informations (if any).
         self.files['cfg'] = join(self.dirs['cfg'], 'more_infos.csv')
@@ -458,7 +475,7 @@ class MCQPictureParser:
 
 
 
-    def _parse_picture(self):
+    def parse_picture(self):
         args = self.args
         if not any(args.picture.endswith(ext) for ext in PIC_EXTS):
             raise TypeError('Allowed picture extensions: ' + ', '.join(PIC_EXTS))
@@ -487,13 +504,13 @@ class MCQPictureParser:
             # f9-pic-004.jpg
             # f9-pic-005.jpg
             # f13-pic-002.jpg
-            self._parse_picture()
+            self.parse_picture()
 
         # This is the usual case: tests are stored in only one big pdf file ;
         # we will process all these pdf pages.
 
         data = self.data
-        self._load_info()
+        self.load_all_info()
 
         # Dict `data` will collect data from all scanned tests.
         #...............................................................
@@ -541,9 +558,6 @@ class MCQPictureParser:
                 # `pic_data` FORMAT is specified in `scan_pic.py`.
                 # (Search for `pic_data =` in `scan_pic.py`).
 
-                # We will store a compressed version of the matrix.
-                # (It would consume too much memory else).
-                pic_data['webp'] = store_as_WEBP(matrix)
             except CalibrationError:
                 print(f'WARNING: {pic_path} seems invalid ! Skipping...')
                 input('-- PAUSE --')
@@ -586,8 +600,8 @@ class MCQPictureParser:
                 self._extract_name(ID, d, matrix)
 
             # Store work in progress, so we can resume process if something fails...
-            with open(self.files['tmp_data'], 'wb') as f:
-                pickle.dump(data, f)
+            self.store_data(ID, p, matrix)
+
 
         # ---------------------------
         # Test integrity

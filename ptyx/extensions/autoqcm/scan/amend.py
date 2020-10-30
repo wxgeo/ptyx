@@ -6,7 +6,7 @@ Created on Thu Aug 29 14:49:37 2019
 @author: nicolas
 """
 from os.path import join
-from PIL import Image, ImageDraw, ImageFont
+from PIL import ImageDraw, ImageFont
 
 from .square_detection import COLORS
 
@@ -42,18 +42,19 @@ def _write_score(draw, pos, earn, size):
     draw.text((j, i), earn, font=fnt, fill=red)
 
 
-def amend_all(data, config, save_dir):
+def amend_all(pic_parser):
     """Amend answer sheet with scores and correct answers.
 
     `data` is the dict generated when the answer sheet is scanned.
     `ID` is the ID of answer sheet.
     """
-    for ID, d in data.items():
+    max_score = pic_parser.config['max_score']
+    for ID, d in pic_parser.data.items():
         pics = {}
         for page, page_data in d['pages'].items():
             top_left_positions = {}
             # Convert to RGB picture.
-            pic = Image.open(page_data['webp']).convert('RGB')
+            pic = pic_parser.get_pic(ID, page).convert('RGB')
             if not page_data['positions']:
                 # The last page of the MCQ may be empty.
                 # `float('+inf')` is used to ensure
@@ -65,7 +66,7 @@ def amend_all(data, config, save_dir):
             size = page_data['cell_size']
             for (q, a), pos in page_data['positions'].items():
                 checked = (a in page_data['answered'][q])
-                correct = (a in config['correct_answers'][q])
+                correct = (a in pic_parser.config['correct_answers'][q])
                 _correct_checkboxes(draw, pos, checked, correct, size)
                 if q in top_left_positions:
                     i0, j0 = top_left_positions[q]
@@ -87,7 +88,7 @@ def amend_all(data, config, save_dir):
             # Sort pages now.
         _, pages = zip(*sorted(pics.items()))
         draw = ImageDraw.Draw(pages[0])
-        _write_score(draw, (2*size, 4*size), f"{d['score']:g}/{config['max_score']:g}", 2*size)
-        pages[0].save(join(save_dir, f"{d['name']}-{ID}.pdf"), save_all=True,
-                 append_images=pages[1:])
+        _write_score(draw, (2*size, 4*size), f"{d['score']:g}/{max_score:g}", 2*size)
+        pages[0].save(join(pic_parser.dirs['pdf'], f"{d['name']}-{ID}.pdf"),
+                      save_all=True, append_images=pages[1:])
 

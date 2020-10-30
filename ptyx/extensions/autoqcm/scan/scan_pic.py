@@ -1,10 +1,9 @@
 from math import degrees, atan, hypot
 import builtins
 from functools import partial
-import io
 
 from PIL import Image
-from numpy import array, flipud, fliplr, dot, amin, amax, zeros, int8#, percentile, clip
+from numpy import array, flipud, fliplr, dot, amin, amax, zeros#, percentile, clip
 
 
 from .square_detection import test_square_color, find_black_square, \
@@ -47,17 +46,19 @@ def round(f, n=None):
     return (int(builtins.round(f)) if n is None else builtins.round(f, n))
 
 
-def store_as_WEBP(m):
-    "Convert matrix to WEBP image, for compression."
-    output = io.BytesIO()
-    im = Image.fromarray((255*m).astype(int8))
-    im.save(output, format="WEBP")
-    return output
-
-def load_WEBP(path):
-    "Retrieve matrix from WEBP image."
-    im = Image.open(path)
-    return array(im)/255
+#def store_as_WEBP(m):
+#    "Convert matrix to bytes using WEBP compression."
+#    buffer = io.BytesIO()
+#    im = Image.fromarray((255*m).astype(int8))
+#    im.save(buffer, format="WEBP")
+#    buffer.seek(0)
+#    return buffer.read()
+#
+#def load_WEBP(b):
+#    "Load WEBP image (bytes) and return corresponding matrix."
+#    buffer = io.BytesIO(b)
+#    im = Image.open(buffer)
+#    return array(im)/255
 
 def load_as_matrix(pic_path):
     return array(Image.open(pic_path).convert("L"))/255
@@ -69,7 +70,8 @@ def load_as_matrix(pic_path):
 
 def transform(pic, transformation, *args, **kw):
     "Return a transformed version of `pic` and its matrix."
-    # cf. http://stackoverflow.com/questions/5252170/specify-image-filling-color-when-rotating-in-python-with-pil-and-setting-expand
+    # cf. http://stackoverflow.com/questions/5252170/
+    #specify-image-filling-color-when-rotating-in-python-with-pil-and-setting-expand
     rgba = pic.convert('RGBA')
     rgba = getattr(rgba, transformation)(*args, **kw)
     white = Image.new('RGBA', rgba.size, (255, 255, 255, 255))
