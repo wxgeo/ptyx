@@ -16,6 +16,7 @@ let c +
 let e, f, g, h -
 let a in 3..7
 let u, v in -5..-2
+let p in 2,3,5,7,11,13,17,19
 ................................
 
 """
@@ -27,6 +28,7 @@ c, = many(1, randint)
 e, f, g, h, = many(4, randint, a=-9, b=-2)
 a, = many(1, randint, a=3, b=7)
 u, v, = many(2, randint, a=-5, b=-2)
+p, = many(1, randchoice, items=[2,3,5,7,11,13,17,19])
 #END
 
 """
