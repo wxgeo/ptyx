@@ -83,7 +83,7 @@ parser.add_argument("--reorder-pages", choices=['brochure', 'brochure-reversed']
         )
 parser.add_argument("--names", metavar='CSV_FILE',
         help="Name of a CSV file containing a column of names \
-               (and optionnaly a second column with fornames). \n \
+               (and optionally a second column with forenames). \n \
                The names will be used to generate the #NAME tag \
                replacement value.\n \
                Additionnaly, if `-n` option is not specified, \
