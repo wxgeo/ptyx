@@ -56,24 +56,13 @@ global_context['float'] = float
 global_context['int'] = int
 global_context['str'] = str
 
-global_context['randpoint'] = randfunc.randpoint
-global_context['srandpoint'] = randfunc.srandpoint
-global_context['randint'] = randfunc.randint
-global_context['randbool'] = randfunc.randbool
-global_context['randsignint'] = randfunc.srandint
-global_context['srandint'] = randfunc.srandint
-global_context['randsign'] = randfunc.randsign
-global_context['randfrac'] = randfunc.randfrac
-global_context['srandfrac'] = randfunc.srandfrac
-global_context['randfloat'] = randfunc.randfloat
-global_context['srandfloat'] = randfunc.srandfloat
-global_context['randchoice'] = randfunc.randchoice
-global_context['srandchoice'] = randfunc.srandchoice
-global_context['randpop'] = randfunc.randpop
-global_context['shuffle'] = randfunc.shuffle
-global_context['many'] = randfunc.many
-global_context['distinct'] = randfunc.distinct
-global_context['_print_state'] = randfunc._print_state
+randfuncs = ('randpoint', 'srandpoint', 'randint', 'randbool',
+             'srandint', 'randsign', 'randfrac',
+             'srandfrac', 'randfloat', 'srandfloat', 'randchoice',
+             'srandchoice', 'randmatrix', 'randpop', 'shuffle', 'many',
+             'distinct', '_print_state')
+for fname in randfuncs:
+    global_context[fname] = getattr(randfunc, fname)
 # If a document is compiled several times (to produce different versions of the same document),
 # NUM is the compilation number (starting from 0).
 global_context['NUM'] = 0

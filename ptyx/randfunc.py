@@ -1,13 +1,14 @@
 import random
 import functools
 from collections import namedtuple
-
 from math import gcd
+
+from numpy import array
 
 from ptyx.config import param, sympy
 
 if sympy is not None:
-    from sympy import S
+    from sympy import S, Matrix
 
 # Important note: all the following functions are sandboxed.
 # By this, I mean that any external call to random won't affect random state for
@@ -259,22 +260,69 @@ def randfloat(a, b, d=5, exclude=[]):
 def srandfloat(a, b, d=5, exclude=[]):
     return float(randsign())*randfloat(a, b, d, exclude)
 
+@sandboxed
+def randmatrix(size=(3, 3), rank=None, unique=False, func=srandint, **kw):
+    """Return a matrix of dimensions `size` (number of lines, number of columns).
+
+    `func` is used to build the random values, and **kw are passed to it.
+    Be carrefull with `rank`, as it may induce infinite recursion if
+    condition can't be satisfied.
+
+    Set `unique` to True if each coefficient must be unique.
+    Note that you can't specify rank then.
+    """
+    if rank is None:
+        m, n = size
+        return Matrix(m, n, many(m*n, func=func, unique=unique, **kw))
+    elif unique:
+        raise NotImplementedError("You can't specify rank if you set unique=True.")
+    elif rank > min(size):
+        raise ValueError("Matrix rank can't exceed lines nor columns number.")
+    else:
+        while True:
+            matrix = [array([func(**kw) for j in range(size[1])]) for i in range(rank)]
+            if Matrix(matrix).rank() == rank:
+                break
+        while len(matrix) < size[0]:
+            matrix.append(sum(srandint()*line for line in matrix))
+    return Matrix(matrix)
+
+
 
 
 def many(n=2, func=srandint, unique=True, **kw):
     """Return several numbers at once.
 
     By default, every number is unique.
-    Note this can lead to infinite recursion if n is too large."""
+    Note this can lead to infinite recursion if n is too large and
+    `unique` is set to True (default value)."""
     l = []
     kw.setdefault('exclude', [])
+    # Make a copy of `exclude`, to not modify the given list.
+    kw['exclude'] = list(kw['exclude'])
     for i in range(n):
         val = func(**kw)
-        kw['exclude'].append(val)
+        if unique:
+            kw['exclude'].append(val)
         l.append(val)
     return l
 
 
 def distinct(*vals):
-    return len(set(vals)) == len(vals)
+    """Test that all values are distincts.
+
+    Values must be either immutables or convertible to tuples."""
+    try:
+        return len(set(vals)) == len(vals)
+    except TypeError:
+        hashable_vals = set()
+        for val in vals:
+            try:
+                hashable_vals.add(val)
+            except TypeError:
+                try:
+                    hashable_vals.add(tuple(val))
+                except TypeError:
+                    raise ValueError(f"Unsupported type {type(val)} for {val!r}")
+        return len(set(hashable_vals)) == len(vals)
 
