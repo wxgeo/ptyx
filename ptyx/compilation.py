@@ -220,8 +220,13 @@ def _compile_latex_file(filename, dest=None, quiet=False):
         log = execute(command)
 
     # Return the number of pages of the pdf generated.
+    i = log.find('Output written on ')
+    if i == -1:
+        return None
     pattern = r'Output written on .+ \(([0-9]+) pages, [0-9]+ bytes\)\.'
-    m = re.search(pattern, log, flags=re.DOTALL)
+    # Line breaks may occur anywhere in the log after the file path,
+    # so using re.DOTALL flag is not enough, we have to manually remove all `\n`.
+    m = re.search(pattern, log[i:].replace('\n', ''))
     return (int(m.group(1)) if m is not None else None)
 
 
