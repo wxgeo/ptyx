@@ -1075,7 +1075,7 @@ class LatexGenerator:
                 break
             else:
                 try:
-                    exec(command)
+                    exec(command, self.context)
                 except Exception as e:
                     print('*** ERROR ***')
                     print(e)
