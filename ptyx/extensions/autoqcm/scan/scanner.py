@@ -49,6 +49,7 @@ from .pdftools import extract_pictures_from_pdf, PIC_EXTS
 from .tools import search_by_extension, print_framed_msg
 
 
+
 def pic_names_iterator(data):
     "Iterate over all pics found in data (ie. all the pictures already analysed)."
     for d in data.values():
@@ -86,7 +87,20 @@ class MCQPictureParser:
             for filename in glob(join(self.dirs['data'], '*.scandata')):
                 ID = int(basename(filename).split('.')[0])
                 with open(filename) as f:
-                    self.data[ID] = literal_eval(f.read())
+                    try:
+                        self.data[ID] = literal_eval(f.read())
+                    except ValueError as e:
+                        print(f"ERROR when reading {filename} :")
+                        # Temporary patch.
+                        # set() is not supported by literal_eval() until Python 3.9
+                        # XXX: remove this once Ubuntu 22.04 will be released.
+                        if sys.version_info < (3, 9):
+                            f.seek(0)
+                            s = f.read()
+                            assert 'set()' in s
+                            self.data[ID] = eval(s)
+                        else:
+                            raise e
 
     def store_data(self, ID, p, matrix):
         directory = self.dirs['data']
