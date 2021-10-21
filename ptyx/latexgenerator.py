@@ -1,50 +1,41 @@
 import re
 from functools import partial
-from os.path import dirname, basename, join #, realpath
+from os.path import dirname, basename, join
 import random
 from importlib import import_module
 import traceback
 
 from ptyx.context import global_context, SympifyError
-from ptyx.config import param, sympy, wxgeometrie
+from ptyx.config import param, sympy
 import ptyx.randfunc as randfunc
-from ptyx.utilities import (print_sympy_expr, find_closing_bracket,
-                      numbers_to_floats, _float_me_if_you_can, term_color,
-                      advanced_split,
-                      )
+from ptyx.printers import sympy2latex
+from ptyx.utilities import (find_closing_bracket, advanced_split,
+                            numbers_to_floats, _float_me_if_you_can, term_color,
+                            )
 
-#ASSERT{}
-#CASE{int}...#CASE{int}...#END
-#COMMENT...#END
-#DEBUG
-#GEO...#END
-#IF{bool}...#ELIF{bool}...#ELSE...#END
-#IFNUM{int}{...}
-#MACRO{name}
-#NEW_MACRO{name}...#END
-#PICK[option,int]{list}
-#PYTHON...#END
-#RAND[option,int]{list}
-#SEED{int}
-#SHUFFLE #ITEM...#ITEM...#END
-#SIGN
-#SYMPY...#END
-#TABSIGN[options]...#END
-#TABVAL[options]...#END
-#TABVAR[options]...#END
-#TEST{bool}{...}{...}
-#+, #-,  #*, #=, #? (special operators)
-#varname or #[option,int]varname
-## options : sympy, python, float
-## int : round
-
-
-def wxgeometrie_needed(f):
-    def g(*args, **kw):
-        if not wxgeometrie:
-            raise ImportError('Library wxgeometrie not found !')
-        f(*args, **kw)
-    return g
+# =============================================================================
+# #ASSERT{}
+# #CASE{int}...#CASE{int}...#END
+# #COMMENT...#END
+# #DEBUG
+# #IF{bool}...#ELIF{bool}...#ELSE...#END
+# #IFNUM{int}{...}
+# #MACRO{name}
+# #NEW_MACRO{name}...#END
+# #PICK[option,int]{list}
+# #PYTHON...#END
+# #RAND[option,int]{list}
+# #SEED{int}
+# #SHUFFLE #ITEM...#ITEM...#END
+# #SIGN
+# #SYMPY...#END
+# #TEST{bool}{...}{...}
+# #+, #-,  #*, #=, #? (special operators)
+# #varname or #[option,int]varname
+# ## options : sympy, python, float
+# ## int : round
+#
+# =============================================================================
 
 
 
@@ -152,7 +143,6 @@ class SyntaxTreeGenerator:
             'ASK':          (0, 0, ['@END']),
             'ASK_ONLY':     (0, 0, ['@END']),
             'ASSERT':       (1, 0, None),
-            'CALC':         (1, 0, None),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
             'CASE':         (1, 0, ['CASE', 'ELSE', 'END', 'END_CASE']),
             'COMMENT':      (0, 0, ['@END']),
@@ -164,7 +154,6 @@ class SyntaxTreeGenerator:
             # ENUM indicates the start of an enumeration.
             # It does nothing by itself, but is used by some extensions.
             'ENUM':         (0, 0, ['@END']),
-            'GEO':          (0, 0, ['@END']),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
             'IF':           (1, 0, ['ELIF', 'ELSE', 'END', 'END_IF']),
             # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
@@ -174,7 +163,6 @@ class SyntaxTreeGenerator:
             'IMPORT':       (1, 0, None),
             'LOAD':         (1, 0, None),
             'FREEZE_RANDOM_STATE': (0, 0, []),
-            'GCALC':        (0, 0, ['@END']),
             'IFNUM':        (1, 1, None),
             'CALL':        (0, 1, None),
             'MACRO':    (0, 1, ['@END', '@END_MACRO']),
@@ -191,9 +179,6 @@ class SyntaxTreeGenerator:
             'ITEM':         (0, 0, ['ITEM', 'END', 'END_SHUFFLE', 'END_PICK']),
             'SIGN':         (0, 0, None),
             'SYMPY':        (0, 0, ['@END']),
-            'TABSIGN':      (0, 0, ['@END']),
-            'TABVAL':       (0, 0, ['@END']),
-            'TABVAR':       (0, 0, ['@END']),
             'TEST':         (1, 2, None),
             '-':            (0, 0, None),
             '+':            (0, 0, None),
@@ -450,7 +435,8 @@ class SyntaxTreeGenerator:
                             # Detect inner strings for arguments containing code,
                             # but not for arguments containing raw text.
                             end = find_closing_bracket(text, position, brackets='{}',
-                                                detect_strings=(i<code_args_number))
+                                                       detect_strings=(i < code_args_number)
+                                                       )
                             new_pos = end + 1
                         else:
                             end = position
@@ -558,7 +544,7 @@ class LatexGenerator:
         except AttributeError:
             print(f"Error: method '_parse_{tag}_tag' not found.")
             raise
-        except:
+        except Exception:
             print(f"Error when calling method '_parse_{tag}_tag'.")
             raise
 
@@ -753,24 +739,6 @@ class LatexGenerator:
     def _parse_COMMENT_tag(self, node):
         pass
 
-    @wxgeometrie_needed
-    def _parse_CALC_tag(self, node):
-        args, kw = self._parse_options(node)
-        assert len(args) <= 1 and len(kw) == 0
-        name = (args[0] if args else 'RESULT')
-        from wxgeometrie.mathlib.parsers import traduire_formule
-        fonctions = [key for key, val in self.context.items()
-                     if isinstance(val, (type(sympy.sqrt), type(sympy.cos)))]
-
-        def eval_and_store(txt, name):
-            formule = traduire_formule(txt, fonctions=fonctions)
-            print('Formule interpretation:', txt, ' → ', formule)
-            self.context[name] = self._eval_python_expr(formule)
-            return txt
-
-        self._parse_children(node.children[0].children, function=eval_and_store,
-                             name=name)
-
     def _parse_ASSERT_tag(self, node):
         code = node.arg(0)
         test = eval(code, self.context)
@@ -951,55 +919,13 @@ class LatexGenerator:
         self._parse_children(node.children)
         random.setstate(state)
 
-    @wxgeometrie_needed
-    def _parse_TABVAL_tag(self, node):
-        from wxgeometrie.modules.tablatex import tabval
-        args, kw = self._parse_options(node)
-        for key in kw:
-            kw[key] = eval(kw[key])
-        self._parse_children(node.children, function=tabval, **kw)
-
-    @wxgeometrie_needed
-    def _parse_TABVAR_tag(self, node):
-        from wxgeometrie.modules.tablatex import tabvar
-        state = random.getstate()
-        args, kw = self._parse_options(node)
-        for key in kw:
-            kw[key] = eval(kw[key])
-        self._parse_children(node.children, function=tabvar, **kw)
-        random.setstate(state)
-
-    @wxgeometrie_needed
-    def _parse_TABSIGN_tag(self, node):
-        from wxgeometrie.modules.tablatex import tabsign
-        state = random.getstate()
-        args, kw = self._parse_options(node)
-        for key in kw:
-            kw[key] = eval(kw[key])
-        self._parse_children(node.children, function=tabsign, **kw)
-        random.setstate(state)
-
-    @wxgeometrie_needed
-    def _parse_GCALC_tag(self, node):
-        from wxgeometrie.mathlib.interprete import Interprete
-        state = random.getstate()
-        args, kw = self._parse_options(node)
-        for key in kw:
-            kw[key] = eval(kw[key])
-        def _eval2latex(code):
-            print('code::' + repr(code))
-            return Interprete(**kw).evaluer(code.strip())[1]
-        self._parse_children(node.children, function=_eval2latex, **kw)
-        random.setstate(state)
-
-
     def _parse_TEST_tag(self, node):
         try:
             if eval(node.arg(0), self.context):
                 self._parse_children(node.children[1].children)
             else:
                 self._parse_children(node.children[2].children)
-        except:
+        except Exception:
             print(node.display(color=False))
             raise
 
@@ -1045,22 +971,6 @@ class LatexGenerator:
     def _parse_SYMPY_tag(self, node):
         raise NotImplementedError
 
-    @wxgeometrie_needed
-    def _parse_GEO_tag(self, node):
-        from wxgeometrie.geolib import Feuille
-        state = random.getstate()
-        args, kw = self._parse_options(node)
-        scale = kw.pop('scale', None)
-        for key in kw:
-            kw[key] = eval(kw[key])
-        def _eval2latex(code):
-            print('code::' + repr(code))
-            feuille = Feuille(**kw)
-            for commande in code.split('\n'):
-                feuille.executer(commande)
-            return feuille.exporter('tikz', echelle=scale)
-        self._parse_children(node.children, function=_eval2latex, **kw)
-        random.setstate(state)
 
     def _parse_DEBUG_tag(self, node):
         while True:
@@ -1130,7 +1040,7 @@ class LatexGenerator:
         # Last value will be accessible through '_' variable
         if not varname:
             varname = '_'
-        if ' if ' in code and not ' else ' in code:
+        if ' if ' in code and ' else ' not in code:
             code += " else ''"
         if sympy_code:
             try:
@@ -1186,7 +1096,7 @@ class LatexGenerator:
             return ''
 
         if sympy_code and not flags.get('str'):
-            latex = print_sympy_expr(result, **flags)
+            latex = sympy2latex(result, **flags)
         else:
             latex = str(result)
 
@@ -1237,7 +1147,7 @@ class LatexGenerator:
             if flags.get('rand'):
                 result = random.choice(result)
             elif flags.get('select'):
-                result = result[self.NUM%len(result)]
+                result = result[self.NUM % len(result)]
 
         if 'round' in flags:
             try:

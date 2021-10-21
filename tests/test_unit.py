@@ -1,8 +1,8 @@
-import sys
 import re
 
 from ptyx.latexgenerator import SyntaxTreeGenerator, Compiler#, parse
-from ptyx.utilities import find_closing_bracket, round, print_sympy_expr
+from ptyx.utilities import find_closing_bracket, round
+from ptyx.printers import sympy2latex
 from ptyx.randfunc import randchoice, srandchoice, randfrac
 
 
@@ -37,10 +37,10 @@ def test_round():
     assert round(float('-inf'), 4) == float('-inf')
     assert str(round(float('nan'), 4)) == 'nan'
 
-def test_print_sympy_expr():
-    assert print_sympy_expr(0.0) == "0"
-    assert print_sympy_expr(-2.0) == "-2"
-    assert print_sympy_expr(-0.0) == "0"
+def test_sympy2latex():
+    assert sympy2latex(0.0) == "0"
+    assert sympy2latex(-2.0) == "-2"
+    assert sympy2latex(-0.0) == "0"
 
 
 def test_syntax_tree():
@@ -102,29 +102,6 @@ def test_latex_code_generator():
     latex = c.parse(test)
     assert latex == '2some text here ok'
 
-def test_CALC():
-    test = r"$#CALC{\dfrac{2}{3}+1}=#RESULT$ et $#CALC[a]{\dfrac{2}{3}-1}=#a$"
-    c = Compiler()
-    latex = c.parse(test)
-    assert latex == r'$\dfrac{2}{3}+1=\frac{5}{3}$ et $\dfrac{2}{3}-1=- \frac{1}{3}$'
-
-def test_TABVAR():
-    test = "$#{a=2;}\\alpha=#{alpha=3},\\beta=#{beta=5}\n\n#TABVAR[limites=False,derivee=False]f(x)=#a*(x-#alpha)^2+#beta#END$"
-    result = \
-'''$\\alpha=3,\\beta=5
-\\setlength{\\TVextraheight}{\\baselineskip}
-\\[\\begin{tabvar}{|C|CCCCC|}
-\\hline
-\\,\\,x\\,\\,                            &-\\infty      &        &3&      &+\\infty\\\\
-\\hline
-\\niveau{1}{2}\\raisebox{0.5em}{$f(x)$}&\\niveau{2}{2}&\\decroit&5&\\croit&\\\\
-\\hline
-\\end{tabvar}\\]
-% x;f(x):(-oo;) >> (3;5) << (+oo;)
-% f(x)=2*(x-3)^2+5\n$'''
-    c = Compiler()
-    latex = c.parse(test)
-    assert latex == result
 
 def test_SEED_SHUFFLE():
     test = '''#SEED{16}Who said "Having nothing, nothing can he lose" ?
@@ -214,7 +191,7 @@ def test_PICK():
     c.state['seed'] = 5
     assert g.NUM == 0
     latex = c.generate_latex()
-    latex = re.sub('\s+', ' ', latex).strip()
+    latex = re.sub(r'\s+', ' ', latex).strip()
     assert latex == 'And the winner is: 3'
 
 def test_CASE():

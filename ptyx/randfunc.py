@@ -89,9 +89,13 @@ def randint(a=None, b=None, exclude=(), maximum=100000):
 
 @sandboxed
 def srandint(a=None, b=None, exclude=(), maximum=100000):
-    if b is None:
-        b = (9 if a is None else a)
+    if a is None and b is None:
+        a, b = 2, 9
+    elif a is None:
         a = 2
+    elif b is None:
+        a, b = 2, a
+    # pylint: disable=invalid-unary-operand-type
     while a in exclude and -a in exclude:
         a += 1
         if a > b:

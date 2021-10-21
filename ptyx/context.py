@@ -3,7 +3,7 @@ import random, math
 import numpy
 
 import ptyx.randfunc as randfunc
-from ptyx.utilities import print_sympy_expr
+from ptyx.printers import sympy2latex
 from ptyx.config import sympy
 
 if sympy is not None:
@@ -64,5 +64,5 @@ for fname in randfuncs:
 # If a document is compiled several times (to produce different versions of the same document),
 # NUM is the compilation number (starting from 0).
 global_context['NUM'] = 0
-global_context['latex'] = print_sympy_expr
+global_context['latex'] = sympy2latex
 

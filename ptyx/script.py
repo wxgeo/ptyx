@@ -42,7 +42,8 @@ if sys.version_info.major == 2:
 # Options parsing
 parser = argparse.ArgumentParser(prog='pTyX',
         description='Compile .ptyx files into .tex or .pdf files.',
-        usage="usage: %(prog)s [options] filename")
+        usage="ptyx [options] filename(s).\nTry 'ptyx --help' for more information."
+        )
 
 parser.add_argument("filenames", nargs='+')
 
@@ -199,4 +200,3 @@ def ptyx(parser=parser):
 
 if __name__ == '__main__':
     ptyx(parser)
-

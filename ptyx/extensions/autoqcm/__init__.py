@@ -67,7 +67,7 @@ from os.path import join, basename, dirname
 
 from ptyx.extensions import extended_python
 import ptyx.randfunc as randfunc
-from ptyx.utilities import print_sympy_expr
+from ptyx.printers import sympy2latex
 
 from .compile.generate import generate_ptyx_code
 from .compile.header import packages_and_macros, ID_band, extract_ID_NAME_from_csv, \
@@ -288,7 +288,7 @@ def _parse_L_ANSWERS_tag(self, node):
     def conv(v):
         if isinstance(v, str):
             return v
-        return '$%s$' % print_sympy_expr(v)
+        return '$%s$' % sympy2latex(v)
     correct_answer = conv(eval(node.arg(1).strip(), self.context))
 
     # Test that first argument seems correct

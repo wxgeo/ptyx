@@ -3,7 +3,7 @@ import re
 from math import ceil, floor, isnan, isinf
 from os.path import realpath, normpath, expanduser
 
-from ptyx.config import param, sympy, wxgeometrie, custom_latex
+from ptyx.config import sympy
 
 if sympy is not None:
     from sympy import preorder_traversal, Symbol
@@ -19,30 +19,16 @@ def round(val, ndigits=0):
     val = float(val)
     if isnan(val) or isinf(val):
         return val
-    s = repr(val).rstrip('0')
-    if 'e' in s:
-        # XXX: implement round-away-from-zero in this case too.
-        return __builtins__.round(val, ndigits)
-    sep = s.find('.')
-    pos = sep + ndigits
-    if ndigits <= 0:
-        pos -= 1
-    # Skip dot if needed to reach next digit.
-    next_pos = (pos + 1 if pos + 1 != sep else pos + 2)
-    if next_pos < 0 or next_pos == 0 and s[next_pos] == '-':
-        return 0.
-    if len(s) <= next_pos:
-        # No need to round (no digit after).
-        return val
-    power = 10**ndigits
-    if s[next_pos] in '01234':
-        return (floor(val*power)/power if val > 0 else ceil(val*power)/power)
+    val *= 10**ndigits
+    if val >= 0.0:
+        val = floor(val + 0.5)
     else:
-        return (ceil(val*power)/power if val > 0 else floor(val*power)/power)
+        val = ceil(val - 0.5)
+    val *= 10**(-ndigits)
+    return val
 
 
-
-def find_closing_bracket(text, start = 0, brackets = '{}', detect_strings=True):
+def find_closing_bracket(text, start=0, brackets='{}', detect_strings=True):
     """Find the closing bracket, starting from position `start`.
 
     Note that start have to be a position *after* the opening bracket.
@@ -109,15 +95,15 @@ def find_closing_bracket(text, start = 0, brackets = '{}', detect_strings=True):
                     string_type = None
                     i += 2
 
-        i += 1 # counting the current caracter as already scanned text
+        i += 1  # counting the current caracter as already scanned text
         index += i
         text = text[i:]
 
     else:
-        return start + index - 1 # last caracter is the searched bracket :-)
+        return start + index - 1  # last caracter is the searched bracket :-)
 
-    raise ValueError('ERROR: unbalanced brackets (%s) while scanning %s...' %(balance, repr(text_beginning)))
-
+    raise ValueError('ERROR: unbalanced brackets (%s) while scanning %s...'
+                     % (balance, repr(text_beginning)))
 
 
 def advanced_split(string, separator, quotes='"\'', brackets=('()', '[]', '{}')):
@@ -131,8 +117,8 @@ def advanced_split(string, separator, quotes='"\'', brackets=('()', '[]', '{}'))
     # Little optimisation since `not in` is very fast.
     if separator not in string:
         return [string]
-    breaks = [-1] # those are the points where the string will be cut
-    stack = ['.'] # ROOT
+    breaks = [-1]  # those are the points where the string will be cut
+    stack = ['.']  # ROOT
     for i, letter in enumerate(string):
         if letter in quotes:
             if stack[-1] in quotes:
@@ -159,12 +145,13 @@ def advanced_split(string, separator, quotes='"\'', brackets=('()', '[]', '{}'))
     return [string[i+1:j] for i, j in zip(breaks[:-1], breaks[1:])]
 
 
-
 def _float_me_if_you_can(expr):
+    "Convert expr to float if possible, else left it untouched."
     try:
         return float(expr)
-    except:
+    except Exception:
         return expr
+
 
 def numbers_to_floats(expr, integers=False, ndigits=None):
     """Convert all numbers (except integers) to floats inside a sympy expression."""
@@ -184,39 +171,6 @@ def numbers_to_floats(expr, integers=False, ndigits=None):
             expr = expr.subs(sub, new)
     return expr
 
-
-
-def print_sympy_expr(expr, **flags):
-    if flags.get('str'):
-        latex = str(expr)
-    elif isinstance(expr, float) or (sympy and isinstance(expr, sympy.Float)) \
-            or flags.get('.'):
-        # -0.06000000000000001 means probably -0.06 ; that's because
-        # floating point arithmetic is not based on decimal numbers, and
-        # so some decimal numbers do not have exact internal representation.
-        # Python str() handles this better than sympy.latex().
-        # Keep 'only' 14 digits (precision rarely  exceed 16 or 17 digits with raw floats,
-        # and then decreased with successive operations...)
-        latex = format(float(expr), '.14g')
-        if latex == "-0":
-            latex = "0"
-    elif wxgeometrie is not None:
-        latex = custom_latex(expr, mode='plain')
-    elif sympy and expr is sympy.oo:
-        latex = r'+\infty'
-    else:
-        latex = sympy.latex(expr)
-    if isinstance(expr, float) or (sympy and isinstance(expr, sympy.Basic)):
-        # In french, german... a comma is used as floating point.
-        # However, if `float` flag is set, floating point is left unchanged
-        # (useful for Tikz for example).
-        if not flags.get('.'):
-            # It would be much better to subclass sympy LaTeX printer
-            latex = latex.replace('.', param['floating_point'])
-
-    #TODO: subclass sympy LaTeX printer (cf. mathlib in wxgeometrie)
-    latex = latex.replace(r'\operatorname{log}', r'\operatorname{ln}')
-    return latex
 
 
 def term_color(string, color, **kw):
@@ -245,14 +199,15 @@ def term_color(string, color, **kw):
             'highlight':    7,
             }
     if color not in colors:
-        raise KeyError('Color %s is unknown. Available colors: %s.' % (repr(color), list(colors.keys())))
-    l = []
-    for style, n in styles.items():
-        val = kw.get(style)
-        if val is not None:
-            l.append(str(n) if val else str(20 + n))
-    l.append(str(colors[color]))
-    return '\033[%sm%s\033[0m' % (';'.join(l), string)
+        raise KeyError('Color %s is unknown. Available colors: %s.'
+                       % (repr(color), list(colors.keys())))
+    formatting = []
+    for style, code in styles.items():
+        appply_style = kw.get(style)
+        if appply_style is not None:
+            formatting.append(str(code) if appply_style else str(20 + code))
+    formatting.append(str(colors[color]))
+    return '\033[%sm%s\033[0m' % (';'.join(formatting), string)
 
 
 def pth(path):

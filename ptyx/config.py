@@ -1,5 +1,10 @@
 import os, sys
 
+try:
+    from ptyx.custom_config import param as custom_param
+except ImportError:
+    custom_param = {}
+
 # <default_configuration>
 param = {
         'total': 1,
@@ -8,28 +13,22 @@ param = {
         'tex_command': 'pdflatex -interaction=nonstopmode --shell-escape --enable-write18',
         'quiet_tex_command': 'pdflatex -interaction=batchmode --shell-escape --enable-write18',
         'sympy_is_default': True,
-        'sympy_path': None,
-        'wxgeometrie': None,
-        'wxgeometrie_path': None,
+        'import_paths': [],
         'debug': False,
         'floating_point': ',',
         'win_print_command': 'SumatraPDF.exe -print-dialog -silent -print-to-default ',
         }
 # </default_configuration>
 
-# <personal_configuration>
-param['sympy_path'] = '~/Dropbox/Programmation/wxgeometrie/wxgeometrie'
-param['wxgeometrie_path'] = '~/Dropbox/Programmation/wxgeometrie'
-# </personal_configuration>
+# Update parameters using `custom_config.py` param, if any.
+param.update(custom_param)
 
-for pathname in ('sympy_path', 'wxgeometrie_path'):
-    path = param[pathname]
-    if path is not None:
-        path = os.path.normpath(os.path.expanduser(path))
-        sys.path.insert(0, path)
-        param[pathname] = path
 
-print("Loading sympy...")
+for path in param['import_paths']:
+    path = os.path.normpath(os.path.expanduser(path))
+    sys.path.insert(0, path)
+
+#print("Loading sympy...")
 try:
     import sympy
 except ImportError:
@@ -37,22 +36,8 @@ except ImportError:
     sympy = None
     param['sympy_is_default'] = False
 
-print("Loading geophar...")
 
-try:
-    import wxgeometrie
-    try:
-        #~ from wxgeometrie.modules import tablatex
-        from wxgeometrie.mathlib.printers import custom_latex
-    except ImportError:
-        print("WARNING: current geophar version is not compatible.")
-        raise
-except (ImportError, SyntaxError):
-    print("WARNING: geophar not found.")
-    wxgeometrie = None
-    custom_latex = None
-
-print("Loading numpy...")
+#print("Loading numpy...")
 
 try:
     import numpy
