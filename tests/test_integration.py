@@ -1,5 +1,3 @@
-from __future__ import division, unicode_literals, absolute_import, print_function
-
 import sys
 from os import fsync
 from os.path import isfile, join, split
