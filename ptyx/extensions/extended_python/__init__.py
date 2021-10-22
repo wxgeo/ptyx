@@ -32,8 +32,14 @@ def parse_extended_python_code(code):
     for line_number, line in enumerate(python_code):
         if not line.lstrip().startswith('let '):
             continue
-        spaces = (len(line) - len(line.lstrip()))*' '
+        indent = (len(line) - len(line.lstrip()))*' '
         line = line.strip()[4:]
+        i = line.find(' with ')
+        if i != -1:
+            condition = line[i + 6:]
+            line = line[:i]
+        else:
+            condition = None
         if ' in ' in line:
             names, val = line.split(' in ')
             # parse val
@@ -65,17 +71,22 @@ def parse_extended_python_code(code):
                 args = ['srandint']
                 names = line.rstrip('*')
 
-        i = line.find(' with ')
-        if i != -1:
-            condition = line[i + 6:]
-            #TODO: handle condition
-
 
         #TODO: define nrandint
         names = [n.strip() for n in names.split(',')]
 
         line = '%s, = many(%s, %s)' % (', '.join(names), len(names), ', '.join(args))
-        python_code[line_number] = spaces + line
+        if condition:
+            sublines = [f'{indent}while True:']
+            indent += 4*' '
+            sublines.append(indent + line)
+            sublines.append(f'{indent}if {condition}:')
+            indent += 4*' '
+            sublines.append(f'{indent}break')
+            python_code[line_number] = '\n'.join(sublines)
+
+        else:
+            python_code[line_number] = indent + line
     return '\n'.join(python_code)
 
 
