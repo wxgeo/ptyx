@@ -139,8 +139,12 @@ def extract_ID_NAME_from_csv(csv_path, script_path):
         dialect = csv.Sniffer().sniff(f.read(1024))
         f.seek(0)
         for row in csv.reader(f, dialect):
-            n, *row = row
-            ids[n.strip()] = ' '.join(item.strip() for item in row)
+            id_, *row = row
+            id_ = id_.strip()
+            name = ' '.join(item.strip() for item in row)
+            if id_ in ids and ids[id_] != name:
+                raise RuntimeError(f"Error: same ID {id_!r} for different students in {csv_path!r} !")
+            ids[id_] = name
     return ids
 
 
