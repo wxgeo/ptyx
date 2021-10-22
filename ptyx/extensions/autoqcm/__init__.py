@@ -112,6 +112,7 @@ def has_option(node, option):
     return option in [opt.strip() for opt in node.options.split(',')]
 
 def _parse_QCM_tag(self, node):
+    self.write('\n')  # A new line is mandatory here if there is no text before MCQ.
     # ~ self.autoqcm_correct_answers = []
     self.autoqcm_data['ordering'][self.NUM] = {'questions': [], 'answers': {}}
 #    self.autoqcm_data['answers'] = {}
@@ -357,6 +358,7 @@ def _analyze_IDS(ids):
      """
     lengths = {len(iD) for iD in ids}
     if len(lengths) != 1:
+        print(ids)
         raise IdentifiantError('All students ID must have the same length !')
     ID_length = lengths.pop()
     # On crée la liste de l'ensemble des valeurs possibles pour chaque chiffre.
