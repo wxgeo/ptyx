@@ -1,4 +1,6 @@
+ptyx/custom_config.py
 .cache
+.tox/
 *.pyc
 *.synctex.gz
 *~
