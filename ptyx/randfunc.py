@@ -161,8 +161,8 @@ def is_mult_2_5(val):
 def randfrac(a=None, b=None, exclude=(), not_decimal=False, den=None):
     '''Return a random positive fraction which is never an integer.
 
-    Use `den` to specify denominator value; `den` must be an integer or a tuple
-    of integers.
+    Use `den` to specify denominator value; `den` must be an integer or
+    a list of integers.
     '''
     if b is None:
         b = (9 if a is None else a)

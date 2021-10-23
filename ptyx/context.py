@@ -1,4 +1,5 @@
-import random, math
+import random
+import math
 
 import numpy
 
@@ -6,30 +7,8 @@ import ptyx.randfunc as randfunc
 from ptyx.printers import sympy2latex
 from ptyx.config import sympy
 
-if sympy is not None:
-    from sympy import sympify, SympifyError
-else:
-    SympifyError = None
-    sympy = None
-    print("I couldn't find sympy...  doing my best without it.")
 
-class SpecialDict(dict):
-    auto_sympify = False
-    op_mode = None
-
-    def __setitem__(self, key, value):
-        if self.auto_sympify:
-            try:
-                value = sympify(value)
-            except SympifyError:
-                print('Warning: sympy error. Switching to standard evaluation mode.')
-        dict.__setitem__(self, key, value)
-
-    def copy(self):
-        return SpecialDict(dict.copy(self))
-
-
-global_context = SpecialDict()
+global_context = dict()
 
 if sympy is not None:
     global_context['sympy'] = sympy
@@ -54,12 +33,11 @@ global_context['float'] = float
 global_context['int'] = int
 global_context['str'] = str
 
-randfuncs = ('randpoint', 'srandpoint', 'randint', 'randbool',
-             'srandint', 'randsign', 'randfrac',
-             'srandfrac', 'randfloat', 'srandfloat', 'randchoice',
-             'srandchoice', 'randmatrix', 'randpop', 'shuffle', 'many',
-             'distinct', '_print_state')
-for fname in randfuncs:
+for fname in ('randpoint', 'srandpoint', 'randint', 'randbool',
+              'srandint', 'randsign', 'randfrac',
+              'srandfrac', 'randfloat', 'srandfloat', 'randchoice',
+              'srandchoice', 'randmatrix', 'randpop', 'shuffle', 'many',
+              'distinct', '_print_state'):
     global_context[fname] = getattr(randfunc, fname)
 # If a document is compiled several times (to produce different versions of the same document),
 # NUM is the compilation number (starting from 0).
