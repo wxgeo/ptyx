@@ -849,6 +849,14 @@ class Compiler(object):
         if code is None:
             raise RuntimeError('Compiler.read_code() or Compiler.read_file() must be run first.')
         code = self._include_subfiles(code)
+#        # -----------------------------
+#        path = self._state.get('path')
+#        if path is not None:
+#            filename = join(dirname(path), '.%s.after-include-ptyx' % basename(path))
+#            with open(filename, 'w') as f:
+#                f.write(code)
+#        # -----------------------------
+        self._state['after_include'] = code
         code, extensions = self._call_extensions(code)
         code, seed = self._read_seed(code)
         self._state['plain_ptyx_code'] = code

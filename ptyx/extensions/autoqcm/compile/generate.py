@@ -1,9 +1,3 @@
-#import sys
-#from os.path import join as abspath, dirname
-
-#script_path = dirname(abspath(sys._getframe().f_code.co_filename))
-#sys.path.insert(0, script_path)
-
 
 
 def generate_ptyx_code(text):

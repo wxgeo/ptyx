@@ -60,10 +60,9 @@ One may include some PTYX code of course.
 
     """
 
-#TODO: support things like `#NEW INT(2,10) a, b, c, d WITH a*b - c*d != 0` ?
-
 from functools import partial
 from os.path import join, basename, dirname
+import re
 
 from ptyx.extensions import extended_python
 import ptyx.randfunc as randfunc
@@ -540,10 +539,6 @@ def _parse_QCM_HEADER_tag(self, node):
     self.write('\n'.join([header, barcode, check_id_or_name]))
 
 
-
-
-
-
 def main(text, compiler):
     # Generation algorithm is the following:
     # 1. Parse AutoQCM code, to convert it to plain pTyX code.
@@ -570,6 +565,18 @@ def main(text, compiler):
     #         [1,2],     ...
     #         ],
     #    }
+
+    # First pass, only to include files.
+    def include(match):
+        with open(match.group(1).strip()) as file:
+            content = file.read()
+            if not content.startswith('* '):
+                content = '* ' + content
+            return f'\n\n{content}\n\n'
+
+    text = re.sub(r'^-- (.+)$', include, text, flags=re.MULTILINE)
+
+    # Call extended_python extension.
     text = extended_python.main(text, compiler)
 
     # Register custom tags and corresponding handlers for this extension.
