@@ -73,7 +73,9 @@ class LatexGenerator:
     def set_new_context(self, context=None):
         "Set a new context of evaluation for code, except for PTYX_LATEX value."
         if context is None:
-            context = GLOBAL_CONTEXT.copy()
+            context = GLOBAL_CONTEXT
+        # Use deepcopy instead ?
+        context = context.copy()
         # Copy internal parameters to new context.
         for key in self.context:
             if key.startswith('PTYX_'):
