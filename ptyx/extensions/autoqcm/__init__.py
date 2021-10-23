@@ -116,6 +116,8 @@ def _parse_QCM_tag(self, node):
     self.autoqcm_data['ordering'][self.NUM] = {'questions': [], 'answers': {}}
 #    self.autoqcm_data['answers'] = {}
     # ~ self.autoqcm_data['question_num'] =
+    # Global context for all the MCQ.
+    self.autoqcm_context = self.context.copy()
     if has_option(node, 'shuffle') :
         self._shuffle_and_parse_children(node, target='SECTION')
     else:
@@ -150,7 +152,7 @@ def _parse_SECTION_tag(self, node):
 
 def _parse_NEW_QUESTION_tag(self, node):
     # Each question must be independant, so reset all local variables.
-    self.set_new_context()
+    self.set_new_context(self.autoqcm_context)
     self._pick_and_parse_children(node, children=node.children,
                                   target='VERSION',
                                   )

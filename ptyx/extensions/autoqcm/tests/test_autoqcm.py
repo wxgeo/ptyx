@@ -8,6 +8,7 @@ This extension offers a new syntaw to write tests and answers.
 #import sys, os
 from os.path import dirname, join
 import os
+import re
 #import random
 
 #from testlib import assertEq
@@ -129,6 +130,14 @@ def test_include():
     latex = c.get_latex()
     assert r"$2\times(-1)^2$" in latex
     assert "an other answer" in latex
+
+def test_question_context():
+    c = load_ptyx_file('test_questions_context.ptyx')
+    c.generate_syntax_tree()
+    latex = c.get_latex()
+
+    for match in re.finditer(r'TEST\((\w+)=(\w+)\)', latex):
+        assert match.group(1) == match.group(2)
 
 
 if __name__ == '__main__':

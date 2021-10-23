@@ -1,0 +1,57 @@
+#LOAD{autoqcm}
+#SEED{442214}
+
+
+\textbf{Variables test (initialisation)}
+
+The variable c is not initialised.
+
+TEST(#c=c)
+
+...........
+c = 13
+...........
+The variable c is now global.
+
+TEST(#c=13)
+
+<<<<<<<<<<<<<<<<<<
+
+* \textbf{Test variables (question 1)}
+
+...................
+a = 7
+b = 8
+c = 25
+...................
+
+TEST(#a=7)
+
+TEST(#b=8)
+
+TEST(#c=25)
+
+TEST(#d=d)
+
++ answer 1
+- answer 2
+
+
+* \textbf{Test variables (question 2)}
+
+...................
+b = 10
+...................
+
+TEST(#a=a)
+
+TEST(#b=10)
+
+TEST(#c=13)
+
+TEST(#d=d)
+
++ answer 1
+- answer 2
+
+>>>>>>>>>>>>>>>>>>>>
