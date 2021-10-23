@@ -186,7 +186,7 @@ def make_file(output_name, **options):
         context.setdefault('NUM', 1)
         context.setdefault('TOTAL', 1)
 
-        latex = compiler.generate_latex(**context)
+        latex = compiler.get_latex(**context)
 
     with open(output_name + '.tex', 'w') as texfile:
         texfile.write(latex)

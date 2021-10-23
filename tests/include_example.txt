@@ -1,0 +1,4 @@
+This is an example of a file
+that can be included using INCLUDE tag.
+It may contain some pTyX code...
+Note that if $a=#{a=1}$, then $a+1=#{a+1}$.

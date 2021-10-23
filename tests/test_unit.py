@@ -1,9 +1,13 @@
 import re
+import os
+from os.path import dirname
 
 from ptyx.latexgenerator import SyntaxTreeGenerator, Compiler#, parse
 from ptyx.utilities import find_closing_bracket, round
 from ptyx.printers import sympy2latex
 from ptyx.randfunc import randchoice, srandchoice, randfrac
+
+TEST_DIR = dirname(__file__)
 
 
 def test_find_closing_bracket():
@@ -46,7 +50,7 @@ def test_sympy2latex():
 def test_syntax_tree():
     s = SyntaxTreeGenerator()
     text = 'hello world !'
-    s.preparse(text)
+    s.generate_tree(text)
     tree = \
 """
 + Node ROOT
@@ -55,7 +59,7 @@ def test_syntax_tree():
     assert s.syntax_tree.display(color=False) == tree
 
     text = "#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END"
-    s.preparse(text)
+    s.generate_tree(text)
     tree = \
 """
 + Node ROOT
@@ -83,7 +87,7 @@ def test_syntax_tree():
 
 
     text = "#PYTHON#some comment\nvariable = 2\n#END#ASSERT{variable == 2}"
-    s.preparse(text)
+    s.generate_tree(text)
     tree = \
 """
 + Node ROOT
@@ -183,14 +187,18 @@ def test_PICK():
     4
     #END_PICK'''
     c = Compiler()
-    c.state['seed'] = 1
-    c.generate_syntax_tree(test)
+    c.read_code(test)
+    c.preparse()
+    # Tweak seed.
+    c._state['seed'] = 1
+    c.generate_syntax_tree()
     g = c.latex_generator
     assert g.NUM == 0
 
-    c.state['seed'] = 5
+    # Tweak seed again.
+    c._state['seed'] = 5
     assert g.NUM == 0
-    latex = c.generate_latex()
+    latex = c.get_latex()
     latex = re.sub(r'\s+', ' ', latex).strip()
     assert latex == 'And the winner is: 3'
 
@@ -291,6 +299,42 @@ b = 3
 $#a#+\dfrac{#b}{x}$'''
     result = r'''
 $2+\dfrac{3}{x}$'''
+    c = Compiler()
+    latex = c.parse(test)
+    assert latex == result
+
+
+def test_INCLUDE():
+    os.chdir(TEST_DIR)
+    test = "#SEED{99}First, $a=#{a=7}$#INCLUDE{include_example.txt}Last, $a=#a$ still."
+    result = \
+"""First, $a=7$
+This is an example of a file
+that can be included using INCLUDE tag.
+It may contain some pTyX code...
+Note that if $a=1$, then $a+1=2$.
+Last, $a=7$ still."""
+    c = Compiler()
+    latex = c.parse(test)
+    assert latex == result
+
+def test_INCLUDE_newline():
+    os.chdir(TEST_DIR)
+    test = \
+"""#SEED{99}
+First, $a=#{a=7}$
+#INCLUDE{include_example.txt}
+Last, $a=#a$ still."""
+    result = \
+"""
+First, $a=7$
+
+This is an example of a file
+that can be included using INCLUDE tag.
+It may contain some pTyX code...
+Note that if $a=1$, then $a+1=2$.
+
+Last, $a=7$ still."""
     c = Compiler()
     latex = c.parse(test)
     assert latex == result

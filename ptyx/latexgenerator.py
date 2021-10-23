@@ -5,12 +5,13 @@ import random
 from importlib import import_module
 import traceback
 
-from ptyx.context import global_context, SympifyError
+from ptyx.context import global_context
 from ptyx.config import param, sympy
 import ptyx.randfunc as randfunc
 from ptyx.printers import sympy2latex
 from ptyx.utilities import (find_closing_bracket, advanced_split,
                             numbers_to_floats, _float_me_if_you_can, term_color,
+                            find_simple_tag_contents,
                             )
 
 # =============================================================================
@@ -137,8 +138,10 @@ class SyntaxTreeGenerator:
     # By contrast, in code arguments, inner strings should be detected:
     # in {val=='}'}, the bracket closing the tag is the second }, not the first one !
 
-    tags = {'ANS':          (0, 0, ['@END']),
+    tags = {
+            'ANS':          (0, 0, ['@END']),
             'ANSWER':       (0, 1, None),
+            'APART':        (0, 0, ['END', 'END_APART']),
             'API_VERSION':  (0, 1, None),
             'ASK':          (0, 0, ['@END']),
             'ASK_ONLY':     (0, 0, ['@END']),
@@ -164,8 +167,9 @@ class SyntaxTreeGenerator:
             'LOAD':         (1, 0, None),
             'FREEZE_RANDOM_STATE': (0, 0, []),
             'IFNUM':        (1, 1, None),
-            'CALL':        (0, 1, None),
-            'MACRO':    (0, 1, ['@END', '@END_MACRO']),
+            'INCLUDE':      (1, 0, None),
+            'CALL':         (0, 1, None),
+            'MACRO':        (0, 1, ['@END', '@END_MACRO']),
             'PICK':         (0, 0, ['@END', '@END_PICK']),
             'PYTHON':       (0, 0, ['@END']),
             'QUESTION':     (0, 1, None),
@@ -203,6 +207,7 @@ class SyntaxTreeGenerator:
         # by calling `Compiler.add_new_tag()`.
         self.tags = dict(self.tags)
         self.update_tags()
+        self.syntax_tree = None
 
 
     @staticmethod
@@ -231,7 +236,7 @@ class SyntaxTreeGenerator:
         self.sorted_tags = sorted(self.tags, key=len, reverse=True)
 
 
-    def preparse(self, text):
+    def generate_tree(self, text):
         """Pre-parse pTyX code and generate a syntax tree.
 
         :param text: some pTyX code.
@@ -242,12 +247,12 @@ class SyntaxTreeGenerator:
         # Now, we will parse Ptyx code to generate a syntax tree.
         self._found_tags = set()
         self.syntax_tree = Node('ROOT')
-        self._preparse(self.syntax_tree, text)
+        self._generate_tree(self.syntax_tree, text)
         self.syntax_tree.tags = self._found_tags
         return self.syntax_tree
 
 
-    def _preparse(self, node, text):
+    def _generate_tree(self, node, text):
         "Parse `text`, then add corresponding content to `node`."
         position = 0
         update_last_position = True
@@ -449,7 +454,7 @@ class SyntaxTreeGenerator:
                     # Nodes corresponding to arguments have no name,
                     # but are numbered instead.
                     arg = node.add_child(Node(i))
-                    self._preparse(arg, text[position:end])
+                    self._generate_tree(arg, text[position:end])
                     position = new_pos
 
                 #~ if remove_trailing_newline:
@@ -499,7 +504,7 @@ class LatexGenerator:
         # to be able to scan code at runtime.
         # (Every run implies generating a syntax tree again for each
         # of these pieces of embeded pTyX code.)
-        self.preparser = SyntaxTreeGenerator()
+        self.parser = SyntaxTreeGenerator()
         # Access to compiler is needed by some extensions.
         self.compiler = compiler
 
@@ -638,14 +643,28 @@ class LatexGenerator:
         if parse and '#' in text:
             if param['debug']:
                 print('Parsing %s...' % repr(text))
-            self.parse_node(self.preparser.preparse(text))
+            self.parse_node(self.parser.generate_tree(text))
         else:
             self.context['LATEX'].append(text)
 
     def read(self):
         return ''.join(self.context['LATEX'])
 
-    def _parse_API_VERSION(self, node):
+
+    def _parse_APART_tag(self, node):
+        "Interpret a piece of code in a sandbox, eliminating side-effects."
+        # Backup local variables and reset context.
+        context_backup = self.context
+        self.context = global_context.copy()
+        self.context['LATEX'] = context_backup['LATEX']
+        # Interprete code
+        self._parse_children(node.children)
+        # Restore local variables and update generated LaTeX code.
+        context_backup['LATEX'] = self.context['LATEX']
+        self.context = context_backup
+
+
+    def _parse_API_VERSION_tag(self, node):
         def v(version):
             return version.split('.')
         version = v(node.children[0].children)
@@ -717,6 +736,10 @@ class LatexGenerator:
 
     def _parse_LOAD_tag(self, node):
         # LOAD tag is used to load extensions **before** syntax tree is built.
+        pass
+
+    def _parse_INCLUDE_tag(self, node):
+        # INCLUDE tag is used to insert code in isolated mode **before** syntax tree is built.
         pass
 
     def _parse_PYTHON_tag(self, node):
@@ -1042,12 +1065,12 @@ class LatexGenerator:
             varname = '_'
         if ' if ' in code and ' else ' not in code:
             code += " else ''"
-        if sympy_code:
+        if sympy is not None and sympy_code:
             try:
                 result = sympy.sympify(code, locals=context)
                 if isinstance(result, str):
                     result = result.replace('**', '^')
-            except (SympifyError, AttributeError):
+            except (sympy.SympifyError, AttributeError):
                 # sympy.sympify() can't parse attributes and methods inside
                 # code for now (AttributeError is raised then).
                 sympy_code = False
@@ -1142,7 +1165,6 @@ class LatexGenerator:
         If result is iterable, an element of result is returned, choosed according
         to current flag.'''
         flags = self.flags
-        context = self.context
         if  hasattr(result, '__iter__'):
             if flags.get('rand'):
                 result = random.choice(result)
@@ -1171,24 +1193,32 @@ class LatexGenerator:
             result = round_result
         elif 'floats' in self.flags:
             result = numbers_to_floats(result)
-        else:
-            context.result_is_exact = True
         return result
 
 
 class Compiler(object):
     """Compiler is the main object of pTyX.
+
+    Usage:
+
+        >>> from ptyx.latexgenerator import Compiler
+        >>> c = Compiler()
+        >>> c.parse('#{a=S(1)/2} + #{b=2} = #{a+b}')
+        '\frac{1}{2} + 2 = \frac{5}{2}'
+
     The following methods are called successively to generate LaTeX code from
     a pTyX file:
         * .read_file(path) will read the content of the file.
-        * .call_extensions() will search for extensions in this content,
+        * ._include_subfiles() will parse #INCLUDE{filename} tags and
+          include coresponding files content.
+        * ._call_extensions() will search for extensions in this content,
           then call the extensions to convert content into plain pTyX code.
-        * .read_seed() will search for a #SEED tag, or give a default seed
+        * ._read_seed() will search for a #SEED tag, or give a default seed
           value, used to generate all pseudo-random content later.
         * .generate_syntax_tree() will convert this code into a syntax tree.
           This should be done only once ofr each document, even if multiple
           versions of this document are needed.
-        * Finally, .generate_latex() will generate the LaTeX code.
+        * Finally, .get_latex() will generate and return the LaTeX code.
           Pseudo-random content will depend of the seed (see above), but also
           of the document number, given by `gen.context['NUM']`.
           So, changing `gen.context['NUM']` enables to generate different
@@ -1198,35 +1228,42 @@ class Compiler(object):
     def __init__(self):
         self.syntax_tree_generator = SyntaxTreeGenerator()
         self.latex_generator = LatexGenerator(self)
-        self.state = {}
+        self.reset()
+
+    def reset(self):
+        self._state = {}
         self._new_closing_tags = set()
+        # FIXME: reset SyntaxTreeGenerator instance.
+        # Or still better: make SyntaxTreeGenerator context free ?
+
+    def read_code(self, code):
+        "Feed compiler with given code."
+        self._state['path'] = None
+        self._state['input'] = code
 
     def read_file(self, path):
-        "Set the path of the file to be compiled."
-        self.state['path'] = path
+        "Feed compiler with given file code."
+        self._state['path'] = path
         with open(path, 'r') as input_file:
-            raw_text = self.state['raw_text'] = input_file.read()
-        return raw_text
+            self._state['input'] = input_file.read()
 
-    def call_extensions(self, code=None):
+    def _include_subfiles(self, code):
+        def include(match):
+            with open(match.group(1).strip()) as file:
+                return f'\n#APART\n{file.read()}#END_APART\n'
+        return re.sub(r'#INCLUDE\{([^}]+)\}', include, code)
+
+    def _call_extensions(self, code):
+        "Search for extensions (#LOAD{name} tags), then call them."
         # First, we search if some extensions must be load.
         # This must be done at the very begining, since extensions may
         # define their own specialized language, to be converted to
         # valid pTyX code (and then to LaTeX).
-        if code is not None:
-            self.state['raw_text'] = code
-        else:
-            code = self.state['raw_text']
         names = []
-        pos = 0
-        while True:
-            i = code.find("#LOAD{", pos)
-            if i == -1:
-                break
-            pos = code.find('}', i)
-            if pos == -1:
-                raise RuntimeError("#LOAD tag has no closing bracket !")
-            names.append(code[i + 6:pos])
+        def collect(match):
+            names.append(match.group(1))
+            return ''
+        code = re.sub(r'#LOAD\{\s*(\w+)\s*\}', collect, code)
         extensions = {}
         for name in names:
             try:
@@ -1236,79 +1273,82 @@ class Compiler(object):
                 raise ImportError(f'Extension {name} not found.')
             # execute `main()` function of extension.
             code = extensions[name].main(code, self)
+        return code, extensions
+
+    def _read_seed(self, code):
+        "Extract seed value from code, searching for #SEED{num} tag."
+        counter = 0
+        value = None
+        def seed(match):
+            nonlocal counter, value
+            value = int(match.group(1))
+            counter += 1
+            return ''
+        code = re.sub(r'#SEED\{\s*(\d+)\s*\}', seed, code)
+        if counter == 0:
+            path = self._state.get('path')
+            print(f'Warning: #SEED not found, using hash of ptyx file path ({path!r}) as seed.')
+            value = hash(path)
+        elif counter > 1:
+            print(f'Warning: multiple #SEED found, only last one will be used: {value}.')
+        return code, value
+
+    def preparse(self):
+        code = self._state.get('input')
+        if code is None:
+            raise RuntimeError('Compiler.read_code() or Compiler.read_file() must be run first.')
+        code = self._include_subfiles(code)
+        code, extensions = self._call_extensions(code)
+        code, seed = self._read_seed(code)
+        self._state['plain_ptyx_code'] = code
+        self._state['extensions_loaded'] = extensions
+        self._state['seed'] = seed
+        assert "#INCLUDE{" not in code
+        assert "#LOAD{" not in code
+        assert "#SEED{" not in code
+        # Save pTyX code generated by extensions (this is used for debuging,
+        # but if needed extensions can also save some data this way using #COMMENT tag).
+        # If input file was /path/to/file/myfile.ptyx,
+        # plain pTyX code is saved in /path/to/file/.myfile.ptyx.plain-ptyx
         if extensions:
-            # Save pTyX code generated by extensions (this is used for debuging,
-            # but if needed extensions can also save some data this way using #COMMENT tag).
-            # If input file was /path/to/file/myfile.ptyx,
-            # plain pTyX code is saved in /path/to/file/.myfile.ptyx.plain-ptyx
-            path = self.state.get('path')
+            path = self._state.get('path')
             if path is not None:
                 filename = join(dirname(path), '.%s.plain-ptyx' % basename(path))
                 with open(filename, 'w') as f:
                     f.write(code)
-        self.state['extensions_loaded'] = extensions
-        self.state['plain_ptyx_code'] = code
-        return code
 
-    def read_seed(self, code=None):
-        if code is not None:
-            self.state['raw_text'] = code
-        else:
-            code = self.state['raw_text']
-        i = code.find("#SEED{")
-        if i == -1:
-            path = self.state.get('path')
-            print(f'Warning: #SEED not found, using hash of ptyx file path ({path!r}) as seed.')
-            value = hash(path)
-        else:
-            pos = code.find('}', i)
-            if pos == -1:
-                raise RuntimeError("#SEED tag has no closing bracket !")
-            value = int(code[i + 6:pos].strip())
-        self.state['seed'] = value
-        return value
+    def generate_syntax_tree(self):
+        code = self._state.get('plain_ptyx_code')
+        if code is None:
+            raise RuntimeError('Compiler.preparse() must be run first.')
+        self._state['syntax_tree'] = self.syntax_tree_generator.generate_tree(code)
 
-    def generate_syntax_tree(self, code=None):
-        # Test if a seed has been already generated.
-        if 'seed' not in self.state:
-            self.read_seed(code)
-        if code is not None:
-            self.state['plain_ptyx_code'] = code
-        else:
-            code = self.state['plain_ptyx_code']
-        tree = self.state['syntax_tree'] = self.syntax_tree_generator.preparse(code)
-#        print(tree.tags)
-#        print(tree.display())
-#        input('-- pause --')
-        return tree
-
-    def generate_latex(self, tree=None, **context):
-        if tree is not None:
-            self.state['syntax_tree'] = tree
-        else:
-            tree = self.state['syntax_tree']
+    def get_latex(self, **context):
+        tree = self._state.get('syntax_tree')
+        if tree is None:
+            raise RuntimeError('Compiler.generate_syntax_tree() must be run first.')
         gen = self.latex_generator
         gen.clear()
         gen.context.update(context)
-        seed = self.state['seed'] + gen.context['NUM']
+        seed = self._state['seed'] + gen.context['NUM']
         randfunc.set_seed(seed)
         try:
             gen.parse_node(tree)
         except Exception:
-            print('\n*** Error occured while parsing. ***')
-            print('This is current parser state for debugging purpose:')
+            print('\n*** Error occured while generating code. ***')
+            print('This is current compiler state for debugging purpose:')
             print(80*'-')
             print('... ' + ''.join(gen.context['LATEX'][-10:]))
             print(80*'-')
             print('')
             raise
-        self.latex = gen.read()
+        latex = gen.read()
         if 'API_VERSION' not in gen.context:
             print('Warning: no API version specified. This may be an old pTyX file.')
-        return self.latex
+        return latex
 
     def close(self):
-        for module in self.state['extensions_loaded'].values():
+        for module in self._state['extensions_loaded'].values():
             if hasattr(module, 'close'):
                 module.close(self)
 
@@ -1328,7 +1368,7 @@ class Compiler(object):
         """
         g = self.latex_generator
         s = self.syntax_tree_generator
-        preparser = g.preparser
+        parser = g.parser
         ext_tags_dict = g._tags_defined_by_extensions
 
         if name in ext_tags_dict:
@@ -1345,34 +1385,37 @@ class Compiler(object):
 
         # Add this new tag to tags set.
         s.tags[name] = syntax
-        preparser.tags[name] = syntax
-
+        parser.tags[name] = syntax
 
     def update_tags_info(self):
         "Update information concerning newly added tags."
         self.syntax_tree_generator.update_tags()
-        self.latex_generator.preparser.update_tags()
-
+        self.latex_generator.parser.update_tags()
 
     def parse(self, code, **context):
         """Convert ptyx code to plain LaTeX in one shot.
 
-        :param text: a pTyX file content, to be converted to plain LaTeX.
-        :type text: str
-
-        This is mainly used fo testing.
+        This is mainly used for testing (in unit tests or in interactive mode).
         """
-        self.call_extensions(code)
+        self.reset()
+        self.read_code(code)
+        self.preparse()
         self.generate_syntax_tree()
-        self.read_seed()
-        latex = self.generate_latex(**context)
+        latex = self.get_latex(**context)
         self.close()
         return latex
 
     @property
     def syntax_tree(self):
-        return self.state['syntax_tree']
+        return self._state['syntax_tree']
 
+    @property
+    def seed(self):
+        return self._state['seed']
+
+    @property
+    def file_path(self):
+        return self._state['path']
 
 compiler = Compiler()
 

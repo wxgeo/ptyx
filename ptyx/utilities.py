@@ -106,6 +106,22 @@ def find_closing_bracket(text, start=0, brackets='{}', detect_strings=True):
                      % (balance, repr(text_beginning)))
 
 
+def find_simple_tag_contents(tag, code):
+    "Find all `#TAG{content}` in code and return a list of contents."
+    contents = []
+    pos = 0
+    while True:
+        i = code.find(f"#{tag}{{", pos)
+        if i == -1:
+            break
+        pos = code.find('}', i)
+        if pos == -1:
+            raise RuntimeError("#LOAD tag has no closing bracket !")
+        contents.append(code[i + 6:pos])
+    return contents
+
+
+
 def advanced_split(string, separator, quotes='"\'', brackets=('()', '[]', '{}')):
     """Split string "main_string" smartly, detecting brackets group and inner strings.
 

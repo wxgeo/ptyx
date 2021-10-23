@@ -23,17 +23,16 @@ def load_ptyx_file(filename):
     path = join(TEST_DIR, filename)
     c = Compiler()
     c.read_file(path)
-    c.read_seed()
-    c.call_extensions()
+    c.preparse()
     return c
 
 
 def test_MCQ_basics():
     c = load_ptyx_file('test-partiel.ptyx')
     assert 'VERSION' in c.syntax_tree_generator.tags
-    assert 'VERSION' in c.latex_generator.preparser.tags
+    assert 'VERSION' in c.latex_generator.parser.tags
     assert 'END_QCM' in c.syntax_tree_generator.tags
-    assert 'END_QCM' in c.latex_generator.preparser.tags
+    assert 'END_QCM' in c.latex_generator.parser.tags
     c.generate_syntax_tree()
     header_found = False
     mcq_found = False
@@ -51,14 +50,15 @@ def test_MCQ_basics():
     assert header_found
     assert mcq_found
     #TODO: add tests
-    latex = c.generate_latex()
+    latex = c.get_latex()
     #TODO: add tests
     assert "Jean de la Fontaine" in latex
 
 
 def test_MCQ_shuffling():
     c = load_ptyx_file('test_shuffle.ptyx')
-    root = c.generate_syntax_tree()
+    c.generate_syntax_tree()
+    root = c.syntax_tree
     assert isinstance(root, Node)
     assert root.name == 'ROOT'
     assert repr(root) == f'<Node ROOT at {hex(id(root))}>'
@@ -90,7 +90,7 @@ def test_MCQ_shuffling():
     assert qlist == [f'question{c}' for c in 'ABCDEFGHIJ'], qlist
 
     # Test questions order
-    latex = c.generate_latex()
+    latex = c.get_latex()
     questions = []
     i = 0
     while i != -1:

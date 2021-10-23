@@ -157,8 +157,8 @@ def ptyx(parser=parser):
         print(f'Reading {input_name}...')
         input_name = pth(input_name)
         compiler.read_file(input_name)
-        # Load extensions if needed.
-        compiler.call_extensions()
+        # Parse #INCLUDE tags, load extensions if needed, read seed.
+        compiler.preparse()
 
         # Generate syntax tree.
         # The syntax tree is generated only once, and will then be used
@@ -173,7 +173,7 @@ def ptyx(parser=parser):
         filenames, output_name, nums = make_files(input_name, **vars(options))
 
         # Keep track of the seed used.
-        seed_value = compiler.state['seed']
+        seed_value = compiler.seed
         seed_file_name = os.path.join(os.path.dirname(output_name), '.seed')
         with open(seed_file_name, 'w') as seed_file:
             seed_file.write(str(seed_value))
@@ -189,7 +189,7 @@ def ptyx(parser=parser):
         if not options.no_correction:
             ANSWER_tags = ('ANS', 'ANSWER', 'ASK', 'ASK_ONLY')
 
-            tags = compiler.state['syntax_tree'].tags
+            tags = compiler.syntax_tree.tags
             if any(tag in tags for tag in ANSWER_tags):
                 filenames, output_name, nums2 = make_files(input_name, correction=True, _nums=nums, **vars(options))
                 assert nums2 == nums, repr((nums, nums2))

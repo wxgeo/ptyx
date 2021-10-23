@@ -478,7 +478,7 @@ def _parse_QCM_HEADER_tag(self, node):
             # the value must be the path of a CSV file.
             csv = config.pop('names')
             if not WITH_ANSWERS:
-                students = extract_NAME_from_csv(csv, self.compiler.state['path'])
+                students = extract_NAME_from_csv(csv, self.compiler.file_path)
                 code  = students_checkboxes(students)
                 self.autoqcm_data['students_list'] = students
 
@@ -489,7 +489,7 @@ def _parse_QCM_HEADER_tag(self, node):
 
             if not WITH_ANSWERS:
                 if csv:
-                    ids = extract_ID_NAME_from_csv(csv, self.compiler.state['path'])
+                    ids = extract_ID_NAME_from_csv(csv, self.compiler.file_path)
                 else:
                     ids=None
 
@@ -629,7 +629,7 @@ def main(text, compiler):
 
 def close(compiler):
     autoqcm_data = compiler.latex_generator.autoqcm_data
-    path = compiler.state['path']
+    path = compiler.file_path
     folder = dirname(path)
     name = basename(path)
     id_table_pos = None
