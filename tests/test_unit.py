@@ -206,7 +206,7 @@ def test_CASE():
     test = "#CASE{0}first case#CASE{1}second case#CASE{2}third one#END#CASE{1} bonus#END this is something else."
     result = "second case bonus this is something else."
     c = Compiler()
-    latex = c.parse(test, NUM=1)
+    latex = c.parse(test, PTYX_NUM=1)
     assert latex == result
 
 def test_IF_ELIF_ELSE():

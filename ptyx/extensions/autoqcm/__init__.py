@@ -1,4 +1,4 @@
-"""
+r"""
 AutoQCM
 
 This extension enables computer corrected quizzes.
@@ -149,14 +149,18 @@ def _parse_SECTION_tag(self, node):
 
 
 def _parse_NEW_QUESTION_tag(self, node):
+    # Each question must be independant, so reset all local variables.
+    self.set_new_context()
     self._pick_and_parse_children(node, children=node.children,
                                   target='VERSION',
                                   )
 
 
-# Same function, but name must be different so that shuffling does not apply.
-_parse_CONSECUTIVE_QUESTION_tag = _parse_NEW_QUESTION_tag
-
+def _parse_CONSECUTIVE_QUESTION_tag(self, node):
+    # For a consecutive question, the context (ie. local variables) must not be reset.
+    self._pick_and_parse_children(node, children=node.children,
+                                  target='VERSION',
+                                  )
 
 def _parse_VERSION_tag(self, node):
     n = int(node.arg(0))
@@ -260,7 +264,7 @@ def _open_answer(self, n, k):
     is_correct = (k in self.autoqcm_data['correct_answers'][n])
     self.write(r'\AutoQCMTab{')
     cb_id = f'Q{n}-{k}'
-    if self.context.get('WITH_ANSWERS') and is_correct:
+    if self.WITH_ANSWERS and is_correct:
         self.write(r'\checkBox{gray}{%s}' % cb_id)
     else:
         self.write(r'\checkBox{white}{%s}' % cb_id)
@@ -422,8 +426,7 @@ def _parse_QCM_HEADER_tag(self, node):
     ===========================
     """
     sty = ''
-    WITH_ANSWERS = self.context.get('WITH_ANSWERS')
-#    if WITH_ANSWERS:
+#    if self.WITH_ANSWERS:
 #        self.context['format_ask'] = (lambda s: '')
     try:
         check_id_or_name = self.autoqcm_cache['check_id_or_name']
@@ -476,7 +479,7 @@ def _parse_QCM_HEADER_tag(self, node):
         if 'names' in config:
             # the value must be the path of a CSV file.
             csv = config.pop('names')
-            if not WITH_ANSWERS:
+            if not self.WITH_ANSWERS:
                 students = extract_NAME_from_csv(csv, self.compiler.file_path)
                 code  = students_checkboxes(students)
                 self.autoqcm_data['students_list'] = students
@@ -486,7 +489,7 @@ def _parse_QCM_HEADER_tag(self, node):
             csv = config.pop('ids', None)
             id_format = config.pop('id_format', None)
 
-            if not WITH_ANSWERS:
+            if not self.WITH_ANSWERS:
                 if csv:
                     ids = extract_ID_NAME_from_csv(csv, self.compiler.file_path)
                 else:
@@ -509,7 +512,7 @@ def _parse_QCM_HEADER_tag(self, node):
         for key in config:
             raise NameError(f'Unknown key {key!r} in the header of the pTyX file.')
 
-        check_id_or_name = (code if not self.context.get('WITH_ANSWERS') else '')
+        check_id_or_name = (code if not self.WITH_ANSWERS else '')
         self.autoqcm_cache['check_id_or_name'] = check_id_or_name
         check_id_or_name += r'''
         \vspace{1em}
@@ -532,7 +535,7 @@ def _parse_QCM_HEADER_tag(self, node):
     # Generate barcode
     # Barcode must NOT be put in the cache, since each document has a
     # unique ID.
-    n = self.context['NUM']
+    n = self.NUM
     calibration=('AUTOQCM__SCORE_FOR_THIS_STUDENT' not in self.context)
     barcode = ID_band(ID=n, calibration=calibration)
 

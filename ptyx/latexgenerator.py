@@ -5,7 +5,7 @@ import random
 from importlib import import_module
 import traceback
 
-from ptyx.context import global_context
+from ptyx.context import GLOBAL_CONTEXT
 from ptyx.config import param, sympy
 import ptyx.randfunc as randfunc
 from ptyx.printers import sympy2latex
@@ -61,8 +61,8 @@ class LatexGenerator:
 
     def clear(self):
         self.macros = {}
-        self.context = global_context.copy()
-        self.context['LATEX'] = []
+        self.context = GLOBAL_CONTEXT.copy()
+        self.context['PTYX_LATEX'] = []
         self.backups = []
         # When write() is called from inside a #PYTHON ... #END code block,
         # its argument may contain pTyX code needing parsing.
@@ -70,10 +70,23 @@ class LatexGenerator:
         # Internal flags
         self.flags = {}
 
+    def set_new_context(self, context=None):
+        "Set a new context of evaluation for code, except for PTYX_LATEX value."
+        if context is None:
+            context = GLOBAL_CONTEXT.copy()
+        # Copy internal parameters to new context.
+        for key in self.context:
+            if key.startswith('PTYX_'):
+                context[key] = self.context[key]
+        self.context = context
 
     @property
     def NUM(self):
-        return self.context['NUM']
+        return self.context['PTYX_NUM']
+
+    @property
+    def WITH_ANSWERS(self):
+        return self.context.get('PTYX_WITH_ANSWERS')
 
 
     def parse_node(self, node):
@@ -108,10 +121,10 @@ class LatexGenerator:
     def _parse_children(self, children, function=None, **options):
         """Parse all children nodes.
 
-        Resulting LaTeX code will be appended to self.context['LATEX'].
+        Resulting LaTeX code will be appended to self.context['PTYX_LATEX'].
 
         If `function` is not None, apply `function` to resulting LaTeX
-        code before appending it to self.context['LATEX'].
+        code before appending it to self.context['PTYX_LATEX'].
         (So, `function` signature must be: function(str, **options) -> str).
 
         Note that `function` can also be a list of functions.
@@ -125,8 +138,8 @@ class LatexGenerator:
             # before text is appended to self.context['LATEX'].
             # Backups may need to be read when parsing #= special tag,
             # so store them in `self.backups`.
-            self.backups.append(self.context['LATEX'])
-            self.context['LATEX'] = []
+            self.backups.append(self.context['PTYX_LATEX'])
+            self.context['PTYX_LATEX'] = []
 
         for child in children:
             if isinstance(child, str):
@@ -144,12 +157,12 @@ class LatexGenerator:
                 self.parse_node(child)
 
         if function is not None:
-            code = ''.join(self.context['LATEX'])
+            code = ''.join(self.context['PTYX_LATEX'])
             if callable(function):
                 function = [function]
             for f in function:
                 code = f(code, **options)
-            self.context['LATEX'] = self.backups.pop()
+            self.context['PTYX_LATEX'] = self.backups.pop()
             self.write(code)
 
 
@@ -171,7 +184,7 @@ class LatexGenerator:
 
 
     def write(self, text, parse=False):
-        """Append a piece of LaTeX text to context['LATEX'].
+        """Append a piece of LaTeX text to context['PTYX_LATEX'].
 
         :param text: a block of text, which may contain pTyX code.
         :type text: string
@@ -196,23 +209,21 @@ class LatexGenerator:
                 print('Parsing %s...' % repr(text))
             self.parse_node(self.parser.generate_tree(text))
         else:
-            self.context['LATEX'].append(text)
+            self.context['PTYX_LATEX'].append(text)
 
     def read(self):
-        return ''.join(self.context['LATEX'])
+        return ''.join(self.context['PTYX_LATEX'])
 
 
     def _parse_APART_tag(self, node):
         "Interpret a piece of code in a sandbox, eliminating side-effects."
         # Backup local variables and reset context.
         context_backup = self.context
-        self.context = global_context.copy()
-        self.context['LATEX'] = context_backup['LATEX']
+        self.set_new_context()
         # Interprete code
         self._parse_children(node.children)
         # Restore local variables and update generated LaTeX code.
-        context_backup['LATEX'] = self.context['LATEX']
-        self.context = context_backup
+        self.set_new_context(context_backup)
 
 
     def _parse_API_VERSION_tag(self, node):
@@ -232,24 +243,24 @@ class LatexGenerator:
         self._parse_children(node.children, function=self.context.get('format_ask'))
 
     def _parse_ASK_ONLY_tag(self, node):
-        if not self.context.get('WITH_ANSWERS'):
+        if not self.WITH_ANSWERS:
             self._parse_children(node.children,
                                  function=self.context.get('format_ask_only'))
         else:
             print('Skipping ASK_ONLY section...')
 
     def _parse_ANS_tag(self, node):
-        if self.context.get('WITH_ANSWERS'):
+        if self.WITH_ANSWERS:
             self._parse_children(node.children,
                     function=self.context.get('format_ans'))
 
     def _parse_ANSWER_tag(self, node):
-        if self.context.get('WITH_ANSWERS'):
+        if self.WITH_ANSWERS:
             self._parse_children(node.children[0].children,
                     function=self.context.get('format_answer'))
 
     def _parse_QUESTION_tag(self, node):
-        if not self.context.get('WITH_ANSWERS'):
+        if not self.WITH_ANSWERS:
             self._parse_children(node.children[0].children)
 
     def _parse_IF_tag(self, node):
@@ -697,7 +708,7 @@ class LatexGenerator:
                 symb = r' \approx '
             # Search backward for temporary `#=` marker in list, and replace
             # by appropriate symbol.
-            for textlist in self.backups + [context['LATEX']]:
+            for textlist in self.backups + [context['PTYX_LATEX']]:
                 for i, elt in enumerate(reversed(textlist)):
                     if elt == '#=':
                         textlist[len(textlist) - i - 1] = symb
@@ -732,7 +743,7 @@ class LatexGenerator:
                 print("** ERROR while rounding value: **")
                 print(result)
                 print("-----")
-                print(''.join(self.context['LATEX'])[-100:])
+                print(''.join(self.context['PTYX_LATEX'])[-100:])
                 print("-----")
                 raise
             if sympy and isinstance(result, sympy.Basic):
@@ -770,11 +781,11 @@ class Compiler(object):
           This should be done only once ofr each document, even if multiple
           versions of this document are needed.
         * Finally, .get_latex() will generate and return the LaTeX code.
-          Pseudo-random content will depend of the seed (see above), but also
-          of the document number, given by `gen.context['NUM']`.
-          So, changing `gen.context['NUM']` enables to generate different
-          versions of the same document.
 
+      Pseudo-random content will depend of the seed (see above), but also
+      of the document number, given by `gen.context['PTYX_NUM']`.
+      So, changing `gen.context['PTYX_NUM']` enables to generate different
+      versions of the same document.
     """
     def __init__(self):
         self.syntax_tree_generator = SyntaxTreeGenerator()
@@ -889,7 +900,7 @@ class Compiler(object):
         gen = self.latex_generator
         gen.clear()
         gen.context.update(context)
-        seed = self._state['seed'] + gen.context['NUM']
+        seed = self._state['seed'] + gen.NUM
         randfunc.set_seed(seed)
         try:
             gen.parse_node(tree)
@@ -897,7 +908,7 @@ class Compiler(object):
             print('\n*** Error occured while generating code. ***')
             print('This is current compiler state for debugging purpose:')
             print(80*'-')
-            print('... ' + ''.join(gen.context['LATEX'][-10:]))
+            print('... ' + ''.join(gen.context['PTYX_LATEX'][-10:]))
             print(80*'-')
             print('')
             raise

@@ -120,8 +120,7 @@ def make_files(input_name, correction=False, _nums=None, **options):
                         else output_name)
 
         options.setdefault('context', {})
-        options['context'].update(WITH_ANSWERS=correction, NUM=num, NAME=name,
-                                  TOTAL=n)
+        options['context'].update(PTYX_WITH_ANSWERS=correction, PTYX_NUM=num)
 
         # Output is redirected to a .log file
         logfile = (filename + '-python.log')
@@ -183,9 +182,7 @@ def make_file(output_name, **options):
     latex = options.get('plain_latex')
     if latex is None:
         context = options.get('context', {})
-        context.setdefault('NUM', 1)
-        context.setdefault('TOTAL', 1)
-
+        context.setdefault('PTYX_NUM', 1)
         latex = compiler.get_latex(**context)
 
     with open(output_name + '.tex', 'w') as texfile:
