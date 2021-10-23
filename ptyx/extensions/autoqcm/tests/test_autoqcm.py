@@ -7,6 +7,7 @@ This extension offers a new syntaw to write tests and answers.
 
 #import sys, os
 from os.path import dirname, join
+import os
 #import random
 
 #from testlib import assertEq
@@ -120,6 +121,14 @@ def test_MCQ_shuffling():
     assert '\n\n' not in latex[e2:e3]
     assert '\n\n' not in latex[e3:e4]
     return latex
+
+def test_include():
+    os.chdir(TEST_DIR)
+    c = load_ptyx_file('test_include.ptyx')
+    c.generate_syntax_tree()
+    latex = c.get_latex()
+    assert r"$2\times(-1)^2$" in latex
+    assert "an other answer" in latex
 
 
 if __name__ == '__main__':
