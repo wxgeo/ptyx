@@ -61,7 +61,6 @@ One may include some PTYX code of course.
     """
 
 from functools import partial
-from os.path import join, basename, dirname
 import re
 
 from ptyx.extensions import extended_python
@@ -482,7 +481,7 @@ def _parse_QCM_HEADER_tag(self, node):
             # the value must be the path of a CSV file.
             csv = config.pop('names')
             if not self.WITH_ANSWERS:
-                students = extract_NAME_from_csv(csv, self.compiler.file_path)
+                students = extract_NAME_from_csv(csv, str(self.compiler.file_path))
                 code  = students_checkboxes(students)
                 self.autoqcm_data['students_list'] = students
 
@@ -493,7 +492,7 @@ def _parse_QCM_HEADER_tag(self, node):
 
             if not self.WITH_ANSWERS:
                 if csv:
-                    ids = extract_ID_NAME_from_csv(csv, self.compiler.file_path)
+                    ids = extract_ID_NAME_from_csv(csv, str(self.compiler.file_path))
                 else:
                     ids=None
 
@@ -573,11 +572,20 @@ def main(text, compiler):
 
     # First pass, only to include files.
     def include(match):
-        with open(match.group(1).strip()) as file:
-            content = file.read()
-            if not content.startswith('* '):
-                content = '* ' + content
-            return f'\n\n{content}\n\n'
+        file_found = False
+        pattern = match.group(1).strip()
+        contents = []
+        for path in compiler.dir_path.glob(pattern):
+            if path.is_file():
+                file_found = True
+                with open(path) as file:
+                    file_content = file.read()
+                    if not file_content.startswith('* '):
+                        file_content = '* \n' + file_content
+                    contents.append(file_content)
+        if not file_found:
+            print(f"WARNING: no file corresponding to {pattern!r} !")
+        return '\n\n' + '\n\n'.join(contents) + '\n\n'
 
     text = re.sub(r'^-- (.+)$', include, text, flags=re.MULTILINE)
 
@@ -642,8 +650,8 @@ def main(text, compiler):
 def close(compiler):
     autoqcm_data = compiler.latex_generator.autoqcm_data
     path = compiler.file_path
-    folder = dirname(path)
-    name = basename(path)
+    folder = path.parent
+    name = path.name
     id_table_pos = None
     for n in autoqcm_data['ordering']:
         # XXX: what if files are not auto-numbered, but a list
@@ -653,7 +661,7 @@ def close(compiler):
             filename = f'{name[:-5]}.pos'
         else:
             filename = f'{name[:-5]}-{n}.pos'
-        full_path = join(folder, '.compile', name, filename)
+        full_path = folder / '.compile' / name / filename
         d = autoqcm_data['boxes'][n] = {}
         with open(full_path) as f:
             for line in f:
@@ -668,6 +676,6 @@ def close(compiler):
                 d.setdefault(page, {})[k] = [float(x), float(y)]
 
 
-    config_file = path + '.autoqcm.config.json'
+    config_file = path / '.autoqcm.config.json'
     dump(config_file, autoqcm_data)
 

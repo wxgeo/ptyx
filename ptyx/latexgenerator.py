@@ -812,15 +812,17 @@ class Compiler(object):
         with open(path, 'r') as input_file:
             self._state['input'] = input_file.read()
 
+    @property
+    def dir_path(self):
+        "Return input ptyx file directory, if any, or current working directory else."
+        file_path = self.file_path
+        return Path.cwd() if file_path is None else file_path.parent
+
     def _resolve_path(self, path):
         "Interpret `path` relatively to input ptyx file."
         path = Path(path.strip()).expanduser()  # do NOT resolve yet !
         if not path.is_absolute():
-            try:
-                parent = self.file_path.parent
-            except AttributeError:
-                parent = Path.cwd()
-            path = parent / path
+            path = self.dir_path / path
         return path
 
     def _include_subfiles(self, code):
