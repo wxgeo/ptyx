@@ -176,6 +176,11 @@ class SyntaxTreeGenerator:
         # SyntaxTreeGenerator.
         # It is used by extensions to define new closing tags,
         # by calling `Compiler.add_new_tag()`.
+        self.reset()
+
+
+    def reset(self):
+        "Full reset."
         self.tags = dict(self.tags)
         self.update_tags()
         self.syntax_tree = None
