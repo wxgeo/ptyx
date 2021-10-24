@@ -179,6 +179,7 @@ def _parse_VERSION_tag(self, node):
     self.current_question = l = []
     # The question itself is stored to make debuging easier (error messages will
     # display current question).
+    # Use `self.current_question[0]` to get current question.
     def remember_last_question(code, l):
         l.append(code)
         return code
@@ -186,7 +187,14 @@ def _parse_VERSION_tag(self, node):
     try:
         i = self._child_index(node.children, 'ANSWERS_BLOCK')
     except ValueError:
-        i = self._child_index(node.children, 'L_ANSWERS')
+        try:
+            i = self._child_index(node.children, 'L_ANSWERS')
+        except ValueError:
+            raise RuntimeError('No answers found after a MCQ question !\n'
+                               'Question text:\n'
+                               '----------------------------------\n'
+                               f'{node.as_text(skip_childs=(0,)).strip()}\n'
+                               '----------------------------------\n')
     self._parse_children(node.children[1:i],
                          function=partial(remember_last_question, l=l),
                          )
@@ -580,7 +588,7 @@ def main(text, compiler):
                 file_found = True
                 with open(path) as file:
                     file_content = file.read()
-                    if not file_content.startswith('* '):
+                    if file_content[:2].strip() != '*':
                         file_content = '*\n' + file_content
                     contents.append(file_content)
         if not file_found:

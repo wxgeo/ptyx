@@ -130,9 +130,9 @@ def test_include():
     # - no star at all at the beginning of the question (must be automatically added)
     with open('exercises/ex1.txt') as f:
         assert not f.read().startswith('*')
-#    # - a line break after the star. This should be Ok too.
-#    with open('exercises/ex2.txt') as f:
-#        assert f.read().startswith('*\n')
+    # - a line break after the star. This should be Ok too.
+    with open('exercises/ex2.txt') as f:
+        assert f.read().startswith('*\n')
     c.generate_syntax_tree()
     latex = c.get_latex()
     assert r"$2\times(-1)^2$" in latex
