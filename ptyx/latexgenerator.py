@@ -4,6 +4,7 @@ from os.path import dirname, basename, join
 import random
 from importlib import import_module
 import traceback
+from pathlib import Path
 
 from ptyx.context import GLOBAL_CONTEXT
 from ptyx.config import param, sympy
@@ -797,8 +798,8 @@ class Compiler(object):
     def reset(self):
         self._state = {}
         self._new_closing_tags = set()
-        # FIXME: reset SyntaxTreeGenerator instance.
-        # Or still better: make SyntaxTreeGenerator context free ?
+        # Make SyntaxTreeGenerator context free ?
+        self.syntax_tree_generator.reset()
 
     def read_code(self, code):
         "Feed compiler with given code."
@@ -807,13 +808,26 @@ class Compiler(object):
 
     def read_file(self, path):
         "Feed compiler with given file code."
-        self._state['path'] = path
+        self._state['path'] = Path(path).expanduser().resolve()
         with open(path, 'r') as input_file:
             self._state['input'] = input_file.read()
 
+    def _resolve_path(self, path):
+        "Interpret `path` relatively to input ptyx file."
+        path = Path(path.strip()).expanduser()  # do NOT resolve yet !
+        if not path.is_absolute():
+            try:
+                parent = self.file_path.parent
+            except AttributeError:
+                parent = Path.cwd()
+            path = parent / path
+        return path
+
     def _include_subfiles(self, code):
+        "Parse all #INCLUDE tags, then include subfiles content."
         def include(match):
-            with open(match.group(1).strip()) as file:
+            path = self._resolve_path(match.group(1))
+            with open(path) as file:
                 return f'\n#APART\n{file.read()}#END_APART\n'
         return re.sub(r'#INCLUDE\{([^}]+)\}', include, code)
 
