@@ -75,6 +75,18 @@ class Node:
                 texts.append('%s  - text: %s' % (indent*' ', text))
         return '\n'.join(texts)
 
+    def as_text(self, skip_childs=()):
+        content = []
+        for i, child in enumerate(self.children):
+            if i in skip_childs:
+                continue
+            if isinstance(child, Node):
+                content.append(child.as_text())
+            else:
+                assert isinstance(child, str)
+                content.append(child)
+        return ''.join(content)
+
     @staticmethod
     def _format(val, color):
         if not color:
