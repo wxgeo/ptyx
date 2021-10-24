@@ -581,7 +581,7 @@ def main(text, compiler):
                 with open(path) as file:
                     file_content = file.read()
                     if not file_content.startswith('* '):
-                        file_content = '* \n' + file_content
+                        file_content = '*\n' + file_content
                     contents.append(file_content)
         if not file_found:
             print(f"WARNING: no file corresponding to {pattern!r} !")
@@ -649,9 +649,9 @@ def main(text, compiler):
 
 def close(compiler):
     autoqcm_data = compiler.latex_generator.autoqcm_data
-    path = compiler.file_path
-    folder = path.parent
-    name = path.name
+    file_path = compiler.file_path
+    folder = file_path.parent
+    name = file_path.name
     id_table_pos = None
     for n in autoqcm_data['ordering']:
         # XXX: what if files are not auto-numbered, but a list
@@ -676,6 +676,6 @@ def close(compiler):
                 d.setdefault(page, {})[k] = [float(x), float(y)]
 
 
-    config_file = path / '.autoqcm.config.json'
+    config_file = file_path.with_suffix('.ptyx.autoqcm.config.json')
     dump(config_file, autoqcm_data)
 

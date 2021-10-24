@@ -130,7 +130,7 @@ def generate_ptyx_code(text):
 
         # Nota: for a new version of a question, line must start with 'OR ',
         # with a trailing space, or line must be 'OR', without trailing space.
-        elif any(line.startswith(s) for s in ('* ', '> ', 'OR ')) or line == 'OR':
+        elif line[:2].strip() in ('*', '>') or line[:3].strip() == 'OR':
             # * question
             # Start a question block, with possibly several versions of a question.
 

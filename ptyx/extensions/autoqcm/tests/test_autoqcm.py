@@ -126,10 +126,30 @@ def test_MCQ_shuffling():
 def test_include():
     os.chdir(TEST_DIR)
     c = load_ptyx_file('test_include.ptyx')
+    # Test for support of:
+    # - no star at all at the beginning of the question (must be automatically added)
+    with open('exercises/ex1.txt') as f:
+        assert not f.read().startswith('*')
+#    # - a line break after the star. This should be Ok too.
+#    with open('exercises/ex2.txt') as f:
+#        assert f.read().startswith('*\n')
     c.generate_syntax_tree()
     latex = c.get_latex()
     assert r"$2\times(-1)^2$" in latex
     assert "an other answer" in latex
+
+def test_include_glob():
+    os.chdir(TEST_DIR)
+    c1 = load_ptyx_file('test_include.ptyx')
+    c1.generate_syntax_tree()
+    latex1 = c1.get_latex()
+    c2 = load_ptyx_file('test_include_glob.ptyx')
+    c2.generate_syntax_tree()
+    latex2 = c2.get_latex()
+    assert r"$2\times(-1)^2$" in latex2
+    assert "an other answer" in latex2
+    assert latex1.split() == latex2.split()
+
 
 def test_question_context():
     c = load_ptyx_file('test_questions_context.ptyx')
