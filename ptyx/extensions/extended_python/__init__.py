@@ -7,10 +7,10 @@ An example:
 
 
     ...........................
+    let a, b
     let a, b in 2..5
     let a, b +
     let c, d, e, f +-
-    let a, b *
     let a, b /
     let a +
     let b -
@@ -20,6 +20,7 @@ An example:
     let c, d -
     let u in -3..-1
     let p in 2,3,5,7,11,13,17,19
+    let a, b in 2..20 with a > 2*b
     ...........................
     """
 
@@ -59,21 +60,29 @@ def parse_extended_python_code(code):
             if not line:
                 raise SyntaxError('lonely `let`.')
             if line.endswith('+-') or line.endswith('-+'):
+                # let a, b +-
                 args = ['srandint']
                 names = line[:-2]
             elif line.endswith('+'):
+                # let a, b +
                 args = ['randint']
                 names = line[:-1]
             elif line.endswith('-'):
+                # let a, b -
                 args = ['randint', 'a=-9', 'b=-2']
                 names = line[:-1]
+            elif line.endswith('/'):
+                # let a, b /
+                args = ['srandfrac']
+                names = line[:-1]
             else:
+                # let a, b
                 args = ['srandint']
-                names = line.rstrip('*')
+                names = line
 
-
-        #TODO: define nrandint
-        names = [n.strip() for n in names.split(',')]
+        names = [name.strip() for name in names.split(',')]
+        if not all(name.isidentifier() for name in names):
+            raise SyntaxError(f'Line {line!r} not understood.')
 
         line = '%s, = many(%s, %s)' % (', '.join(names), len(names), ', '.join(args))
         if condition:
