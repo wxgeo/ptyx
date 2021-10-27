@@ -164,6 +164,7 @@ def _parse_CONSECUTIVE_QUESTION_tag(self, node):
                                   )
 
 def _parse_VERSION_tag(self, node):
+    "A version of a question. Each question have one or more versions."
     n = int(node.arg(0))
     self.autoqcm_question_number = n
     # This list is used to test that the same answer is not proposed twice.

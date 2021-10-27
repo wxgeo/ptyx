@@ -301,12 +301,14 @@ class MCQPictureParser:
         default_incorrect = cfg['incorrect']['default']
         default_skipped = cfg['skipped']['default']
 
+        max_score = 0
+        # Take a random student test, and calculate max score for it.
         # Maximal score = (number of questions)x(score when answer is correct)
-        MAX_SCORE = 0
-        for q in cfg['correct_answers']:
+        for q in next(iter(cfg["ordering"].values()))["questions"]:
+            q = str(q)
             if cfg['mode'].get(q, default_mode) != 'skip':
-                MAX_SCORE += int(cfg['correct'].get(q, default_correct))
-        cfg['max_score'] = MAX_SCORE
+                max_score += int(cfg['correct'].get(q, default_correct))
+        cfg['max_score'] = max_score
 
         for ID in self.data:
             print(f'Test {ID} - {self.data[ID]["name"]}')
