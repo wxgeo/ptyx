@@ -197,7 +197,7 @@ class MCQPictureParser:
             raise RuntimeError(f"Questions not seen ! (Look at message above).")
 
 
-    def _keep_previous_version(self, ID, p, pic_path):
+    def _keep_previous_version(self, ID, p, pic_path) -> bool:
         """Test if a previous version of the same page exist.
 
         If so, it probably means the page has been scanned twice, but it could
@@ -245,7 +245,7 @@ class MCQPictureParser:
                 with tempfile.TemporaryDirectory() as tmpdirname:
                     path = join(tmpdirname, 'test.png')
                     # https://stackoverflow.com/questions/39141694/how-to-display-multiple-images-in-unix-command-line
-                    subprocess.run(["convert", self.data[ID]["pic"], pic_path, "-append", path],
+                    subprocess.run(["convert", self.data[ID]["pages"][p]["pic_path"], pic_path, "-append", path],
                                    check=True)
                     subprocess.run(["feh", "-F", path], check=True)
                     input('-- pause --')
@@ -590,33 +590,33 @@ class MCQPictureParser:
                     writerow([str(pic_data['ID']), str(pic_data['page'])])
 
             ID = pic_data['ID']
-            p = pic_data['page']
+            page = pic_data['page']
 
-            if self._keep_previous_version(ID, p, pic_path):
+            if self._keep_previous_version(ID, page, pic_path):
                 continue
 
             # 2) Gather data
             #    ‾‾‾‾‾‾‾‾‾‾‾
             name, student_ID = self.more_infos.get(ID, ('', ''))
-            d = data.setdefault(ID, {'pages': {},
+            data_for_this_ID = data.setdefault(ID, {'pages': {},
                                      'name': name,
                                      'student ID': student_ID,
                                      'answered': {},
                                      'score': 0,
                                      'score_per_question': {}})
-            d['pages'][p] = pic_data
+            data_for_this_ID['pages'][page] = pic_data
 
             for q in pic_data['answered']:
-                ans = d['answered'].setdefault(q, set())
+                ans = data_for_this_ID['answered'].setdefault(q, set())
                 ans |= pic_data['answered'][q]
 
             # 3) 1st page of the test => retrieve the student name
             #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-            if p == 1:
-                self._extract_name(ID, d, matrix)
+            if page == 1:
+                self._extract_name(ID, data_for_this_ID, matrix)
 
             # Store work in progress, so we can resume process if something fails...
-            self.store_data(ID, p, matrix)
+            self.store_data(ID, page, matrix)
 
 
         # ---------------------------

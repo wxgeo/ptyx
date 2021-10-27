@@ -47,7 +47,7 @@ def scan():
 
     Usually, one will call script `bin/scan` from command line,
     which itself calls `scan()` (this procedure).
-    `parser` must be the `ArgumentParser` instance defined in the same file,
+    `parser` must be the `ArgumentParser` instance defined in `args.py`,
     but may be tuned for testing before passing it to `scan()`.
     """
     args = create_parser().parse_args()
