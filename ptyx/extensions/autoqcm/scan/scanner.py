@@ -90,7 +90,6 @@ class MCQPictureParser:
                     try:
                         self.data[ID] = literal_eval(f.read())
                     except ValueError as e:
-                        print(f"ERROR when reading {filename} :")
                         # Temporary patch.
                         # set() is not supported by literal_eval() until Python 3.9
                         # XXX: remove this once Ubuntu 22.04 will be released.
@@ -100,7 +99,11 @@ class MCQPictureParser:
                             assert 'set()' in s
                             self.data[ID] = eval(s)
                         else:
+                            print(f"ERROR when reading {filename} :")
                             raise e
+                    except Exception:
+                        print(f"ERROR when reading {filename} :")
+                        raise
 
     def store_data(self, ID, p, matrix):
         directory = self.dirs['data']
@@ -492,11 +495,10 @@ class MCQPictureParser:
 
 
     def parse_picture(self):
+        "This is used for debuging (it allows to test pages one by one)."
         args = self.args
         if not any(args.picture.endswith(ext) for ext in PIC_EXTS):
             raise TypeError('Allowed picture extensions: ' + ', '.join(PIC_EXTS))
-        # This is used for debuging (it allows to test pages one by one).
-        # ~ print(config)
         pic_path = abspath(expanduser(args.picture))
         if not isfile(pic_path):
             pic_path = join(self.dirs['pic'], args.picture)
