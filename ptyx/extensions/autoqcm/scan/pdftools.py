@@ -20,6 +20,7 @@ def run(cmd):
 
 def _extract_pictures(pdf_path, dest, page=None):
     "Extract all pictures from pdf file in given `dest` directory. "
+    # pdfimages `-all` : keep image native format (for jpg, png ans some other formats).
     cmd = ["pdfimages", "-all", pdf_path, join(dest, 'pic')]
     if page is not None:
         p = str(page)
@@ -36,12 +37,12 @@ def _export_pdf_to_jpg(pdf_path, dest, page=None):
     run(cmd)
 
 
-def pdf2pic(*pdf_files, dest, page=None):
+def pdf2pic(*pdf_files: str, dest: str, page=None):
     "Clear `dest` folder, then extract all pages of the pdf files inside."
     rmtree(dest)
     mkdir(dest)
     tmp_dir = join(dest, '.tmp')
-    for i, pdf in enumerate(pdf_files):
+    for pdf in pdf_files:
         print(f'Extracting all images from {basename(pdf)!r}, please wait...')
         rmtree(tmp_dir, ignore_errors=True)
         mkdir(tmp_dir)
@@ -55,10 +56,10 @@ def pdf2pic(*pdf_files, dest, page=None):
             _export_pdf_to_jpg(pdf, tmp_dir, page)
             pics = listdir(tmp_dir)
         for pic in pics:
-            rename(join(tmp_dir, pic), join(dest, f'f{i}-{pic}'))
+            rename(join(tmp_dir, pic), join(dest, f'f-{pdf}-{pic}'))
     rmtree(tmp_dir)
 
-def extract_pictures_from_pdf(source, dest):
+def extract_pictures_from_pdf(source: str, dest: str):
     "Extract in `dest` directory all pictures from the pdf files found in the" \
     "`source` directory."
     # If images are already cached in `.scan` directory, this step will be skipped.
@@ -68,10 +69,12 @@ def extract_pictures_from_pdf(source, dest):
 
     if len(listdir(dest)) != total_page_number:
         pdf2pic(*pdf_files, dest=dest)
+    else:
+        print("Info: No new pdf file detected.")
 
 
 
-def number_of_pages(pdf_path):
+def number_of_pages(pdf_path: str) -> int:
     "Return the number of pages of the pdf."
     cmd = ["pdfinfo", pdf_path]
     # An example of pdfinfo output:

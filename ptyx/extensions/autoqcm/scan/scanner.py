@@ -33,6 +33,7 @@ import csv
 import sys
 from ast import literal_eval
 from glob import glob
+from hashlib import sha512
 
 from PIL import Image
 from numpy import int8, array
@@ -450,6 +451,16 @@ class MCQPictureParser:
         self.dirs['results'] = join(self.dirs['pdf'], '%s-results' % self.files['base'])
 
 
+#    def _extract_pictures_from_pdf(self):
+#        # First, we must test if pdf files have changed.
+#        # - calculate hash for each file.
+#        # - if nothing has changes, pass.
+#        # - if new pdf files are found, extract pictures from them and store their hash.
+#        # - if pdf files where modified or removed, regenerate everything.
+#        # hashlib.sha512(f.read()).hexdigest()
+
+
+
     def load_all_info(self):
         "Load all informations from files."
         self.load_data()
@@ -507,6 +518,35 @@ class MCQPictureParser:
         print(pic_data)
         sys.exit(0)
 
+    def _read_pdf_hashes(self) -> set:
+        "Load and return all previous pdf hashes."
+        pdf_hash = join(self.dirs['pic'], 'pdf-hash')
+        if not isfile(pdf_hash):
+            return set()
+        with open(pdf_hash, encoding='utf8') as file:
+            return set(file.readlines().strip())
+
+    def _generate_current_pdf_hashes(self) -> dict:
+        "Return the hashes of all the pdf files found in `scan/` directory."
+        hashes = dict()
+        for path in glob(join(self.dirs['input'], '*.pdf')):
+            with open(path, encoding='utf8') as pdf_file:
+                hashes[sha512(pdf_file.read()).digest()] = path
+        return hashes
+
+    def update_input_data(self):
+        ""
+        referenced_hashes_set = self._read_pdf_hashes()
+        found_hashes: dict = self._generate_current_pdf_hashes()
+        found_hashes_set = set(found_hashes)
+
+        # For each removed pdf files, remove corresponding pictures and data
+        for hash in referenced_hashes_set - found_hashes_set:
+            pass
+
+        # For each new pdf files, extract all pictures
+        for hash in found_hashes_set - referenced_hashes_set:
+            pass
 
     def run(self):
         args = self.args
