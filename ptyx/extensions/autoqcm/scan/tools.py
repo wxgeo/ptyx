@@ -6,11 +6,12 @@ Created on Tue Oct 27 22:40:40 2020
 @author: nicolas
 """
 from os import listdir
-from os.path import join, expanduser
+from os.path import expanduser
+from pathlib import Path
 import pickle
 
 
-def search_by_extension(directory, ext):
+def search_by_extension(directory: Path, ext: str) -> Path:
     """Search for a file with extension `ext` in given directory.
 
     Search is NOT case sensible.
@@ -25,7 +26,7 @@ def search_by_extension(directory, ext):
         raise RuntimeError('Several `%s` file found in that directory (%s) ! '
             'Keep one and delete all others (or rename their extensions).'
             % (ext, directory))
-    return join(directory, names[0])
+    return directory / names[0]
 
 
 def print_framed_msg(msg):

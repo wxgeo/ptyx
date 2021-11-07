@@ -74,6 +74,7 @@ def make_files(input_name, correction=False, _nums=None, **options):
 
     formats = options.get('formats', param['formats'])
     names = options.get('names', [])
+    input_name = str(input_name)  # XXX: use pathlib.Path instead
 
     chdir(dirname(input_name))
 
@@ -230,13 +231,14 @@ def _compile_latex_file(filename, dest=None, quiet=False):
 
 def join_files(output_name, pdfnames, seed_file_name=None, **options):
     "Join different versions in a single pdf, then compress it if asked to."
+    output_name = str(output_name)  # XXX: use pathlib.Path instead 
     number = len(pdfnames)
     if options.get('compress') or options.get('cat'):
         # Nota: don't exclude the case `number == 1`,
         # since the following actions rename file,
         # so excluding the case `number == 1` would break autoqcm scan for example.
         # pdftk and ghostscript must be installed.
-        pdfnames = [filename + '.pdf' for filename in pdfnames]
+        pdfnames = [str(filename) + '.pdf' for filename in pdfnames]
         pdf_name = output_name + '.pdf'
         files = ' '.join('"%s"' % filename for filename in pdfnames)
         print('Pdftk output:')

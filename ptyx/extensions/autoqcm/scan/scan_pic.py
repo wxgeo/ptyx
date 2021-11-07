@@ -603,8 +603,7 @@ def edit_answers(m, boxes, answered, config, test_ID, xy2ij, cell_size):
 
 
 
-def scan_picture(filename, config, manual_verification=None,
-                 already_verified=frozenset(), debug=False):
+def scan_picture(filename, config, manual_verification=None, debug=False):
     """Scan picture and return page identifier and list of answers for each question.
 
     - `filename` is a path pointing to a PNG file.
@@ -626,7 +625,7 @@ def scan_picture(filename, config, manual_verification=None,
         of the test. Format: {question_number: {set of answers numbers}}
       * `matrix`: an array representing the current picture.
     """
-
+    filename = str(filename)
     # Convert to grayscale picture.
     pic = Image.open(filename).convert('L')
     m = array(pic)/255.
@@ -1023,8 +1022,7 @@ def scan_picture(filename, config, manual_verification=None,
 
     # ~ color2debug(m, (0,0), (0,0), display=True)
     # ~ print(f'\nScore: {ANSI_REVERSE}{score:g}{ANSI_RESET}\n')
-    if manual_verification is True and (test_ID, page) not in already_verified:
-        print(already_verified)
+    if manual_verification is True:
         print(test_ID, page)
         answered = edit_answers(m, boxes, answered, config, test_ID, xy2ij, cell_size)
     elif debug:
