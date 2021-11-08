@@ -44,7 +44,7 @@ from ..tools.config_parser import load
 from .scan_pic import (scan_picture, ANSI_YELLOW, ANSI_RESET, ANSI_CYAN,
                        ANSI_GREEN, ANSI_RED, color2debug, CalibrationError)
 from .amend import amend_all
-from .pdftools import extract_pdf_pictures, PIC_EXTS
+from .pdftools import extract_pdf_pictures, PIC_EXTS, number_of_pages
 from .tools import search_by_extension, print_framed_msg
 
 
@@ -96,10 +96,9 @@ class MCQPictureParser:
                         # Temporary patch.
                         # set() is not supported by literal_eval() until Python 3.9
                         # XXX: remove this once Ubuntu 22.04 will be released.
-                        if sys.version_info < (3, 9):
-                            f.seek(0)
-                            s = f.read()
-                            assert 'set()' in s
+                        f.seek(0)
+                        s = f.read()
+                        if sys.version_info < (3, 9) and 'set()' in s:
                             self.data[ID] = eval(s)
                         else:
                             print(f"ERROR when reading {filename} :")
@@ -108,15 +107,16 @@ class MCQPictureParser:
                         print(f"ERROR when reading {filename} :")
                         raise
 
-    def _store_data(self, pdfhash: str, ID, p, matrix):
+    def _store_data(self, pdfhash: str, ID, p, matrix=None):
         folder = self.dirs['data'] / pdfhash
         folder.mkdir(exist_ok=True)
         with open(folder / f'{ID}.scandata', 'w') as f:
             f.write(repr(self.data[ID]))
         # We will store a compressed version of the matrix.
         # (It would consume too much memory else).
-        webp = folder / f'{ID}-{p}.webp'
-        Image.fromarray((255*matrix).astype(int8)).save(str(webp), format="WEBP")
+        if matrix is not None:
+            webp = folder / f'{ID}-{p}.webp'
+            Image.fromarray((255*matrix).astype(int8)).save(str(webp), format="WEBP")
 
     def get_pic(self, ID, p, as_matrix=False):
         webp = next(self.dirs['data'].glob(f'*/{ID}-{p}.webp'))
@@ -262,6 +262,11 @@ class MCQPictureParser:
         with open(self.files['skipped'], 'a', newline='', encoding="utf8") as file:
             file.write(f'{skipped_pic}\n')
 
+        if action == 'l':
+            # Remove first picture information.
+            del self.data[ID]["pages"][p]
+            self._store_data(firstpic.parent, ID, p)
+
         return (action == 'f')
 
 
@@ -376,7 +381,7 @@ class MCQPictureParser:
             print(f'{ANSI_YELLOW}Mean: {mean:g}/{max_score:g}{ANSI_RESET}')
         else:
             print('No score found !')
-        print(f"\nResults stored in {scores_path!r}\n")
+        print(f'\nResults stored in "{scores_path}"\n')
 
 
         # Generate CSV file with ID and pictures names for all students.
@@ -391,7 +396,7 @@ class MCQPictureParser:
             for name, student_ID, ID, score, paths in sorted(info):
                 paths = ', '.join(str(Path(pth).relative_to(self.dirs['pic'])) for pth in paths)
                 writerow([name, student_ID, f'#{ID}', score, paths])
-        print(f"Infos stored in {info_path!r}\n")
+        print(f'Infos stored in "{info_path}"\n')
 
         amend_all(self)
 
@@ -495,7 +500,7 @@ class MCQPictureParser:
         self.files['verified'] = self.dirs['cfg'] / 'verified.txt'
         if self.files['verified'].is_file():
             with open(self.files['verified'], 'r', encoding="utf8", newline='') as file:
-                self.verified = set(path.strip() for path in file.readlines())
+                self.verified = set(Path(line.strip()) for line in file.readlines())
                 print("Pages manually verified:")
                 for path in self.verified:
                     print(f"    • {path}")
@@ -507,9 +512,9 @@ class MCQPictureParser:
         self.files['skipped'] = self.dirs['cfg'] / 'skipped.txt'
         if self.files['skipped'].is_file():
             with open(self.files['skipped'], 'r', encoding="utf8", newline='') as file:
-                self.skipped |= set(path.strip() for path in file.readlines())
+                self.skipped |= set(Path(line.strip()) for line in file.readlines())
                 print("Pictures skipped:")
-                for path in self.skipped:
+                for path in sorted(self.skipped):
                     print(f"    • {path}")
 
     def _parse_picture(self):
@@ -563,6 +568,12 @@ class MCQPictureParser:
         for pdfhash, pdfpath in hash2pdf.items():
             folder = self.dirs["pic"] / pdfhash
             if not folder.is_dir():
+                extract_pdf_pictures(pdfpath, folder)
+            elif number_of_pages(pdfpath) != len([f for f in folder.iterdir()
+                                                  if f.suffix.lower() in PIC_EXTS]):
+                # Extraction was probably interrupted
+                rmtree(folder)
+                folder.mkdir()
                 extract_pdf_pictures(pdfpath, folder)
 
     def _warn(self, *values, sep=' ', end='\n'):
@@ -623,15 +634,19 @@ class MCQPictureParser:
         pic_list = sorted(f for f in self.dirs['pic'].glob("*/*")
                         if f.suffix.lower() in PIC_EXTS)
 
+        assert all(isinstance(path, Path) for path in self.skipped)
+        assert all(isinstance(path, Path) for path in self.verified)
+
         for i, pic_path in enumerate(pic_list, start=1):
             if not (args.start <= i <= args.end):
                 continue
-            pic = pic_path.relative_to(self.dirs['pic'])
-            if pic in self.skipped:
+            # Make pic_path relative, so that folder may be moved if needed.
+            pic_path = pic_path.relative_to(self.dirs['pic'])
+            if pic_path in self.skipped:
                 continue
             print('-------------------------------------------------------')
             print('Page', i)
-            print('File:', pic)
+            print('File:', pic_path)
 
             # 1) Extract all the data of an image
             #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
@@ -639,24 +654,26 @@ class MCQPictureParser:
             try:
                 # Warning: args.manual_verification can be None, so the order is important
                 # below : False and None -> False (but None and False -> None).
-                manual_verification = (pic not in self.verified) and args.manual_verification
-                pic_data, matrix = scan_picture(pic_path, self.config,
+                manual_verification = (pic_path not in self.verified) and args.manual_verification
+                pic_data, matrix = scan_picture(self.dirs['pic'] / pic_path, self.config,
                                                 manual_verification)
                 # `pic_data` FORMAT is specified in `scan_pic.py`.
                 # (Search for `pic_data =` in `scan_pic.py`).
+                pic_data['pic_path'] = str(pic_path)
+                print()
 
             except CalibrationError:
                 self._warn(f'WARNING: {pic_path} seems invalid ! Skipping...')
                 input('-- PAUSE --')
                 with open(self.files['skipped'], 'a', newline='', encoding="utf8") as file:
-                    file.write(f'{pic}\n')
+                    file.write(f'{pic_path}\n')
                 continue
 
             if pic_data['verified']:
                 # If the page has been manually verified, keep track of it,
                 # so it won't be verified next time if a second pass is needed.
                 with open(self.files['verified'], 'a', newline='', encoding="utf8") as file:
-                    file.write(f'{pic}\n')
+                    file.write(f'{pic_path}\n')
 
             ID = pic_data['ID']
             page = pic_data['page']

@@ -622,7 +622,6 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
             'page': int,
             'name': str, # student_name
             'student ID': str,
-            'pic_path': str, # filename
             # answers checked by the student for each question:
             'answered': dict[int, set[int]],
             # Position of each checkbox in the page:
@@ -895,7 +894,6 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
             'page': page, # int
             'name': student_name, # str
             'student ID': student_ID, #str
-            'pic_path': filename, # str
             # answers checked by the student for each question:
             'answered': answered, # dict[int, set[int]]
             # Position of each checkbox in the page:
