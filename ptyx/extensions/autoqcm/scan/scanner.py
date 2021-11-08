@@ -31,6 +31,7 @@ import csv
 import sys
 from ast import literal_eval
 from hashlib import blake2b
+from time import strftime
 
 from PIL import Image
 from numpy import int8, array
@@ -81,8 +82,10 @@ class MCQPictureParser:
         # twice.
         self.already_seen = set()
         self.skipped = set()
+        self.warnings = False
+        self.logname = strftime("%Y.%m.%d-%H.%M.%S") + ".log"
 
-    def load_data(self):
+    def _load_data(self):
         if self.dirs['data'].is_dir():
             for filename in self.dirs['data'].glob('*/*.scandata'):
                 ID = int(filename.stem)
@@ -105,7 +108,9 @@ class MCQPictureParser:
                         print(f"ERROR when reading {filename} :")
                         raise
 
-    def store_data(self, folder: Path, ID, p, matrix):
+    def _store_data(self, pdfhash: str, ID, p, matrix):
+        folder = self.dirs['data'] / pdfhash
+        folder.mkdir(exist_ok=True)
         with open(folder / f'{ID}.scandata', 'w') as f:
             f.write(repr(self.data[ID]))
         # We will store a compressed version of the matrix.
@@ -114,7 +119,7 @@ class MCQPictureParser:
         Image.fromarray((255*matrix).astype(int8)).save(str(webp), format="WEBP")
 
     def get_pic(self, ID, p, as_matrix=False):
-        webp = self.dirs['data'] / f'{ID}-{p}.webp'
+        webp = next(self.dirs['data'].glob(f'*/{ID}-{p}.webp'))
         im = Image.open(str(webp))
         if as_matrix:
             return array(im.convert("L"))/255
@@ -183,15 +188,15 @@ class MCQPictureParser:
             if diff:
                 pages_not_seen[ID] = ', '.join(str(p) for p in diff)
         if pages_not_seen:
-            print('= WARNING =')
-            print('Pages not seen:')
+            self._warn('= WARNING =')
+            self._warn('Pages not seen:')
             for ID in sorted(pages_not_seen):
-                print(f'    • Test {ID}: page(s) {pages_not_seen[ID]}')
+                self._warn(f'    • Test {ID}: page(s) {pages_not_seen[ID]}')
         if questions_not_seen:
-            print('=== ERROR ===')
-            print('Questions not seen !')
+            self._warn('=== ERROR ===')
+            self._warn('Questions not seen !')
             for ID in sorted(questions_not_seen):
-                print(f'    • Test {ID}: question(s) {questions_not_seen[ID]}')
+                self._warn(f'    • Test {ID}: question(s) {questions_not_seen[ID]}')
 
         if questions_not_seen:
             # Don't raise an error for pages not found (only a warning in log)
@@ -199,7 +204,7 @@ class MCQPictureParser:
             raise RuntimeError(f"Questions not seen ! (Look at message above).")
 
 
-    def _keep_previous_version(self, ID, p, pic_path: str) -> bool:
+    def _keep_previous_version(self, pic_data: dict) -> bool:
         """Test if a previous version of the same page exist.
 
         If so, it probably means the page has been scanned twice, but it could
@@ -208,49 +213,56 @@ class MCQPictureParser:
         As a precaution, we should signal the problem to the user, and ask him
         what he wants to do.
         """
+        ID = pic_data['ID']
+        p = pic_data['page']
+
+        # This page has never been seen before, everything is OK.
         if (ID, p) not in self.already_seen:
-            # Everything OK.
             self.already_seen.add((ID, p))
             return False
+
+        # This is problematic: it seems like the same page has been seen twice.
+        lastpic_path = pic_data['pic_path']
+        lastpic = Path(lastpic_path).relative_to(self.dirs['pic'])
+        firstpic_path = self.data[ID]["pages"][p]["pic_path"]
+        firstpic = Path(firstpic_path).relative_to(self.dirs['pic'])
+        assert isinstance(lastpic_path, str)
+        assert isinstance(firstpic_path, str)
+
+        self._warn(f'WARNING: Page {p} of test #{ID} seen twice '
+                    f'(in "{firstpic}" and "{lastpic}") !')
+        action = None
+        keys = ("name", "student ID", "answered")
+        if all(pic_data[key] == self.data[ID]["pages"][p][key] for key in keys):
+            # Same information found on the two pages, just keep one version.
+            action = 'f'
+            self._warn('Both page have the same information, keeping only first one...')
+
         # We have a problem: this is is a duplicate.
         # In other words, we have 2 different versions of the same page.
         # Ask the user what to do.
-        print(f'Error: Page {p} of test #{ID} seen twice '
-                    f'(in "{self.data[ID]["pages"][p]["pic_path"]}" and "{pic_path}") !')
-        while True:
+        while action not in ('f', 'l'):
             print('What must we do ?')
             print('- See pictures (s)')
             print('- Keep only first one (f)')
             print('- Keep only last one (l)')
-            # ~ print('- Modify this test ID and enter student name (m)')
-            # ~ print('  (This will not modify correction)')
-            # ~ print('Hint: options f/l are useful if the same page was '
-                  # ~ 'scanned twice, option m if the same test was given '
-                  # ~ 'to 2 different students.')
 
-            ans = input('Answer:')
-            if ans in ('l', 'f'):
-                # if ans == 'l', do nothing.
-                # (By default, last version will overwrite first one).
-                return (ans == 'f')
-            # ~ elif ans == 'm':
-                # ~ ID = input('Enter some digits as new test ID:')
-                # ~ ans = input(f'New ID: {ID!r}. Is it correct (Y/n) ?')
-                # ~ if not ans.isdecimal():
-                    # ~ print('ID must only contain digits.')
-                # ~ elif ans.lower() in ("y", "yes", ""):
-                    # ~ pic_data['name'] = ''
-                    # ~ # Have a negative ID to avoid conflict with existing ID.
-                    # ~ pic_data['ID'] = -int(ID)
-                    # ~ break
-            if ans == 's':
+            action = input('Answer:')
+            if action == 's':
                 with tempfile.TemporaryDirectory() as tmpdirname:
                     path = Path(tmpdirname) / 'test.png'
                     # https://stackoverflow.com/questions/39141694/how-to-display-multiple-images-in-unix-command-line
-                    subprocess.run(["convert", str(self.data[ID]["pages"][p]["pic_path"]), str(pic_path), "-append", str(path)],
+                    subprocess.run(["convert", firstpic_path, lastpic_path, "-append", str(path)],
                                    check=True)
                     subprocess.run(["feh", "-F", str(path)], check=True)
                     input('-- pause --')
+        # We must memorized which version should be skipped in case user
+        # launch scan an other time.
+        skipped_pic = (firstpic if action == 'l' else lastpic)
+        with open(self.files['skipped'], 'a', newline='', encoding="utf8") as file:
+            file.write(f'{skipped_pic}\n')
+
+        return (action == 'f')
 
 
     def _extract_name(self, ID, d, matrix):
@@ -377,7 +389,7 @@ class MCQPictureParser:
             writerow = csv.writer(csvfile).writerow
             writerow(('Name', 'Student ID', 'Test ID', 'Score', 'Pictures'))
             for name, student_ID, ID, score, paths in sorted(info):
-                paths = ', '.join(pth.replace(self.dirs['scan'], '', 1) for pth in paths)
+                paths = ', '.join(str(Path(pth).relative_to(self.dirs['pic'])) for pth in paths)
                 writerow([name, student_ID, f'#{ID}', score, paths])
         print(f"Infos stored in {info_path!r}\n")
 
@@ -437,6 +449,7 @@ class MCQPictureParser:
         self.dirs['cfg'] = self.dirs['scan'] / 'cfg'
         self.dirs['pic'] = self.dirs['scan'] / 'pic'
         self.dirs['pdf'] = self.dirs['scan'] / 'pdf'
+        self.dirs['log'] = self.dirs['scan'] / 'log'
 
         if self.args.reset and self.dirs['scan'].is_dir():
             rmtree(self.dirs['scan'])
@@ -459,9 +472,9 @@ class MCQPictureParser:
 
 
 
-    def load_all_info(self):
+    def _load_all_info(self):
         "Load all informations from files."
-        self.load_data()
+        self._load_data()
 
         # Read manually entered informations (if any).
         self.files['cfg'] = self.dirs['cfg'] / 'more_infos.csv'
@@ -483,7 +496,9 @@ class MCQPictureParser:
         if self.files['verified'].is_file():
             with open(self.files['verified'], 'r', encoding="utf8", newline='') as file:
                 self.verified = set(path.strip() for path in file.readlines())
-                print("Pages manually verified:", self.verified)
+                print("Pages manually verified:")
+                for path in self.verified:
+                    print(f"    • {path}")
 
         self.skipped = set(pic_names_iterator(self.data))
 
@@ -493,10 +508,11 @@ class MCQPictureParser:
         if self.files['skipped'].is_file():
             with open(self.files['skipped'], 'r', encoding="utf8", newline='') as file:
                 self.skipped |= set(path.strip() for path in file.readlines())
-                print("Pictures skipped:", self.skipped)
+                print("Pictures skipped:")
+                for path in self.skipped:
+                    print(f"    • {path}")
 
-
-    def parse_picture(self):
+    def _parse_picture(self):
         "This is used for debuging (it allows to test pages one by one)."
         args = self.args
         if not any(args.picture.endswith(ext) for ext in PIC_EXTS):
@@ -512,7 +528,7 @@ class MCQPictureParser:
 
     def _generate_current_pdf_hashes(self) -> dict:
         """Return the hashes of all the pdf files found in `scan/` directory.
-        
+
         Return: {hash: pdf path}
         """
         hashes = dict()
@@ -522,16 +538,25 @@ class MCQPictureParser:
         return hashes
 
 
-    def update_input_data(self):
+    def _update_input_data(self):
         "Test if input data has changed, and update it if needed."
         hash2pdf: dict = self._generate_current_pdf_hashes()
 
+        def test_path(path):
+            if not path.is_dir():
+                raise RuntimeError(f'Folder "{path.parent}" should only contain folders.\n'
+                                   'You may clean it manually, or remove it with following command:\n'
+                                   f'rm -r "{path.parent}"'
+                                   )
+
         # For each removed pdf files, remove corresponding pictures and data
         for path in self.dirs['pic'].iterdir():
-            if path not in hash2pdf:
+            test_path(path)
+            if path.name not in hash2pdf:
                 rmtree(path)
         for path in self.dirs['data'].iterdir():
-            if path not in hash2pdf:
+            test_path(path)
+            if path.name not in hash2pdf:
                 rmtree(path)
 
         # For each new pdf files, extract all pictures
@@ -540,6 +565,13 @@ class MCQPictureParser:
             if not folder.is_dir():
                 extract_pdf_pictures(pdfpath, folder)
 
+    def _warn(self, *values, sep=' ', end='\n'):
+        "Print to stdout and write to log file."
+        msg = sep.join(str(val) for val in values) + end
+        print(msg)
+        with open(self.dirs['log'] / self.logname, 'a', encoding='utf8') as logfile:
+            logfile.write(msg)
+        self.warnings = True
 
     def run(self):
         args = self.args
@@ -555,17 +587,17 @@ class MCQPictureParser:
             # f9-pic-004.jpg
             # f9-pic-005.jpg
             # f13-pic-002.jpg
-            self.parse_picture()
+            self._parse_picture()
 
         # This is the usual case: tests are stored in only one big pdf file ;
         # we will process all these pdf pages.
 
         data = self.data
-        # Test if the PDF files of the input directory have changed and 
+        # Test if the PDF files of the input directory have changed and
         # extract the images from the PDF files if needed.
-        self.update_input_data()
+        self._update_input_data()
         # Load data from previous run
-        self.load_all_info()
+        self._load_all_info()
 
         # Dict `data` will collect data from all scanned tests.
         #...............................................................
@@ -614,7 +646,7 @@ class MCQPictureParser:
                 # (Search for `pic_data =` in `scan_pic.py`).
 
             except CalibrationError:
-                print(f'WARNING: {pic_path} seems invalid ! Skipping...')
+                self._warn(f'WARNING: {pic_path} seems invalid ! Skipping...')
                 input('-- PAUSE --')
                 with open(self.files['skipped'], 'a', newline='', encoding="utf8") as file:
                     file.write(f'{pic}\n')
@@ -629,7 +661,7 @@ class MCQPictureParser:
             ID = pic_data['ID']
             page = pic_data['page']
 
-            if self._keep_previous_version(ID, page, str(pic_path)):
+            if self._keep_previous_version(pic_data):
                 continue
 
             # 2) Gather data
@@ -653,8 +685,7 @@ class MCQPictureParser:
                 self._extract_name(ID, data_for_this_ID, matrix)
 
             # Store work in progress, so we can resume process if something fails...
-            folder = pic_path.parent
-            self.store_data(folder, ID, page, matrix)
+            self._store_data(pic_path.parent.name, ID, page, matrix)
 
 
         # ---------------------------

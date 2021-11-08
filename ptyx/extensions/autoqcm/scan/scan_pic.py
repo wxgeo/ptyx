@@ -616,14 +616,23 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
       for manual verification only if recommanded. If it is set to `False`,
       user will never be bothered.
 
-    Return the following dictionnary:
-    {'ID': int, 'page': int, 'name': str, 'answered': dict, 'matrix': array}
-      * `ID`: identifier of the test
-      * `page`: page of the test
-      * `name`: student name
-      * `answered`: the answer selected by the student for each question
-        of the test. Format: {question_number: {set of answers numbers}}
-      * `matrix`: an array representing the current picture.
+    Return a tuple:
+        * the following dictionnary:
+            {'ID': int,
+            'page': int,
+            'name': str, # student_name
+            'student ID': str,
+            'pic_path': str, # filename
+            # answers checked by the student for each question:
+            'answered': dict[int, set[int]],
+            # Position of each checkbox in the page:
+            'positions': dict[tuple[int, int], tuple[int, int]],
+            'cell_size': int,
+            # Translation table ({question number before shuffling: after shuffling})
+            'questions_nums': dict[int, int],
+            # Manual verification by the user ?
+            'verified': bool|None}
+        * an array representing the current picture.
     """
     filename = str(filename)
     # Convert to grayscale picture.
