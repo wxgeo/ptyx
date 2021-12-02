@@ -164,7 +164,10 @@ def _parse_CONSECUTIVE_QUESTION_tag(self, node):
                                   )
 
 def _parse_VERSION_tag(self, node):
-    "A version of a question. Each question have one or more versions."
+    """A version of a question. Each question have one or more versions.
+
+    Tag usage: #VERSION{num}
+    """
     n = int(node.arg(0))
     self.autoqcm_question_number = n
     # This list is used to test that the same answer is not proposed twice.
@@ -189,7 +192,7 @@ def _parse_VERSION_tag(self, node):
         i = self._child_index(node.children, 'ANSWERS_BLOCK')
     except ValueError:
         try:
-            i = self._child_index(node.children, 'L_ANSWERS')
+            i = self._child_index(node.children, 'ANSWERS_LIST')
         except ValueError:
             raise RuntimeError('No answers found after a MCQ question !\n'
                                'Question text:\n'
@@ -213,11 +216,22 @@ def _parse_ANSWERS_BLOCK_tag(self, node):
 
 
 def _parse_NEW_ANSWER_tag(self, node):
+    """A new answer.
+
+    Tag usage: #NEW_VERSION{num}{is_answer_correct}
+    """
+
     k = int(node.arg(0))
+    arg1 = node.arg(1).strip()
+    if arg1 == 'True':
+        is_correct = True
+    elif arg1 == 'False':
+        is_correct = False
+    else:
+        raise RuntimeError(f"Second #NEW_ANSWER argument must be True or False, not {arg1!r}.")
     n = self.autoqcm_question_number
-    data = self.autoqcm_data['ordering'][self.NUM]
-    data['answers'][n].append(k)
-    _open_answer(self, n, k)
+
+    _open_answer(self, n, k, is_correct)
     # Functions to apply. Last one is applied first:
     # if functions = [f, g, h], then s -> f(g(h(s))).
     functions = []
@@ -261,17 +275,16 @@ def _parse_NEW_ANSWER_tag(self, node):
         functions.append(partial(test_singularity_and_append, l=self.autoqcm_answers,
                                         question=self.current_question[0]))
 
-    self._parse_children(node.children[1:], function=functions)
+    self._parse_children(node.children[2:], function=functions)
     _close_answer(self)
 
 
-def _open_answer(self, n, k):
+def _open_answer(self, n, k, is_correct):
     # `n` is question number *before* shuffling
     # `k` is answer number *before* shuffling
     # When the pdf with solutions will be generated, incorrect answers
     # will be preceded by a white square, while correct ones will
     # be preceded by a gray one.
-    is_correct = (k in self.autoqcm_data['correct_answers'][n])
     self.write(r'\AutoQCMTab{')
     cb_id = f'Q{n}-{k}'
     if self.WITH_ANSWERS and is_correct:
@@ -279,6 +292,8 @@ def _open_answer(self, n, k):
     else:
         self.write(r'\checkBox{white}{%s}' % cb_id)
     self.write(r'}{')
+    data = self.autoqcm_data['ordering'][self.NUM]
+    data['answers'][n].append((k, is_correct))
 
 
 def _close_answer(self):
@@ -286,65 +301,56 @@ def _close_answer(self):
     self.write(r'}\quad' '\n')
 
 
+def _parse_ANSWERS_LIST_tag(self, node):
+    """This tag generates answers from a python list.
 
-
-# Following tag is used to generates the answers from a python list.
-
-def _parse_L_ANSWERS_tag(self, node):
-    """#L_ANSWERS{list}{correct_answer} generate answers from a python list.
+    Tag usage: #L_ANSWERS{list_of_answers}{list_of_correct_answers}
 
     Example:
-    #L_ANSWERS{l}{l[0]}
-    Note that if list or correct_answer are not strings, they will be
+    #L_ANSWERS{l}{[l[0]]} or #L_ANSWERS{l}{l[0],}
+    When using the last syntax, the coma is mandatory.
+
+    Note that if the elements of the lists are not strings, they will be
     converted automatically to math mode latex code (1/2 -> '$\frac{1}{2}$').
     """
-    raw_l = self.context[node.arg(0).strip()]
-    def conv(v):
-        if isinstance(v, str):
-            return v
-        return '$%s$' % sympy2latex(v)
-    correct_answer = conv(eval(node.arg(1).strip(), self.context))
+    def eval_and_format_arg(arg_num):
+        raw_list = eval(node.arg(arg_num).strip(), self.context)
+        if not isinstance(raw_list, (list, tuple)):
+            raise RuntimeError(f'In #ANSWERS_LIST, argument {arg_num + 1} must be a list of answers.')
+        formated_list = [(val if isinstance(val, str) else f"${sympy2latex(val)}$")  for val in raw_list]
+        return formated_list
 
-    # Test that first argument seems correct
-    # (it must be a list of unique answers including the correct one).
-    if not isinstance(raw_l, (list, tuple)):
-        raise RuntimeError('#L_ANSWERS: first argument must be a list of answers.')
-    l = []
-    for v in raw_l:
-        test_singularity_and_append(conv(v), l, self.current_question[0])
-    if correct_answer not in l:
-        raise RuntimeError('#L_ANSWERS: correct answer is not in proposed answers list !')
+    answers = eval_and_format_arg(0)
+    correct_answers = eval_and_format_arg(1)
+
+    # Test that arguments seem correct
+    # (they must be a list of unique answers, and answers must include the correct ones).
+    for ans in correct_answers:
+        if ans not in answers:
+            raise RuntimeError('#ANSWERS_LIST: correct answer {ans} is not in proposed answers list {answers}!')
+    answers_certified_unique = []
+    for ans in answers:
+        test_singularity_and_append(ans, answers_certified_unique, self.current_question[0])
+    answers = answers_certified_unique
 
     # Shuffle and generate LaTeX.
-    randfunc.shuffle(l)
+    # randfunc.shuffle(answers)
     self.write('\n\n' r'\begin{minipage}{\textwidth}' '\n')
     n = self.autoqcm_question_number
-    data = self.autoqcm_data['ordering'][self.NUM]
-    # We will now attribute a unique number to each question.
-    # Order don't really matter, but number `1` is reserved to correct answer.
-    # Some explanations:
-    # In current implementation, correct answer number for each question
-    # before shuffling is encoded in a JSON parameter file, as well as
-    # the permutation used for each version.
-    # This JSON file whill be used by `scan.py` script when scanning students tests later.
-    # However, when using a L_ANSWERS tag, questions list is dynamically generated
-    # for each version of the document. So we can't be sure that every version of
-    # the list will have the same size. However, this list can't be empty,
-    # so there will always be a first question.
-    # So, we can manage to have correct answer labeled `1` for every test quite easily.
-    # Since `1` is reserved, let's start at `2`.
-    i = 2
-    for ans in l:
-        if ans == correct_answer:
-            k = 1
-        else:
-            k = i
-            i += 1
-        _open_answer(self, n, k)
-        data['answers'][n].append(k)
+    for k, ans in enumerate(answers, 1):
+        _open_answer(self, n, k, ans in correct_answers)
         self.write(ans)
         _close_answer(self)
     self.write('\n\n\\end{minipage}')
+
+
+def _parse_L_ANSWERS_tag(self, node):
+    raise DeprecationWarning(
+            "L_ANSWERS tag is not supported anymore.\n"
+            "Use #ANSWERS_LIST{list_of_answers}{list_of_correct_answers} instead of "
+            "#L_ANSWERS{list_of_answers}{correct_answer}.\n"
+            "Example: #L_ANSWERS{l}{l[0]} -> #ANSWERS_LIST{l}{[l[0]]}"
+                             )
 
 
 def _parse_DEBUG_AUTOQCM_tag(self, node):
@@ -354,10 +360,6 @@ def _parse_DEBUG_AUTOQCM_tag(self, node):
     print(data)
     print('---------------------------------------------------------------')
     #self.write(data)
-
-
-
-
 
 
 def _analyze_IDS(ids):
@@ -588,10 +590,17 @@ def main(text, compiler):
             if path.is_file():
                 file_found = True
                 with open(path) as file:
-                    file_content = file.read()
+                    file_content = file.read().strip()
                     if file_content[:2].strip() != '*':
                         file_content = '*\n' + file_content
-                    contents.append(file_content)
+                    lines = []
+                    for line in file_content.split('\n'):
+                        lines.append(line)
+                        if (line.startswith('* ') or line.startswith('> ')
+                                                  or line.startswith('OR ')
+                                                  or line.rstrip() in ('*', '>', 'OR')):
+                            lines.append(f'#PRINT{{IMPORT DE "{path}"}}')
+                    contents.append('\n'.join(lines))
         if not file_found:
             print(f"WARNING: no file corresponding to {pattern!r} !")
         return '\n\n' + '\n\n'.join(contents) + '\n\n'
@@ -624,9 +633,12 @@ def main(text, compiler):
                                     'SECTION', 'END_QCM']), _parse_VERSION_tag)
     new_tag('ANSWERS_BLOCK', (0, 0, ['@END_ANSWERS_BLOCK']),
             _parse_ANSWERS_BLOCK_tag)
-    new_tag('NEW_ANSWER', (1, 0, ['NEW_ANSWER', 'END_ANSWERS_BLOCK']),
+    new_tag('NEW_ANSWER', (2, 0, ['NEW_ANSWER', 'END_ANSWERS_BLOCK']),
             _parse_NEW_ANSWER_tag)
-    new_tag('L_ANSWERS', (2, 0, None), _parse_L_ANSWERS_tag)
+    new_tag('ANSWERS_LIST', (2, 0, None), _parse_ANSWERS_LIST_tag)
+
+    # Deprecated tags
+    new_tag('L_ANSWERS', (1, 0, None), _parse_L_ANSWERS_tag)
 
     # Other tags
     new_tag('QCM_HEADER', (1, 0, None), _parse_QCM_HEADER_tag)
@@ -634,7 +646,7 @@ def main(text, compiler):
 
     # For efficiency, update only once, after last tag is added.
     compiler.update_tags_info()
-    code, correct_answers = generate_ptyx_code(text)
+    code = generate_ptyx_code(text)
     # Some tags use cache, for code which don't change between two successive compilation.
     # (Typically, this is used for (most of) the header).
     compiler.latex_generator.autoqcm_cache = {}
@@ -644,11 +656,11 @@ def main(text, compiler):
             'correct': {'default': 1},
             'incorrect': {'default': 0},
             'skipped': {'default': 0},
-            'correct_answers': correct_answers, # {1: [4], 2:[1,5], ...}
+            #'correct_answers': correct_answers, # {1: [4], 2:[1,5], ...}
             'students': [],
             'id-table-pos': None,
             'ids': {},
-            'ordering': {}, # {NUM: {'questions': [2,1,3...], 'answers': {1: [2,1,3...], ...}}, ...}
+            'ordering': {}, # {NUM: {'questions': [2,1,3...], 'answers': {1: [(2, True), (1, False), (3, True)...], ...}}, ...}
             'boxes': {}, # {NUM: {'tag': 'p4, (23.456, 34.667)', ...}, ...}
             'id_format': None,
             }

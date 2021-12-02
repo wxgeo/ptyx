@@ -48,8 +48,10 @@ def generate_ptyx_code(text):
         elif level == 'SECTION':
             if 'title' in kw:
                 l.append('[%s]' % kw['title'])
-        elif level in ('NEW_ANSWER', 'VERSION'):
+        elif level == 'VERSION':
             l.append('{%s}' % kw['n'])
+        elif level == 'NEW_ANSWER':
+            l.append('{%s}{%s}' % (kw['n'], kw['correct']))
 
         code.append(''.join(l))
 
@@ -92,7 +94,6 @@ def generate_ptyx_code(text):
     is_header = False
     header = ['#QCM_HEADER{']
     question_num = 0
-    correct_answers = {}
 
     # Don't use ASK_ONLY: if one insert Python code here, it would be removed
     # silently when generating the pdf files with the answers !
@@ -142,18 +143,14 @@ def generate_ptyx_code(text):
                 begin('QUESTION', consecutive=(line[0]=='>'))
             question_num += 1
             begin('VERSION', n=question_num)
-            correct_answers[question_num] = []
             answer_num = 0
             code.append(line[2:])
 
-        elif line.startswith('#L_ANSWERS'):
+        elif line.startswith('#ANSWERS_LIST'):
             # End question.
             # (Usually, questions are closed when seeing answers, ie. lines
             # introduced by '-' or '+').
             code.append(line)
-            # Correct answer will always be first one.
-            # (This is simpler to deal with, since list size may vary.)
-            correct_answers[question_num].append(1)
 
         elif line.startswith('@'):
             raw = line.startswith('@@')
@@ -182,20 +179,10 @@ def generate_ptyx_code(text):
                 if previous_line.startswith('@'):
                     code.append(cut_and_paste)
 
-
-
             answer_num += 1
-            begin('NEW_ANSWER', n=answer_num)
-
-            if line[0] == '+':
-                # This is a correct answer.
-                correct_answers[question_num].append(answer_num)
+            begin('NEW_ANSWER', n=answer_num, correct=(line[0] == '+'))
 
             code.append(line[2:])
-
-#        elif n >= 3 and all(c == '-' for c in line):  # ---
-#            if stack.current == 'ANSWERS':
-#                close('ANSWERS')
 
         elif n >= 3 and all(c == '>' for c in line):  # >>>
             # End MCQ
@@ -208,4 +195,4 @@ def generate_ptyx_code(text):
 
     code.append(r'\cleardoublepage')
     code.append(r'\end{document}')
-    return '\n'.join(code), correct_answers
+    return '\n'.join(code)
