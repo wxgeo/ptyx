@@ -578,6 +578,8 @@ class LatexGenerator:
                     print('*** ERROR ***')
                     print(e)
 
+    def _parse_PRINT_tag(self, node):
+        print(node.arg(0))
 
     @staticmethod
     def _exec(code, context):

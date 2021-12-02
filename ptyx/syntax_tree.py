@@ -154,6 +154,7 @@ class SyntaxTreeGenerator:
             'CALL':         (0, 1, None),
             'MACRO':        (0, 1, ['@END', '@END_MACRO']),
             'PICK':         (0, 0, ['@END', '@END_PICK']),
+            'PRINT':        (1, 0, None),
             'PYTHON':       (0, 0, ['@END']),
             'QUESTION':     (0, 1, None),
             #~ 'RAND':         (1, 0, None),
