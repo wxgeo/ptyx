@@ -25,6 +25,27 @@ Arguments must be passed to tags using curly brackets: ``#IF{a == 2}``.
 Note that tags can be nested without limitation.
 
 
+Comments
+========
+
+Comments lines starts with a `#` character followed by a space.
+
+Example:
+
+.. code-block:: c
+
+    This is an ordinary \latex line.
+    # This is a comment, it won't be parsed.
+    # Note the space after the hash symbol, at the begining of the line.
+    And this is an other \latex line.
+
+Comments at the end of line must start with a space, then a hash and then another space.
+
+.. code-block:: c
+
+    This is an ordinary \latex line. # And this is a comment.
+
+    
 IF, ELIF, ELSE tags
 ===================
 

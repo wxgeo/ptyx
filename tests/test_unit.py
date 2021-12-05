@@ -1,7 +1,9 @@
 import re
 import os
 from os.path import dirname
+import types
 
+import ptyx
 from ptyx.latexgenerator import SyntaxTreeGenerator, Compiler#, parse
 from ptyx.utilities import find_closing_bracket, round
 from ptyx.printers import sympy2latex
@@ -263,9 +265,11 @@ d=8
 $\dfrac{#a#*(#{c*x+d})#-#{a*x+b}#*#c}{(#{c*x+d})^2}$'''
     result = r'''
 $\dfrac{-8\times (5 x + 8)-\left(- 8 x + 4\right)\times 5}{(5 x + 8)^2}$'''
+    alternative_result = r'''
+$\dfrac{-8\times (5 x + 8)-\left(4 - 8 x\right)\times 5}{(5 x + 8)^2}$'''
     c = Compiler()
     latex = c.parse(test)
-    assert latex == result
+    assert latex == result or latex == alternative_result
 
     # Test 2
     test = "2#*3"
@@ -340,5 +344,34 @@ Last, $a=7$ still."""
     assert latex == result
 
 
+def test_comments():
+    test = \
+"""# Let's test comments.
+First, $a=#{a=7}$ # This is a comment
+# This is another comment
+# Comment are introduced using an hashtag followed by a space : # comment
+# The hashtag must also be preceded by a space or be the first caracter of the line.
+Last, $a=#a$ still.
+#a#a#a#a # comment must support things like #a of course (there are remove
+# before parsing).
+## is just displayed as a hash, it is not a comment.
+# # is comment though."""
+    result = \
+"""First, $a=7$
+Last, $a=7$ still.
+7777
+# is just displayed as a hash, it is not a comment.
+#"""
+    c = Compiler()
+    latex = c.parse(test)
+    assert latex == result
+
+def main():
+    for varname, content in globals().items():
+        if varname.startswith("test_") and type(content) == types.FunctionType:
+            os.chdir(os.path.join(dirname(ptyx.__file__), ".."))
+            content()
+
+
 if __name__ == '__main__':
-    test_PICK()
+    main()

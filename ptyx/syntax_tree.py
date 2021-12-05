@@ -225,6 +225,14 @@ class SyntaxTreeGenerator:
         self.sorted_tags = sorted(self.tags, key=len, reverse=True)
 
 
+    def _remove_comments(self, text):
+        # If the comment is at the end of a line, don't remove the end of line.
+        # However, if the full line is a comment, remove the end of line (\n).
+        text = re.sub("( # .+)|(^# .+\n)", "", text, flags=re.MULTILINE)
+        return text
+
+
+
     def generate_tree(self, text):
         """Pre-parse pTyX code and generate a syntax tree.
 
@@ -236,6 +244,8 @@ class SyntaxTreeGenerator:
         # Now, we will parse Ptyx code to generate a syntax tree.
         self._found_tags = set()
         self.syntax_tree = Node('ROOT')
+        # Remove all comments from text.
+        text = self._remove_comments(text)
         self._generate_tree(self.syntax_tree, text)
         self.syntax_tree.tags = self._found_tags
         return self.syntax_tree
@@ -289,8 +299,9 @@ class SyntaxTreeGenerator:
                         break
                     # -> sorry, try again.
             else:
-                if text[position].isdigit() or text[position] == ' ':
+                if position >= len(text) or text[position].isdigit() or text[position] == ' ':
                     # This not a tag: LaTeX uses #1, #2, #3 as \newcommand{} parameters.
+                    # This may also be a simple \# .
                     # Pretend nothing happened.
                     update_last_position = False
                     continue
