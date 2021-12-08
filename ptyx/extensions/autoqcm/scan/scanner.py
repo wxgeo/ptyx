@@ -600,7 +600,7 @@ class MCQPictureParser:
 
         # Dict `data` will collect data from all scanned tests.
         # ...............................................................
-        # FORMAT: {ID: {'pages': (dict) the pages seen, and all related informations,
+        # FORMAT: {ID: {'pages': (dict) the pages seen, and all related information,
         #               'answers': ({int: set}) the answers of the student for each question,
         #               'score': (float) the test score,
         #               'name': (str) the student name,

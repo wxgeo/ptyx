@@ -34,7 +34,7 @@ from ptyx.latexgenerator import compiler
 from ptyx import __version__, __release_date__
 
 if sys.version_info.major == 2:
-    raise RuntimeError("Python version 3.6+ requis !")
+    raise RuntimeError("Python version 3.6+ is needed !")
 
 
 # Options parsing
@@ -104,7 +104,7 @@ parser.add_argument(
                (and optionally a second column with forenames). \n \
                The names will be used to generate the #NAME tag \
                replacement value.\n \
-               Additionnaly, if `-n` option is not specified, \
+               Additionally, if `-n` option is not specified, \
                default value will be the number of names in the CSV file.",
 )
 
@@ -158,7 +158,7 @@ def ptyx(parser=parser):
 
     if options.names:
         with open(pth(options.names)) as f:
-            options.names = [" ".join(l) for l in csv.reader(f)]
+            options.names = [" ".join(line) for line in csv.reader(f)]
             print("Names extracted from CSV file:")
             print(options.names)
     else:
@@ -174,7 +174,7 @@ def ptyx(parser=parser):
             key, val = keyval.split("=", 1)
             key = key.strip()
             if not str.isidentifier(key):
-                raise NameError(f"{key} is not a valid variale name.")
+                raise NameError(f"{key} is not a valid variable name.")
             options.context[key] = literal_eval(val)
 
     # Time to act ! Let's compile all ptyx files...
@@ -208,8 +208,7 @@ def ptyx(parser=parser):
 
         # If any of the so-called `ANSWER_tags` is present, compile a second
         # version of the documents with answers.
-        # TODO: make an API to choose if the version with answers must be generated
-        # or not:
+        # TODO: make an API to choose if the version with answers must be generated or not:
         # - there should be 3 modes, True, False and Auto (current mode).
         # - each mode should be accessible from the command line (add an option)
         # - it should be easy to modify mode for extensions.

@@ -254,7 +254,7 @@ class SyntaxTreeGenerator:
             # A tag starts with '#'.
 
             # last_position should not be updated if false positives
-            # were encoutered (ie. #1, #2 in \newcommand{}...).
+            # were encountered (ie. #1, #2 in \newcommand{}...).
             if update_last_position:
                 last_position = position
             else:
@@ -267,8 +267,8 @@ class SyntaxTreeGenerator:
             # Is this a known tag ?
             for tag in self.sorted_tags:
                 if text[position:].startswith(tag):
-                    # Mmmh, this begins like a known tag...
-                    # Infact, it will really match a known tag if one of the following occures:
+                    # Mmm, this begins like a known tag...
+                    # In fact, it will really match a known tag if one of the following occures:
                     # - next character is not alphanumeric ('#IF{' for example).
                     # - tag is not alphanumeric ('#*' tag for example).
                     if not tag[-1].replace("_", "a").isalnum():
