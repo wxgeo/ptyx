@@ -16,7 +16,7 @@ def _correct_checkboxes(draw, pos, checked, correct, size):
     margin = size//2
     red = COLORS['red']
     green = COLORS['green']
-    # Draw a blue square around the box (for debuging purpose).
+    # Draw a blue square around the box (for debugging purpose).
     draw.rectangle((j, i, j+size, i+size), outline=green)
     if checked and not correct:
         # Circle checkbox with red pen.
@@ -50,6 +50,7 @@ def amend_all(pic_parser):
     """
     max_score = pic_parser.config['max_score']
     for ID, d in pic_parser.data.items():
+        correct_answers = pic_parser.correct_answers[ID]
         pics = {}
         for page, page_data in d['pages'].items():
             top_left_positions = {}
@@ -66,7 +67,7 @@ def amend_all(pic_parser):
             size = page_data['cell_size']
             for (q, a), pos in page_data['positions'].items():
                 checked = (a in page_data['answered'][q])
-                correct = (a in pic_parser.config['correct_answers'][q])
+                correct = (a in correct_answers[q])
                 _correct_checkboxes(draw, pos, checked, correct, size)
                 if q in top_left_positions:
                     i0, j0 = top_left_positions[q]
@@ -81,7 +82,7 @@ def amend_all(pic_parser):
             # We will now sort pages.
             # For that, we use questions numbers: the page which displays
             # the smaller questions numbers is the first one, and so on.
-            # However, be carefull to use displayed questions numbers,
+            # However, be careful to use displayed questions numbers,
             # since `q` is the question number *before shuffling*.
             q_num = page_data['questions_nums'][q]
             pics[q_num] = pic
@@ -91,4 +92,3 @@ def amend_all(pic_parser):
         _write_score(draw, (2*size, 4*size), f"{d['score']:g}/{max_score:g}", 2*size)
         pages[0].save(join(pic_parser.dirs['pdf'], f"{d['name']}-{ID}.pdf"),
                       save_all=True, append_images=pages[1:])
-

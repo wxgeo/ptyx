@@ -155,7 +155,7 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
                 if not (vertical or horizontal):
                     break
             else:
-                print("Warning: adjustement of square position seems abnormally long... Skiping...")
+                print("Warning: adjustment of square position seems abnormally long... Skipping...")
             #
             #      Do not detect pixels there to avoid detecting
             #      the same square twice.
@@ -223,10 +223,10 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, margin=0, _
 
 
 def eval_square_color(m, i, j, size, margin=0, _debug=False):
-    """Return an indice of blackness, which is a float in range (0, 1).
+    """Return an indicator of blackness, which is a float in range (0, 1).
     The bigger the float returned, the darker the square.
 
-    The indice is useful to compare several squares, and find the blacker one.
+    This indicator is useful to compare several squares, and find the blacker one.
     Note that the core of the square is considered the more important part to assert
     blackness.
 
@@ -314,7 +314,7 @@ def color2debug(array=None, from_=None, to_=None, color='red',
     NOTA:
     - `feh` must be installed.
       On Ubuntu/Debian: sudo apt-get install feh
-    - Left-draging the picture with mouse inside feh removes bluring/anti-aliasing,
+    - Left-dragging the picture with mouse inside feh removes bluring/anti-aliasing,
       making visual debugging a lot easier.
     """
     if array is None:

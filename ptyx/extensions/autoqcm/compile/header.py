@@ -1,17 +1,15 @@
-from string import ascii_letters
 import csv
-#import sys
 from os.path import abspath, dirname, isabs, join, expanduser
+from string import ascii_letters
+from typing import Sequence
 
-#script_path = dirname(abspath(sys._getframe().f_code.co_filename))
-#sys.path.insert(0, script_path)
-from ..parameters import (CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM, # SQUARE_SIZE_IN_CM,
-                         MARGIN_RIGHT_IN_CM, PAPER_FORMAT, # PAPER_FORMATS,
-                         MARGIN_BOTTOM_IN_CM, MARGIN_TOP_IN_CM,
-                         CALIBRATION_SQUARE_POSITION,
-                         CALIBRATION_SQUARE_SIZE
-                        )
-from ..tools.config_parser import correct_answers
+from ..parameters import (CELL_SIZE_IN_CM, MARGIN_LEFT_IN_CM,  # SQUARE_SIZE_IN_CM,
+                          MARGIN_RIGHT_IN_CM, PAPER_FORMAT,  # PAPER_FORMATS,
+                          MARGIN_BOTTOM_IN_CM, MARGIN_TOP_IN_CM,
+                          CALIBRATION_SQUARE_POSITION,
+                          CALIBRATION_SQUARE_SIZE
+                          )
+from ..tools.config_parser import get_correct_answers
 
 
 class IdentifiantError(RuntimeError):
@@ -164,7 +162,7 @@ def extract_NAME_from_csv(csv_path, script_path):
     return names
 
 
-def students_checkboxes(names, _n_student=None):
+def students_checkboxes(names: Sequence[str], _n_student=None):
     """Generate a list of all students, where student can check his name.
 
     `names` is a list of students names.
@@ -177,9 +175,9 @@ def students_checkboxes(names, _n_student=None):
         \draw [fill=black] (-2,0) rectangle (-1,1) (-1.5,0) node[below]
         {\tiny\rotatebox{-90}{\texttt{\textbf{Noircir la case}}}};''']
 
-    # Generate the corresponding names table in LaTeX.
+    # Generate the corresponding names' table in LaTeX.
     for i, name in enumerate(reversed(names)):
-        # Troncate long names.
+        # Truncate long names.
         if len(name) >= 15:
             _name = name[:13].strip()
             if " " not in name[12:13]:
@@ -250,7 +248,7 @@ def table_for_answers(config, ID=None):
     """Generate the table where students select correct answers.
 
     - `config` is a dict generated when compiling test.
-    - `ID` is the student ID if correct answers should be shown.
+    - `ID` is the test ID if correct answers should be shown.
       If `ID` is `None` (default), the table will be blank.
     """
     content = []
@@ -280,7 +278,7 @@ def table_for_answers(config, ID=None):
 
     # Find correct answers numbers for each question.
     if ID is not None:
-        correct_ans = correct_answers(config, ID)
+        correct_ans = get_correct_answers(config, use_original_num=False)[ID]
 
     i = -1
     for i in range(n_max_answers):

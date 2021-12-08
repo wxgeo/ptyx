@@ -1,18 +1,17 @@
-from math import degrees, atan, hypot
 import builtins
 from functools import partial
+from math import degrees, atan, hypot
 
 from PIL import Image
-from numpy import array, flipud, fliplr, dot, amin, amax, zeros#, percentile, clip
-
+from numpy import array, flipud, fliplr, dot, amin, amax, zeros  # , percentile, clip
 
 from .square_detection import test_square_color, find_black_square, \
-                             eval_square_color, adjust_checkbox, \
-                             color2debug
-from ..tools.config_parser import load, real2apparent, apparent2real
+    eval_square_color, adjust_checkbox, \
+    color2debug
 from ..parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM,
-                        CALIBRATION_SQUARE_POSITION, CALIBRATION_SQUARE_SIZE
-                        )
+                          CALIBRATION_SQUARE_POSITION, CALIBRATION_SQUARE_SIZE
+                          )
+from ..tools.config_parser import load, real2apparent, apparent2real, is_answer_correct
 
 ANSI_RESET = "\u001B[0m"
 ANSI_BLACK = "\u001B[30m"
@@ -607,17 +606,17 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     """Scan picture and return page identifier and list of answers for each question.
 
     - `filename` is a path pointing to a PNG file.
-    - `config` is either a path poiting to a config file, or a dictionnary
+    - `config` is either a path pointing to a config file, or a dictionary
       containing the configuration (generated from a config file).
     - `manual_verification` is set to `True`, the picture will be displayed
       with the interpretation done by this algorithm: checkboxes considered
       blackened by student will be shown in cyan, and all the other ones will be
       shown in red. If it is set to `None` (default), the user will be asked
-      for manual verification only if recommanded. If it is set to `False`,
+      for manual verification only if recommended. If it is set to `False`,
       user will never be bothered.
 
     Return a tuple:
-        * the following dictionnary:
+        * the following dictionary:
             {'ID': int,
             'page': int,
             'name': str, # student_name
@@ -811,7 +810,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 #            color2debug(m, (i0, j0), (i0 + cell_size, j0 + cell_size), color=(0,255,0))
 
             # Scan grid row by row. For each row, the darker cell is retrieved,
-            # and the associated caracter is appended to the ID.
+            # and the associated character is appended to the ID.
             all_ID_are_of_the_same_length = (len(set(len(ID) for ID in ids)) == 1)
 
             ev = eval_square_color
@@ -819,18 +818,18 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
                 # Top of the row.
                 i = round(i0 + n*f_cell_size)
                 black_cells = []
-                # If a cell is black enough, a couple (indice_of_blackness, digit)
+                # If a cell is black enough, a couple (indicator_of_blackness, digit)
                 # will be appended to the list `cells`.
                 # After scanning the whole row, we will assume that the blackest
-                # cell of the row will be a to be the one checked by the student,
+                # cell of the row will be the one checked by the student,
                 # as long as there is enough difference between the blackest
                 # and the second blackest.
-                digits_for_nth_caracter = sorted(digits[n])
-                if all_ID_are_of_the_same_length and len(digits_for_nth_caracter) == 1:
-                    # No need to read, there is no choice for this caracter !
-                    student_ID += digits_for_nth_caracter.pop()
+                digits_for_nth_character = sorted(digits[n])
+                if all_ID_are_of_the_same_length and len(digits_for_nth_character) == 1:
+                    # No need to read, there is no choice for this character !
+                    student_ID += digits_for_nth_character.pop()
                     continue
-                for k, d in enumerate(digits_for_nth_caracter):
+                for k, d in enumerate(digits_for_nth_character):
                     # Left ot the cell.
                     j = round(j0 + (k + 1)*f_cell_size)
                     # ~ val = eval_square_color(m, i, j, cell_size)
@@ -860,7 +859,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
                     # Test if there is enough difference between the blackest
                     # and the second blackest (minimal difference was set empirically).
                     if len(black_cells) == 1 or black_cells[0][0] - black_cells[1][0] > 0.2:
-                        # The blackest one is choosed:
+                        # The blackest one is chosen:
                         digit = black_cells[0][1]
                         student_ID += digit
             if student_ID in ids:
@@ -914,7 +913,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
     # ordering = config['ordering'][test_ID]
     mode = config['mode']
-    correct_answers = config['correct_answers']
+#    correct_answers = config['correct_answers']
 
     # Detect the answers.
     print('\n=== Reading answers ===')
@@ -934,16 +933,14 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     core_blackness = {}
 
     for key, pos in boxes.items():
-        # ~ should_have_answered = set() # for debuging only.
+        # ~ should_have_answered = set() # for debugging only.
         i, j = xy2ij(*pos)
         i, j = adjust_checkbox(m, i, j, cell_size)
-        q, a = key[1:].split('-')
         # `q` and `a` are real questions and answers numbers, that is,
         # questions and answers numbers before shuffling.
-        q = int(q)
-        a = int(a)
+        q, a = map(int, key[1:].split('-'))
         # `q0` and `a0` keep track of apparent question and answers numbers,
-        # which will be used on output to make debuging easier.
+        # which will be used on output to make debugging easier.
         q0, a0 = real2apparent(q, a, config, test_ID)
         displayed_questions_numbers[q] = q0
 
@@ -969,7 +966,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
                 test_square(proportion=0.6, gray_level=0.95)):
             # The student has checked this box.
             c = '■'
-            is_ok = (a in correct_answers[q])
+            is_ok = is_answer_correct(q, a, config, test_ID)
             answered[q].add(a)
 
             if not test_square(proportion=0.4, gray_level=0.9):
@@ -980,7 +977,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
         else:
             # This box was left unchecked.
             c = '□'
-            is_ok = (a not in correct_answers[q])
+            is_ok = not is_answer_correct(q, a, config, test_ID)
             if test_square(proportion=0.2, gray_level=0.95):
                 manual_verification = (manual_verification is not False)
                 color_square(thickness=2, color='magenta')
@@ -995,7 +992,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
     # First, try to detect false negatives.
     # If a checkbox considered unchecked is notably darker than the others,
-    # it is probably checked after all (and if not, it will most probably be catched
+    # it is probably checked after all (and if not, it will most probably be caught
     # with false positives in next section).
     # Add 0.03 to 1.5*mean, in case mean is almost 0.
     ceil = 1.5*sum(blackness.values())/len(blackness) + 0.02
