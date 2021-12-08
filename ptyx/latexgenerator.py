@@ -5,6 +5,7 @@ import random
 from importlib import import_module
 import traceback
 from pathlib import Path
+from typing import Optional, Union, Callable, Iterable, Dict, Tuple
 
 from ptyx.context import GLOBAL_CONTEXT
 from ptyx.config import param, sympy
@@ -12,6 +13,8 @@ import ptyx.randfunc as randfunc
 from ptyx.printers import sympy2latex
 from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_can
 from ptyx.syntax_tree import Node, SyntaxTreeGenerator
+from ptyx import __version__, __api__
+
 
 # =============================================================================
 # #ASSERT{}
@@ -38,9 +41,7 @@ from ptyx.syntax_tree import Node, SyntaxTreeGenerator
 # =============================================================================
 
 
-
-
-
+# noinspection PyPep8Naming
 class LatexGenerator:
     """Convert text containing ptyx tags to plain LaTeX."""
 
@@ -50,12 +51,11 @@ class LatexGenerator:
 
     def __init__(self, compiler=None):
         self.clear()
-        self._tags_defined_by_extensions = {}
         # Some pTyX code may be generated dynamically inside a #PYTHON code
-        # block for example. So, LatexGenerator need is own STG (Syntax Tree Generator)
+        # block for example. So, LatexGenerator need his own STG (Syntax Tree Generator)
         # to be able to scan code at runtime.
         # (Every run implies generating a syntax tree again for each
-        # of these pieces of embeded pTyX code.)
+        # of these pieces of embedded pTyX code.)
         self.parser = SyntaxTreeGenerator()
         # Access to compiler is needed by some extensions.
         self.compiler = compiler
@@ -71,8 +71,8 @@ class LatexGenerator:
         # Internal flags
         self.flags = {}
 
-    def set_new_context(self, context=None):
-        "Set a new context of evaluation for code, except for PTYX_LATEX value."
+    def set_new_context(self, context: Optional[Dict] = None):
+        """Set a new context of evaluation for code, except for PTYX_LATEX value."""
         if context is None:
             context = GLOBAL_CONTEXT
         # Use deepcopy instead ?
@@ -91,8 +91,7 @@ class LatexGenerator:
     def WITH_ANSWERS(self):
         return self.context.get('PTYX_WITH_ANSWERS')
 
-
-    def parse_node(self, node):
+    def parse_node(self, node: Node):
         """Parse a node in a pTyX syntax tree.
 
         Return True if block content was recursively parsed, and False else.
@@ -101,15 +100,6 @@ class LatexGenerator:
         only if the block condition was satisfied.
         """
         tag = self.convert_tags.get(node.name, node.name)
-        # Extensions can define their own tags, or overwrite existing ones.
-        tags_dict = self._tags_defined_by_extensions
-        if tag in tags_dict:
-            try:
-                return tags_dict[tag][0](self, node)
-            except Exception:
-                print(f"Error when calling method '_parse_{tag}_tag' "
-                      "(defined by extension).")
-                raise
         try:
             method = getattr(self, f'_parse_{tag}_tag')
             return method(node)
@@ -120,14 +110,15 @@ class LatexGenerator:
             print(f"Error when calling method '_parse_{tag}_tag'.")
             raise
 
-
-    def _parse_children(self, children, function=None, **options):
+    def _parse_children(self, children: Iterable[Union[str, Node]],
+                        function: Optional[Union[Callable, Iterable[Callable]]] = None,
+                        **options):
         """Parse all children nodes.
 
-        Resulting LaTeX code will be appended to self.context['PTYX_LATEX'].
+        Resulting LaTeX code will be appended to `self.context['PTYX_LATEX']`.
 
         If `function` is not None, apply `function` to resulting LaTeX
-        code before appending it to self.context['PTYX_LATEX'].
+        code before appending it to `self.context['PTYX_LATEX']`.
         (So, `function` signature must be: function(str, **options) -> str).
 
         Note that `function` can also be a list of functions.
@@ -154,8 +145,8 @@ class LatexGenerator:
                 # Numbered nodes correspond to command arguments. Those should
                 # have been processed before, and not be passed to _parse_children().
                 assert isinstance(child.name, str), \
-                       (f"Argument {child.name!r} should have been processed "
-                        "and removed before calling _parse_children() !")
+                    (f"Argument {child.name!r} should have been processed "
+                     "and removed before calling _parse_children() !")
 
                 self.parse_node(child)
 
@@ -168,10 +159,9 @@ class LatexGenerator:
             self.context['PTYX_LATEX'] = self.backups.pop()
             self.write(code)
 
-
     @staticmethod
-    def _parse_options(node):
-        'Parse a tag options, following the syntax {key1=val1,...}.'
+    def _parse_options(node: Node):
+        """Parse a tag options, following the syntax {key1=val1,...}."""
         options = node.options
         args = []
         kw = {}
@@ -185,8 +175,7 @@ class LatexGenerator:
                     args.append(option.strip())
         return args, kw
 
-
-    def write(self, text, parse=False):
+    def write(self, text: str, parse: bool = False):
         """Append a piece of LaTeX text to context['PTYX_LATEX'].
 
         :param text: a block of text, which may contain pTyX code.
@@ -217,9 +206,8 @@ class LatexGenerator:
     def read(self):
         return ''.join(self.context['PTYX_LATEX'])
 
-
-    def _parse_APART_tag(self, node):
-        "Interpret a piece of code in a sandbox, eliminating side-effects."
+    def _parse_APART_tag(self, node: Node):
+        """Interpret a piece of code in a sandbox, eliminating side effects."""
         # Backup local variables and reset context.
         context_backup = self.context
         self.set_new_context()
@@ -228,45 +216,44 @@ class LatexGenerator:
         # Restore local variables and update generated LaTeX code.
         self.set_new_context(context_backup)
 
-
-    def _parse_API_VERSION_tag(self, node):
-        def v(version):
+    def _parse_API_VERSION_tag(self, node: Node):
+        def version_tuple(version):
             return version.split('.')
-        version = v(node.children[0].children)
-        from ptyx import __version__, __api__
-        if v(__version__) < version:
+
+        version = version_tuple(node.children[0].children)
+        if version_tuple(__version__) < version:
             print("Warning: pTyX engine is too old (v%s required)." % version)
-        if version < v(__api__):
+        if version < version_tuple(__api__):
             print("Warning: pTyX file uses an old API. You may have to update "
                   "your pTyX file code before compiling it.")
-        #TODO: display a short list of API changes which broke compatibility.
+        # TODO: display a short list of API changes which broke compatibility.
         self.context['API_VERSION'] = version
 
-    def _parse_ASK_tag(self, node):
+    def _parse_ASK_tag(self, node: Node):
         self._parse_children(node.children, function=self.context.get('format_ask'))
 
-    def _parse_ASK_ONLY_tag(self, node):
+    def _parse_ASK_ONLY_tag(self, node: Node):
         if not self.WITH_ANSWERS:
             self._parse_children(node.children,
                                  function=self.context.get('format_ask_only'))
         else:
             print('Skipping ASK_ONLY section...')
 
-    def _parse_ANS_tag(self, node):
+    def _parse_ANS_tag(self, node: Node):
         if self.WITH_ANSWERS:
             self._parse_children(node.children,
-                    function=self.context.get('format_ans'))
+                                 function=self.context.get('format_ans'))
 
-    def _parse_ANSWER_tag(self, node):
+    def _parse_ANSWER_tag(self, node: Node):
         if self.WITH_ANSWERS:
             self._parse_children(node.children[0].children,
-                    function=self.context.get('format_answer'))
+                                 function=self.context.get('format_answer'))
 
-    def _parse_QUESTION_tag(self, node):
+    def _parse_QUESTION_tag(self, node: Node):
         if not self.WITH_ANSWERS:
             self._parse_children(node.children[0].children)
 
-    def _parse_IF_tag(self, node):
+    def _parse_IF_tag(self, node: Node):
         test = eval(node.arg(0), self.context)
         if test:
             self._parse_children(node.children[1:])
@@ -274,60 +261,60 @@ class LatexGenerator:
 
     _parse_ELIF_tag = _parse_IF_tag
 
-    def _parse_CONDITIONAL_BLOCK_tag(self, node):
+    def _parse_CONDITIONAL_BLOCK_tag(self, node: Node):
         for child in node.children:
             assert isinstance(child, Node)
             if self.parse_node(child):
-                # If an IF or ELIF node was processed, all successive ELIF
-                # or ELSE nodes must be skipped.
-                # (The same for CASE).
+                # If an `IF` or `ELIF` node was processed, all successive `ELIF`
+                # or `ELSE` nodes must be skipped.
+                # (The same for `CASE`).
                 break
 
-    def _parse_ELSE_tag(self, node):
+    def _parse_ELSE_tag(self, node: Node):
         self._parse_children(node.children)
 
-    def _parse_IFNUM_tag(self, node):
+    def _parse_IFNUM_tag(self, node: Node):
         if eval(node.arg(0), self.context) == self.NUM:
             self._parse_children(node.children[1].children)
 
-    def _parse_CASE_tag(self, node):
+    def _parse_CASE_tag(self, node: Node):
         test = eval(node.arg(0), self.context) == self.NUM
         if test:
             self._parse_children(node.children[1:])
         return test
 
-    def _parse_IMPORT_tag(self, node):
+    def _parse_IMPORT_tag(self, node: Node):
         exec('from %s import *' % node.arg(0), self.context)
 
-    def _parse_LOAD_tag(self, node):
+    def _parse_LOAD_tag(self, node: Node):
         # LOAD tag is used to load extensions **before** syntax tree is built.
         pass
 
-    def _parse_INCLUDE_tag(self, node):
+    def _parse_INCLUDE_tag(self, node: Node):
         # INCLUDE tag is used to insert code in isolated mode **before** syntax tree is built.
         pass
 
-    def _parse_PYTHON_tag(self, node):
+    def _parse_PYTHON_tag(self, node: Node):
         assert len(node.children) == 1
         python_code = node.children[0]
         msg = ['', '%s %s Executing following python code:' % (chr(9474), chr(9998))]
         lines = python_code.split('\n')
         zfill = len(str(len(lines)))
         msg.extend('%s %s %s %s' % (chr(9474), str(i).zfill(zfill), chr(9474), line)
-                                    for i, line in enumerate(lines))
+                   for i, line in enumerate(lines))
         n = max(len(s) for s in msg)
-        msg.insert(1, chr(9581) + n*chr(9472))
-        msg.insert(3, chr(9500) + n*chr(9472))
-        msg.append(chr(9584) + n*chr(9472))
+        msg.insert(1, chr(9581) + n * chr(9472))
+        msg.insert(3, chr(9500) + n * chr(9472))
+        msg.append(chr(9584) + n * chr(9472))
         print('\n'.join(msg))
         assert isinstance(python_code, str)
         self._exec_python_code(python_code, self.context)
 
-    #Remove comments before generating tree ?
-    def _parse_COMMENT_tag(self, node):
+    # Remove comments before generating tree ?
+    def _parse_COMMENT_tag(self, node: Node):
         pass
 
-    def _parse_ASSERT_tag(self, node):
+    def _parse_ASSERT_tag(self, node: Node):
         code = node.arg(0)
         test = eval(code, self.context)
         if not test:
@@ -337,7 +324,7 @@ class LatexGenerator:
             print("***")
             assert test
 
-    def _parse_EVAL_tag(self, node):
+    def _parse_EVAL_tag(self, node: Node):
         args, kw = self._parse_options(node)
         if self.context.get('ALL_FLOATS'):
             self.flags['floats'] = True
@@ -367,18 +354,18 @@ class LatexGenerator:
         self.flags.clear()
         self.write(txt)
 
-    def _parse_MACRO_tag(self, node):
+    def _parse_MACRO_tag(self, node: Node):
         name = node.arg(0)
         self.macros[name] = node.children[1:]
 
-    def _parse_CALL_tag(self, node):
-        "Calling a macro."
+    def _parse_CALL_tag(self, node: Node):
+        """Calling a macro."""
         name = node.arg(0)
         if name not in self.macros:
             raise NameError(f'Error: MACRO {name!r} undefined.')
         self._parse_children(self.macros[name])
 
-    def _parse_ENUM_tag(self, node):
+    def _parse_ENUM_tag(self, node: Node):
         # This tag does nothing by itself, but is used by some extensions.
         self._parse_children(node.children)
 
@@ -395,7 +382,7 @@ class LatexGenerator:
                 return i
         raise ValueError(f'No {name} Node found.')
 
-    def _shuffle_and_parse_children(self, node, children=None, target='ITEM', **kw):
+    def _shuffle_and_parse_children(self, node: Node, children=None, target: str = 'ITEM', **kw):
         # Shuffles all the #ITEM sections inside a #SHUFFLE block.
         # Note that they may be some text or nodes before first #ITEM,
         # if so they should be left unmodified at first position.
@@ -435,34 +422,33 @@ class LatexGenerator:
                 groups[-1].append(item)
         # 2. Shuffle groups
         randfunc.shuffle(groups)
-#        print(groups)
-#        input('-- pause --')
+        #        print(groups)
+        #        input('-- pause --')
         # 3. Flatten `groups` list
         items = sum(groups, [])
 
-#        print(f'items: {items}')
-#        input('-- pause --')
+        #        print(f'items: {items}')
+        #        input('-- pause --')
         self._parse_children(children[:i] + items, **kw)
-        #~ print('\n------------')
-        #~ print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
-        #~ print('state hash is %s' % hash(random.getstate()))
-        #~ print('------------\n')
+        # print('\n------------')
+        # print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
+        # print('state hash is %s' % hash(random.getstate()))
+        # print('------------\n')
 
-
-    def _parse_SHUFFLE_tag(self, node):
+    def _parse_SHUFFLE_tag(self, node: Node):
         self._shuffle_and_parse_children(node)
 
-    def _parse_ITEM_tag(self, node):
+    def _parse_ITEM_tag(self, node: Node):
         self._parse_children(node.children)
 
-    def _parse_SEED_tag(self, node):
+    def _parse_SEED_tag(self, node: Node):
         # SEED tag is a special tag which is managed independently, at first pass
         # (it avoids user including it inadvertently inside
         # a conditional block or a #ASK_ONLY/#END block, which may result in
         # what seems to be a very strange behaviour of the compiler !)
         pass
 
-    def _pick_and_parse_children(self, node, children=None, target='ITEM', **kw):
+    def _pick_and_parse_children(self, node: Node, children=None, target='ITEM', **kw):
         # Choose only one between all the #ITEM sections inside a #PICK block.
         # Note that they may be some text or nodes before first #ITEM,
         # if so they should be left unmodified at their original position.
@@ -474,40 +460,32 @@ class LatexGenerator:
         items = children[i:]
         for item in items:
             if not (isinstance(item, Node) and item.name == target):
-                log = ['This is current structure:']
-                log.append(node.display())
-                log.append(rf'\n{item!r} is not an {target!r} node !')
+                log = ['This is current structure:',
+                       node.display(),
+                       rf'\n{item!r} is not an {target!r} node !',
+                       ]
                 raise RuntimeError('\n'.join(log))
         item = randfunc.randchoice(items)
         self._parse_children(children[:i] + [item], **kw)
-        #~ print('\n------------')
-        #~ print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
-        #~ print('state hash is %s' % hash(random.getstate()))
-        #~ print('------------\n')
+        # print('\n------------')
+        # print('SHUFFLE: %s elements, excluding first %s.' % len(children), i)
+        # print('state hash is %s' % hash(random.getstate()))
+        # print('------------\n')
 
-    def _parse_PICK_tag(self, node):
+    def _parse_PICK_tag(self, node: Node):
         self._pick_and_parse_children(node)
 
     # TODO: Refactor _parse_PICK_tag/_parse_SHUFFLE_tag
 
-
-    #~ def _parse_SELECT_tag(self, node):
-        #~ self.flags['select'] = True
-        #~ self._parse_EVAL_tag(node)
-
-    #~ def _parse_RAND_tag(self, node):
-        #~ self.flags['rand'] = True
-        #~ self._parse_EVAL_tag(node)
-
-    def _parse_ROOT_tag(self, node):
+    def _parse_ROOT_tag(self, node: Node):
         self._parse_children(node.children)
 
-    def _parse_FREEZE_RANDOM_STATE_tag(self, node):
+    def _parse_FREEZE_RANDOM_STATE_tag(self, node: Node):
         state = random.getstate()
         self._parse_children(node.children)
         random.setstate(state)
 
-    def _parse_TEST_tag(self, node):
+    def _parse_TEST_tag(self, node: Node):
         try:
             if eval(node.arg(0), self.context):
                 self._parse_children(node.children[1].children)
@@ -517,37 +495,37 @@ class LatexGenerator:
             print(node.display(color=False))
             raise
 
-    def _parse_SHARP_tag(self, node):
+    def _parse_SHARP_tag(self, node: Node):
         # 2 sharps ## -> 1 sharp #
         self.write('#')
 
-    def _parse_ADD_tag(self, node):
+    def _parse_ADD_tag(self, node: Node):
         # a '+' will be displayed at the beginning of the next result if positive ;
-        # if result is negative, nothing will be done, and if null,
+        # if the result is negative, nothing will be done, and if null,
         # no result at all will be displayed.
         self.flags['+'] = True
 
-    def _parse_SUB_tag(self, node):
+    def _parse_SUB_tag(self, node: Node):
         # a '-' will be displayed at the beginning of the next result, and the result
-        # will be embedded in parenthesis if negative.
+        # will be embedded in parentheses if negative.
         self.flags['-'] = True
 
-    def _parse_MUL_tag(self, node):
+    def _parse_MUL_tag(self, node: Node):
         # a '\times' will be displayed at the beginning of the next result, and the result
-        # will be embedded in parenthesis if negative.
+        # will be embedded in parentheses if negative.
         self.flags['*'] = True
 
-    def _parse_EQUAL_tag(self, node):
+    def _parse_EQUAL_tag(self, node: Node):
         # Display '=' or '\approx' when a rounded result is requested :
         # if rounded is equal to exact one, '=' is displayed.
         # Else, '\approx' is displayed instead.
         self.flags['='] = True
         # All other operations (#+, #-, #*) occur just before number, but between `=` and
-        # the result, some formating instructions may occure (like '\fbox{' for example).
+        # the result, some formatting instructions may occur (like '\fbox{' for example).
         # So, `#=` is used as a temporary marker, and will be replaced by '=' or '\approx' later.
         self.write('#=')
 
-    def _parse_SIGN_tag(self, node):
+    def _parse_SIGN_tag(self, node: Node):
         # '>0' or '<0' will be displayed after the next result, depending on it's sign.
         # (If result is zero, this won't do anything.)
         last_value = self.context['_']
@@ -556,14 +534,13 @@ class LatexGenerator:
         elif last_value < 0:
             self.write('<0')
 
-    def _parse_SYMPY_tag(self, node):
+    def _parse_SYMPY_tag(self, node: Node):
         raise NotImplementedError
 
-
-    def _parse_DEBUG_tag(self, node):
+    def _parse_DEBUG_tag(self, node: Optional[Node]):
         while True:
             msg = 'Debug point. Enter command, or quit (q! + ENTER):'
-            sep = len(msg)*"="
+            sep = len(msg) * "="
             print(sep)
             print(msg)
             print(sep)
@@ -578,7 +555,7 @@ class LatexGenerator:
                     print('*** ERROR ***')
                     print(e)
 
-    def _parse_PRINT_tag(self, node):
+    def _parse_PRINT_tag(self, node: Node):
         print(node.arg(0))
 
     @staticmethod
@@ -587,7 +564,7 @@ class LatexGenerator:
         with free variables in nested functions."""
         try:
             exec(code, context)
-        except:
+        except Exception:
             print("** ERROR found in the following code: **")
             print(code)
             print("-----")
@@ -595,7 +572,7 @@ class LatexGenerator:
             print("-----")
             raise
 
-    def _exec_python_code(self, code, context):
+    def _exec_python_code(self, code: str, context: dict):
         code = code.replace('\r', '')
         code = code.rstrip().lstrip('\n')
         # Indentation test
@@ -606,8 +583,7 @@ class LatexGenerator:
         self._exec(code, context)
         return code
 
-
-    def _eval_python_expr(self, code):
+    def _eval_python_expr(self, code: str):
         flags = self.flags
         context = self.context
         if not code:
@@ -644,7 +620,7 @@ class LatexGenerator:
                 print("Warning: sympy can't parse %s. "
                       "Switching to standard evaluation mode." % repr(code))
             except Exception:
-                #~ print sorted(context.keys())
+                # print sorted(context.keys())
                 print("Uncatched error when evaluating %s" % repr(code))
                 raise
         if not sympy_code:
@@ -656,14 +632,12 @@ class LatexGenerator:
         if i == -1:
             context[varname] = result
         else:
-            key = eval(varname[i+1:-1], context)
+            key = eval(varname[i + 1:-1], context)
             varname = varname[:i].strip()
             context[varname][key] = result
         return result
 
-
-
-    def _eval_and_format_python_expr(self, code):
+    def _eval_and_format_python_expr(self, code: str) -> str:
         flags = self.flags
         context = self.context
         if not code:
@@ -679,7 +653,7 @@ class LatexGenerator:
             result = self._eval_python_expr(subcode)
         # Note that only last result will be displayed.
         # In particular, if code ends with ';', last result will be ''.
-        # So, '#{a=5}' and '#{a=5;}' will both affect 5 to a,
+        # So, '#{a=5}' and '#{a=5;}' will both affect 5 to `a`,
         # but the second will not display '5' on final document.
 
         if not display_result:
@@ -719,20 +693,19 @@ class LatexGenerator:
                         textlist[len(textlist) - i - 1] = symb
                         return latex
             print("Debug warning: `#=` couldn't be found when scanning context !")
-            print("There is most probably a bug in pTyX, entering debuging...")
+            print("There is most probably a bug in pTyX, entering debugging...")
             self._parse_DEBUG_tag(None)
         return latex
 
-
     def _apply_flag(self, result):
-        '''Apply special parameters like [num], [rand], [floats] or [round] to result.
+        """Apply special parameters like [num], [rand], [floats] or [round] to result.
 
         Note that [num] and [rand] parameters require that result is iterable,
-        otherwise, nothing occures.
-        If result is iterable, an element of result is returned, choosed according
-        to current flag.'''
+        otherwise, nothing occurs.
+        If result is iterable, an element of result is returned, chosen according
+        to current flag."""
         flags = self.flags
-        if  hasattr(result, '__iter__'):
+        if hasattr(result, '__iter__'):
             if flags.get('rand'):
                 result = random.choice(result)
             elif flags.get('select'):
@@ -753,8 +726,8 @@ class LatexGenerator:
                 raise
             if sympy and isinstance(result, sympy.Basic):
                 flags['result_is_exact'] = (
-                    {_float_me_if_you_can(elt) for elt in result.atoms()} ==
-                    {_float_me_if_you_can(elt) for elt in round_result.atoms()})
+                        {_float_me_if_you_can(elt) for elt in result.atoms()} ==
+                        {_float_me_if_you_can(elt) for elt in round_result.atoms()})
             else:
                 flags['result_is_exact'] = (result == round_result)
             result = round_result
@@ -763,7 +736,7 @@ class LatexGenerator:
         return result
 
 
-class Compiler(object):
+class Compiler:
     """Compiler is the main object of pTyX.
 
     Usage:
@@ -787,11 +760,12 @@ class Compiler(object):
           versions of this document are needed.
         * Finally, .get_latex() will generate and return the LaTeX code.
 
-      Pseudo-random content will depend of the seed (see above), but also
+      Pseudo-random content will depend on the seed (see above), but also
       of the document number, given by `gen.context['PTYX_NUM']`.
       So, changing `gen.context['PTYX_NUM']` enables to generate different
       versions of the same document.
     """
+
     def __init__(self):
         self.syntax_tree_generator = SyntaxTreeGenerator()
         self.latex_generator = LatexGenerator(self)
@@ -803,69 +777,103 @@ class Compiler(object):
         # Make SyntaxTreeGenerator context free ?
         self.syntax_tree_generator.reset()
 
-    def read_code(self, code):
-        "Feed compiler with given code."
+    def read_code(self, code: str):
+        """Feed compiler with given code."""
         self._state['path'] = None
         self._state['input'] = code
 
-    def read_file(self, path):
-        "Feed compiler with given file code."
+    def read_file(self, path: Union[Path, str]):
+        """Feed compiler with given file code."""
         self._state['path'] = Path(path).expanduser().resolve()
         with open(path, 'r') as input_file:
             self._state['input'] = input_file.read()
 
     @property
     def dir_path(self):
-        "Return input ptyx file directory, if any, or current working directory else."
+        """Return input ptyx file directory, if any, or current working directory else."""
         file_path = self.file_path
         return Path.cwd() if file_path is None else file_path.parent
 
-    def _resolve_path(self, path):
-        "Interpret `path` relatively to input ptyx file."
+    def _resolve_path(self, path: str) -> Path:
+        """Interpret `path` relatively to input ptyx file."""
         path = Path(path.strip()).expanduser()  # do NOT resolve yet !
         if not path.is_absolute():
             path = self.dir_path / path
         return path
 
-    def _include_subfiles(self, code):
-        "Parse all #INCLUDE tags, then include subfiles content."
+    def _include_subfiles(self, code: str):
+        """Parse all #INCLUDE tags, then include subfiles content."""
+
         def include(match):
             path = self._resolve_path(match.group(1))
             with open(path) as file:
                 return f'\n#APART\n{file.read()}#END_APART\n'
+
         return re.sub(r'#INCLUDE\{([^}]+)\}', include, code)
 
-    def _call_extensions(self, code):
-        "Search for extensions (#LOAD{name} tags), then call them."
+    def _call_extensions(self, code: str):
+        """Search for extensions (#LOAD{name} tags), then call them."""
         # First, we search if some extensions must be load.
-        # This must be done at the very begining, since extensions may
+        # This must be done at the very beginning, since extensions may
         # define their own specialized language, to be converted to
         # valid pTyX code (and then to LaTeX).
         names = []
+
         def collect(match):
             names.append(match.group(1))
             return ''
+
+        # Use re.sub to find all extensions and remove #LOAD tags in one pass.
         code = re.sub(r'#LOAD\{\s*(\w+)\s*\}', collect, code)
         extensions = {}
-        for name in names:
+        tags_syntax = {}
+        tags_source = {}
+        latex_generator_extensions = []
+        for extension_name in names:
             try:
-                extensions[name] = import_module(f'ptyx.extensions.{name}')
+                extensions[extension_name] = import_module(f'ptyx.extensions.{extension_name}')
             except ImportError:
                 traceback.print_exc()
-                raise ImportError(f'Extension {name} not found.')
+                raise ImportError(f'Extension {extension_name} not found.')
+            # Test if extension defines new tags.
+            ext_tags = getattr(extensions[extension_name], '__tags__', {})
+            for tag, syntax in ext_tags.items():
+                # Test for conflict between extensions.
+                if tag in tags_source:
+                    raise NameError(f"Extension {extension_name} tries to define tag {tag}, "
+                                    f"which was already defined by extension {tags_source[tag]}.")
+                # Tag not already declared, everything seems OK.
+                tags_source[tag] = extension_name
+                tags_syntax[tag] = syntax
+            # Extension may subclass LatexGenerator class, notably to handle new tags.
+            subclass = getattr(extensions[extension_name], '__latex_generator_extension__', None)
+            if subclass is not None:
+                latex_generator_extensions.append(subclass)
+        # Load new tags.
+        self.add_new_tags(*tags_syntax.items())
+        # Update LatexGenerator.
+        if latex_generator_extensions:
+            # XXX: Test for conflicting methods ?
+            class CustomLatexGenerator(*reversed(latex_generator_extensions)):
+                pass
+
+            self.latex_generator.__class__ = CustomLatexGenerator
+        for name in names:
             # execute `main()` function of extension.
             code = extensions[name].main(code, self)
         return code, extensions
 
-    def _read_seed(self, code):
-        "Extract seed value from code, searching for #SEED{num} tag."
+    def _read_seed(self, code: str):
+        """Extract seed value from code, searching for #SEED{num} tag."""
         counter = 0
         value = None
+
         def seed(match):
             nonlocal counter, value
             value = int(match.group(1))
             counter += 1
             return ''
+
         code = re.sub(r'#SEED\{\s*(\d+)\s*\}', seed, code)
         if counter == 0:
             path = self._state.get('path')
@@ -880,13 +888,6 @@ class Compiler(object):
         if code is None:
             raise RuntimeError('Compiler.read_code() or Compiler.read_file() must be run first.')
         code = self._include_subfiles(code)
-#        # -----------------------------
-#        path = self._state.get('path')
-#        if path is not None:
-#            filename = join(dirname(path), '.%s.after-include-ptyx' % basename(path))
-#            with open(filename, 'w') as f:
-#                f.write(code)
-#        # -----------------------------
         self._state['after_include'] = code
         code, extensions = self._call_extensions(code)
         code, seed = self._read_seed(code)
@@ -896,7 +897,7 @@ class Compiler(object):
         assert "#INCLUDE{" not in code
         assert "#LOAD{" not in code
         assert "#SEED{" not in code
-        # Save pTyX code generated by extensions (this is used for debuging,
+        # Save pTyX code generated by extensions (this is used for debugging,
         # but if needed extensions can also save some data this way using #COMMENT tag).
         # If input file was /path/to/file/myfile.ptyx,
         # plain pTyX code is saved in /path/to/file/.myfile.ptyx.plain-ptyx
@@ -925,11 +926,11 @@ class Compiler(object):
         try:
             gen.parse_node(tree)
         except Exception:
-            print('\n*** Error occured while generating code. ***')
+            print('\n*** Error occurred while generating code. ***')
             print('This is current compiler state for debugging purpose:')
-            print(80*'-')
+            print(80 * '-')
             print('... ' + ''.join(gen.context['PTYX_LATEX'][-10:]))
-            print(80*'-')
+            print(80 * '-')
             print('')
             raise
         latex = gen.read()
@@ -942,47 +943,16 @@ class Compiler(object):
             if hasattr(module, 'close'):
                 module.close(self)
 
-    def add_new_tag(self, name, syntax, handler, extension_name):
-        """Add abbility for extensions to extend syntax, adding new tags.
+    def add_new_tags(self, *tags: Tuple[str, Tuple]):
+        """Add ability for extensions to extend syntax, adding new tags."""
+        for name, syntax in tags:
+            self.syntax_tree_generator.tags[name] = syntax
+            self.latex_generator.parser.tags[name] = syntax
+        if tags:
+            self.syntax_tree_generator.update_tags()
+            self.latex_generator.parser.update_tags()
 
-        Using `extension_name`, the compiler also checks that two different
-        extensions loaded simultaneously do not define define the same tag.
-        * if tag is already define by the same extension, nothing is done.
-        * if it is defined by an other extension, an error is raised.
-
-        Note that it is not necessary to use `add_new_tag` to declare
-        closing tags (like #END), unless you want to call an handler on close.
-
-        WARNING: After adding all the new tags, you'll have to call
-        `.update_tags_info()` method.
-        """
-        g = self.latex_generator
-        s = self.syntax_tree_generator
-        parser = g.parser
-        ext_tags_dict = g._tags_defined_by_extensions
-
-        if name in ext_tags_dict:
-            if ext_tags_dict[name][1] == extension_name:
-                print(("Warning: Tag %s already defined by same extension (%s),"
-                       " doing nothing.") % (name, extension_name))
-                return
-            else:
-                raise NameError(("Extension %s tries to define tag %s, which was"
-                                 "already defined by extension %s.")
-                                 % (extension_name, name, ext_tags_dict[name][1]))
-        # Register handler for this tag.
-        ext_tags_dict[name] = (handler, extension_name)
-
-        # Add this new tag to tags set.
-        s.tags[name] = syntax
-        parser.tags[name] = syntax
-
-    def update_tags_info(self):
-        "Update information concerning newly added tags."
-        self.syntax_tree_generator.update_tags()
-        self.latex_generator.parser.update_tags()
-
-    def parse(self, code, **context):
+    def parse(self, code: str, **context) -> str:
         """Convert ptyx code to plain LaTeX in one shot.
 
         This is mainly used for testing (in unit tests or in interactive mode).
@@ -1007,7 +977,7 @@ class Compiler(object):
     def file_path(self):
         return self._state['path']
 
+
 compiler = Compiler()
 
 parse = compiler.parse
-
