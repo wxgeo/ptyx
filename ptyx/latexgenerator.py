@@ -5,7 +5,7 @@ import random
 from importlib import import_module
 import traceback
 from pathlib import Path
-from typing import Optional, Union, Callable, Iterable, Dict, Tuple
+from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List
 
 from ptyx.context import GLOBAL_CONTEXT
 from ptyx.config import param, sympy
@@ -799,7 +799,7 @@ class Compiler:
             self._state["input"] = input_file.read()
 
     @property
-    def dir_path(self):
+    def dir_path(self) -> Path:
         """Return input ptyx file directory, if any, or current working directory else."""
         file_path = self.file_path
         return Path.cwd() if file_path is None else file_path.parent
@@ -865,7 +865,7 @@ class Compiler:
         self.add_new_tags(*tags_syntax.items())
         # Update LatexGenerator.
         if latex_generator_extensions:
-            # XXX: Test for conflicting methods ?
+            # TODO: Test for conflicting methods ?
             class CustomLatexGenerator(*reversed(latex_generator_extensions)):
                 pass
 
@@ -899,12 +899,14 @@ class Compiler:
         code = self._state.get("input")
         if code is None:
             raise RuntimeError("Compiler.read_code() or Compiler.read_file() must be run first.")
+        # Remove comments first, so one can comment a file inclusion for example.
+        code = self.syntax_tree_generator.remove_comments(code)
         code = self._include_subfiles(code)
         self._state["after_include"] = code
         code, extensions = self._call_extensions(code)
         code, seed = self._read_seed(code)
         self._state["plain_ptyx_code"] = code
-        self._state["extensions_loaded"] = extensions
+        self._state["loaded_extensions"] = extensions
         self._state["seed"] = seed
         assert "#INCLUDE{" not in code
         assert "#LOAD{" not in code
@@ -951,7 +953,7 @@ class Compiler:
         return latex
 
     def close(self):
-        for module in self._state["extensions_loaded"].values():
+        for module in self._state["loaded_extensions"].values():
             if hasattr(module, "close"):
                 module.close(self)
 
@@ -978,7 +980,7 @@ class Compiler:
         return latex
 
     @property
-    def syntax_tree(self):
+    def syntax_tree(self) -> SyntaxTreeGenerator:
         return self._state["syntax_tree"]
 
     @property
@@ -988,6 +990,10 @@ class Compiler:
     @property
     def file_path(self):
         return self._state["path"]
+
+    @property
+    def loaded_extensions(self) -> List[str]:
+        return list(self._state["loaded_extensions"].keys())
 
 
 compiler = Compiler()
