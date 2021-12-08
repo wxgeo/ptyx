@@ -13,6 +13,7 @@ import re
 
 #from testlib import assertEq
 from ptyx.latexgenerator import Compiler, Node
+from ptyx.extensions.autoqcm.compile.ptyx2latex import  SameAnswerError
 
 TEST_DIR = dirname(__file__)
 
@@ -158,6 +159,18 @@ def test_question_context():
 
     for match in re.finditer(r'TEST\((\w+)=(\w+)\)', latex):
         assert match.group(1) == match.group(2)
+
+
+def test_unicity_of_answers():
+    c = load_ptyx_file('test_unicity_of_answers.ptyx')
+    c.generate_syntax_tree()
+    try:
+        latex = c.get_latex()
+        # The same answer appeared twice, it should have raised an error !
+        assert False
+    except SameAnswerError:
+        # Alright, identical answers were detected.
+        pass
 
 
 if __name__ == '__main__':
