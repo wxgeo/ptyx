@@ -1,21 +1,20 @@
 """
 QUESTIONS
 
-This extension offers a new syntaw to write tests and answers.
+This extension offers a new syntax to write tests and answers.
 """
 
-
-#import sys, os
-from os.path import dirname, join
 import os
 import re
-#import random
+from pathlib import Path
+import atexit
 
-#from testlib import assertEq
 from ptyx.latexgenerator import Compiler, Node
 from ptyx.extensions.autoqcm.compile.ptyx2latex import  SameAnswerError
 
-TEST_DIR = dirname(__file__)
+
+TEST_DIR = Path(__file__).parent.resolve()
+TMP_PDF = ["test_questions_context.pdf", "test_questions_context-corr.pdf"]
 
 
 def load_ptyx_file(filename):
@@ -23,7 +22,7 @@ def load_ptyx_file(filename):
     generate a plain ptyx file.
 
     Return the `Compiler` instance."""
-    path = join(TEST_DIR, filename)
+    path = TEST_DIR / filename
     c = Compiler()
     c.read_file(path)
     c.preparse()
@@ -31,7 +30,7 @@ def load_ptyx_file(filename):
 
 
 def test_MCQ_basics():
-    c = load_ptyx_file('test-partiel.ptyx')
+    c = load_ptyx_file('partial-test.ptyx')
     assert 'VERSION' in c.syntax_tree_generator.tags
     assert 'VERSION' in c.latex_generator.parser.tags
     assert 'END_QCM' in c.syntax_tree_generator.tags
@@ -49,7 +48,7 @@ def test_MCQ_basics():
                 mcq_found = True
             elif name == 'SEED':
                 seed_found = True
-    assert not seed_found
+    assert not seed_found # `#SEED` is parsed and removed before generating the syntax tree.
     assert header_found
     assert mcq_found
     #TODO: add tests
@@ -165,7 +164,7 @@ def test_unicity_of_answers():
     c = load_ptyx_file('test_unicity_of_answers.ptyx')
     c.generate_syntax_tree()
     try:
-        latex = c.get_latex()
+        c.get_latex()
         # The same answer appeared twice, it should have raised an error !
         assert False
     except SameAnswerError:
@@ -173,7 +172,18 @@ def test_unicity_of_answers():
         pass
 
 
+@atexit.register
+def cleanup():
+    files_found = False
+    # Remove .ptyx.plain-ptyx files generated during tests.
+    for tmp_filename in TEST_DIR.glob("*.ptyx.plain-ptyx"):
+        tmp_filename.unlink()
+        files_found = True
+    assert files_found
+    for tmp_filename in TMP_PDF:
+        (TEST_DIR / Path(tmp_filename)).unlink()
+
+
 if __name__ == '__main__':
-    latex = test_MCQ_shuffling()
-    #print(latex)
+    test_MCQ_shuffling()
     print('OK')

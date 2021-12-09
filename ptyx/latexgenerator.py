@@ -980,7 +980,7 @@ class Compiler:
         return latex
 
     @property
-    def syntax_tree(self) -> SyntaxTreeGenerator:
+    def syntax_tree(self) -> Node:
         return self._state["syntax_tree"]
 
     @property
