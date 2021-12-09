@@ -14,7 +14,7 @@ from ptyx.extensions.autoqcm.compile.ptyx2latex import  SameAnswerError
 
 
 TEST_DIR = Path(__file__).parent.resolve()
-TMP_PDF = ["test_questions_context.pdf", "test_questions_context-corr.pdf"]
+TMP_PDF = []
 
 
 def load_ptyx_file(filename):
