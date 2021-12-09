@@ -1,20 +1,25 @@
-import os, sys, locale, re
-import subprocess
-import tempfile
+import locale
+import os
+import re
 import shutil
-from os.path import dirname, basename, join, isdir, isfile
+import subprocess
+import sys
+import tempfile
 from os import chdir, mkdir
+from os.path import dirname, basename, join, isdir, isfile
+from typing import Optional, Dict, Iterable
 
-from ptyx.latexgenerator import compiler
 from ptyx.config import param
+from ptyx.latexgenerator import compiler
 
 
 class _LoggedStream(object):
     """Add logging to a data stream, like stdout or stderr.
 
-    * `logfile` is a file already opened in apending mode ;
+    * `logfile` is a file already opened in appending mode ;
     * `default` is default output (`sys.stdout` or `sys.stderr`).
     """
+
     def __init__(self, logfile, default):
         self.logfile = logfile
         self.default = default
@@ -29,7 +34,9 @@ class _LoggedStream(object):
 
 
 class _DevNull(object):
-    def write(self, *_): pass
+    def write(self, *_):
+        pass
+
     close = flush = write
 
 
@@ -38,11 +45,12 @@ class Logging(object):
 
     Note this logging occurs in addition to standard output, which is not suppressed.
     """
-    def __init__(self, logfile_name=''):
-        self.logfile = (open(logfile_name, 'a') if logfile_name else _DevNull())
+
+    def __init__(self, logfile_name=""):
+        self.logfile = open(logfile_name, "a") if logfile_name else _DevNull()
 
     def __enter__(self):
-        self.previous = {'stdout': sys.stdout, 'stderr': sys.stderr}
+        self.previous = {"stdout": sys.stdout, "stderr": sys.stderr}
         sys.stdout = _LoggedStream(self.logfile, sys.stdout)
         sys.stderr = _LoggedStream(self.logfile, sys.stderr)
 
@@ -53,15 +61,16 @@ class Logging(object):
 
 
 def execute(string, quiet=False):
-    out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
+    out = subprocess.Popen(
+        string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    ).stdout
     encoding = locale.getpreferredencoding(False)
-    output = out.read().decode(encoding, errors='replace')
+    output = out.read().decode(encoding, errors="replace")
     sys.stdout.write(output)
     out.close()
     if not quiet:
-        print("Command '%s' executed." %string)
+        print(f"Command '{string}' executed.")
     return output
-
 
 
 def make_files(input_name, correction=False, _nums=None, **options):
@@ -70,19 +79,19 @@ def make_files(input_name, correction=False, _nums=None, **options):
     # have been skipped (because they don't satisfy the page number constraint).
     if _nums is not None:
         assert correction
-        _nums = list(_nums) # make a copy
+        _nums = list(_nums)  # make a copy
 
-    formats = options.get('formats', param['formats'])
-    names = options.get('names', [])
+    formats = options.get("formats", param["formats"])
+    names = options.get("names", [])
     input_name = str(input_name)  # XXX: use pathlib.Path instead
 
     chdir(dirname(input_name))
 
     # Create an empty `.compile/{input_name}` subfolder.
-    if not isdir('.compile'):
-        mkdir('.compile')
+    if not isdir(".compile"):
+        mkdir(".compile")
         # XXX: handle errors (e.g `.compile` might be an existing file).
-    compilation_dir = join(dirname(input_name), '.compile', basename(input_name))
+    compilation_dir = join(dirname(input_name), ".compile", basename(input_name))
 
     if not correction and isdir(compilation_dir):
         shutil.rmtree(compilation_dir)
@@ -90,49 +99,53 @@ def make_files(input_name, correction=False, _nums=None, **options):
         mkdir(compilation_dir)
 
     # Choose output names
-    if input_name.endswith('.ptyx'):
+    if input_name.endswith(".ptyx"):
         output_name = input_name[:-5]
-    elif input_name.endswith('.tex'):
+    elif input_name.endswith(".tex"):
         output_name = input_name[:-4]
-        if 'tex' in formats:
-            output_name += '_'
+        if "tex" in formats:
+            output_name += "_"
         # the trailing _ avoids name conflicts with the .tex file generated
     else:
-        output_name = input_name + '_'
+        output_name = input_name + "_"
     output_name = join(compilation_dir, basename(output_name))
 
     if correction:
-        output_name += '-corr'
+        output_name += "-corr"
 
     filenames = []
     nums = []
-    n = options.get('number', param['total'])
+    n = options.get("number", param["total"])
     total = 0
-    num = options.get('start', 1)
+    num = options.get("start", 1)
     while total < n:
         if _nums:
             num = _nums.pop(0)
         if names:
             name = names[total]
-            filename = '%s-%s' % (output_name, name)
+            filename = f"{output_name}-{name}"
         else:
-            name = ''
-            filename = ('%s-%s' % (output_name, num) if n > 1
-                        else output_name)
+            filename = f"{output_name}-{num}" if n > 1 else output_name
 
-        options.setdefault('context', {})
-        options['context'].update(PTYX_WITH_ANSWERS=correction, PTYX_NUM=num)
+        options.setdefault("context", {})
+        options["context"].update(PTYX_WITH_ANSWERS=correction, PTYX_NUM=num)
 
         # Output is redirected to a .log file
-        logfile = (filename + '-python.log')
-        print('\nLog file:', logfile, '\n')
-        with Logging(logfile if not options.get('remove') else ''):
-            infos = make_file(filename, **options)
+        logfile = filename + "-python.log"
+        print("\nLog file:", logfile, "\n")
+        with Logging(logfile if not options.get("remove") else ""):
+            infos = make_file(
+                filename,
+                formats,
+                context=options["context"],
+                plain_latex=options.get("plain_latex"),
+                quiet=options.get("quiet"),
+            )
 
-        pages = infos.get('pages_number')
-        target = options.get('filter_by_pages_number')
+        pages = infos.get("pages_number")
+        target = options.get("filter_by_pages_number")
         if not correction and pages and target and pages != target:
-             print('Warning: skipping %s (incorrect page number) !' % filename)
+            print(f"Warning: skipping {filename} (incorrect page number) !")
         else:
             total += 1
             filenames.append(filename)
@@ -141,62 +154,70 @@ def make_files(input_name, correction=False, _nums=None, **options):
 
     assert len(filenames) == n
     # ~ if len(filenames) < n:
-        # ~ msg1 = ('Warning: only %s pdf files generated (not %s) !' % (len(filenames), n))
-        # ~ msg2 = '(Unreleased pdf did not match page number constraints).'
-        # ~ sep = max(len(msg1), len(msg2))*'~'
-        # ~ print('\n'.join(('', sep, msg1, msg2, sep, '')))
+    # ~ msg1 = ('Warning: only %s pdf files generated (not %s) !' % (len(filenames), n))
+    # ~ msg2 = '(Unreleased pdf did not match page number constraints).'
+    # ~ sep = max(len(msg1), len(msg2))*'~'
+    # ~ print('\n'.join(('', sep, msg1, msg2, sep, '')))
 
-    # Join different versions in a single pdf, and compress if asked to.
+    # Join different versions in a single pdf, and compress if asked to do so.
     join_files(output_name, filenames, **options)
 
-
-    if options.get('generate_batch_for_windows_printing'):
-        name = "print%s.bat" % ('_corr' if correction else '')
+    if options.get("generate_batch_for_windows_printing"):
+        name = "print%s.bat" % ("_corr" if correction else "")
         bat_file_name = os.path.join(os.path.dirname(input_name), name)
-        with open(bat_file_name, 'w') as bat_file:
-            bat_file.write(param['win_print_command'] + ' '.join('%s.pdf'
-                                  % os.path.basename(f) for f in filenames))
+        with open(bat_file_name, "w") as bat_file:
+            bat_file.write(
+                param["win_print_command"]
+                + " ".join("%s.pdf" % os.path.basename(f) for f in filenames)
+            )
 
     # Copy pdf file to parent directory.
     for ext in formats:
-        name = f'{output_name}.{ext}'
+        name = f"{output_name}.{ext}"
         if isfile(name):
             shutil.copy(name, dirname(input_name))
         else:
             for filename in filenames:
-                name = f'{filename}.{ext}'
+                name = f"{filename}.{ext}"
                 shutil.copy(name, dirname(input_name))
     # Remove `.compile` folder if asked to.
-    if options.get('remove'):
+    if options.get("remove"):
         shutil.rmtree(compilation_dir)
 
     return filenames, output_name, nums
 
 
-
-def make_file(output_name, **options):
+def make_file(
+    output_name,
+    formats: Optional[Iterable] = None,
+    context: Optional[Dict] = None,
+    plain_latex: Optional[bool] = None,
+    quiet: Optional[bool] = None,
+):
+    """Generate latex and/or pdf file from ptyx source file."""
+    # TODO: Current make_file() API is strange.
+    # Instead of using `formats` and `plain_latex`, use `input_format` (ptyx|tex)
+    # and `output_format` (tex|pdf).
+    # Raise an error if input_format and output_format are both set to tex.
     infos = {}
-    quiet = options.get('quiet')
-    formats = options.get('formats', param['formats'])
+    if formats is None:
+        formats = param["formats"]
 
     # make_file() can be used to compile plain LaTeX too.
-    latex = options.get('plain_latex')
-    if latex is None:
-        context = options.get('context', {})
-        context.setdefault('PTYX_NUM', 1)
-        latex = compiler.get_latex(**context)
+    if not plain_latex:
+        context.setdefault("PTYX_NUM", 1)
+        plain_latex = compiler.get_latex(**context)
 
-    with open(output_name + '.tex', 'w') as texfile:
-        texfile.write(latex)
-        if 'pdf' in formats:
+    with open(output_name + ".tex", "w") as texfile:
+        texfile.write(plain_latex)
+        if "pdf" in formats:
             texfile.flush()
             pages_number = _compile_latex_file(texfile.name, quiet=quiet)
-            infos['pages_number'] = pages_number
+            infos["pages_number"] = pages_number
     return infos
 
 
-
-def _compile_latex_file(filename, dest=None, quiet=False):
+def _compile_latex_file(filename, dest=None, quiet: bool = False) -> Optional[int]:
     """Compile the latex file and return the number of pages of the pdf
     (or None if not found)."""
     # By default, pdflatex use current directory as destination folder.
@@ -204,60 +225,57 @@ def _compile_latex_file(filename, dest=None, quiet=False):
     # where the tex file was found.
     if dest is None:
         dest = os.path.dirname(filename)
-    if quiet:
-        command = param['quiet_tex_command']
-    else:
-        command = param['tex_command']
-    command += ' -output-directory "%s" "%s"' % (dest, filename)
+
+    command = param["quiet_tex_command"] if quiet else param["tex_command"]
+    command += f' -output-directory "{dest}" "{filename}"'
     # ~ input('- run -')
     log = execute(command)
     # Run command twice if references were found.
-    if 'Rerun to get cross-references right.' in log or \
-       'There were undefined references.' in log:
+    if "Rerun to get cross-references right." in log or "There were undefined references." in log:
         # ~ input('- run again -')
         log = execute(command)
 
     # Return the number of pages of the pdf generated.
-    i = log.find('Output written on ')
+    i = log.find("Output written on ")
     if i == -1:
         return None
-    pattern = r'Output written on .+ \(([0-9]+) pages, [0-9]+ bytes\)\.'
+    pattern = r"Output written on .+ \(([0-9]+) pages, [0-9]+ bytes\)\."
     # Line breaks may occur anywhere in the log after the file path,
     # so using re.DOTALL flag is not enough, we have to manually remove all `\n`.
-    m = re.search(pattern, log[i:].replace('\n', ''))
-    return (int(m.group(1)) if m is not None else None)
-
+    m = re.search(pattern, log[i:].replace("\n", ""))
+    return int(m.group(1)) if m is not None else None
 
 
 def join_files(output_name, pdfnames, seed_file_name=None, **options):
-    "Join different versions in a single pdf, then compress it if asked to."
-    output_name = str(output_name)  # XXX: use pathlib.Path instead 
+    """Join different versions in a single pdf, then compress it if asked to do so."""
+    output_name = str(output_name)  # XXX: use pathlib.Path instead
+    pdf_name = output_name + ".pdf"
     number = len(pdfnames)
-    if options.get('compress') or options.get('cat'):
+
+    if options.get("compress") or options.get("cat"):
         # Nota: don't exclude the case `number == 1`,
         # since the following actions rename file,
         # so excluding the case `number == 1` would break autoqcm scan for example.
         # pdftk and ghostscript must be installed.
-        pdfnames = [str(filename) + '.pdf' for filename in pdfnames]
-        pdf_name = output_name + '.pdf'
-        files = ' '.join('"%s"' % filename for filename in pdfnames)
-        print('Pdftk output:')
-        print(execute('pdftk %s output "%s"' % (files, pdf_name)))
-        if options.get('remove_all'):
+        pdfnames = [str(filename) + ".pdf" for filename in pdfnames]
+
+        files = " ".join(f'"{filename}"' for filename in pdfnames)
+        print("Pdftk output:")
+        print(execute(f'pdftk {files} output "{pdf_name}"'))
+        if options.get("remove_all"):
             for name in pdfnames:
                 os.remove(name)
-        if options.get('compress'):
+        if options.get("compress"):
             temp_dir = tempfile.mkdtemp()
-            compressed_pdf_name = os.path.join(temp_dir, 'compresse.pdf')
-            command = \
-                """command pdftops \
+            compressed_pdf_name = os.path.join(temp_dir, "compresse.pdf")
+            command = f"""command pdftops \
                 -paper match \
                 -nocrop \
                 -noshrink \
                 -nocenter \
                 -level3 \
                 -q \
-                "%s" - \
+                "{pdf_name}" - \
                 | command ps2pdf14 \
                 -dEmbedAllFonts=true \
                 -dUseFlateCompression=true \
@@ -265,45 +283,50 @@ def join_files(output_name, pdfnames, seed_file_name=None, **options):
                 -dConvertCMYKImagesToRGB=false \
                 -dOptimize=true \
                 -dPDFSETTINGS=/prepress \
-                - "%s" """ % (pdf_name, compressed_pdf_name)
+                - "{compressed_pdf_name}" """
             os.system(command)
             old_size = os.path.getsize(pdf_name)
             new_size = os.path.getsize(compressed_pdf_name)
             if new_size < old_size:
                 shutil.copyfile(compressed_pdf_name, pdf_name)
-                print('Compression ratio: {0:.2f}'.format(old_size/new_size))
+                print(f"Compression ratio: {old_size / new_size:.2f}")
             else:
-                print('Warning: compression failed.')
+                print("Warning: compression failed.")
             if seed_file_name is not None:
                 temp_dir = tempfile.mkdtemp()
-                pdf_with_seed = os.path.join(temp_dir, 'with_seed.pdf')
-                execute('pdftk "%s" attach_files "%s" output "%s"' % (pdf_name, seed_file_name, pdf_with_seed))
+                pdf_with_seed = os.path.join(temp_dir, "with_seed.pdf")
+                execute(
+                    f'pdftk "{pdf_name}" attach_files "{seed_file_name}" output "{pdf_with_seed}"'
+                )
                 shutil.copyfile(pdf_with_seed, pdf_name)
         if number > 1:
-            print('%s files merged.' %len(pdfnames))
+            print(f"{len(pdfnames)} files merged.")
 
-    if options.get('reorder_pages'):
+    if options.get("reorder_pages"):
         # Use pdftk to detect how many pages has the pdf document.
-        n = int(execute('pdftk %s dump_data output | grep -i NumberOfPages:' % pdf_name).strip().split()[-1])
-        mode = options.get('reorder_pages')
-        if mode == 'brochure':
-            if n%4:
-                raise RuntimeError('Page number is %s, but must be a multiple of 4.' % n)
+        n = int(
+            execute(f"pdftk {pdf_name} dump_data output | grep -i NumberOfPages:")
+            .strip()
+            .split()[-1]
+        )
+        mode = options.get("reorder_pages")
+        if mode == "brochure":
+            if n % 4:
+                raise RuntimeError(f"Page number is {n}, but must be a multiple of 4.")
             order = []
-            for i in range(int(n/4)):
-                order.extend([2*i + 1, 2*i + 2, n - 2*i - 1, n - 2*i])
-        elif mode == 'brochure-reversed':
-            if n%4:
-                raise RuntimeError('Page number is %s, but must be a multiple of 4.' % n)
-            order = n*[0]
-            for i in range(int(n/4)):
-                order[2*i] = 4*i + 1
-                order[2*i + 1] = 4*i + 2
-                order[n - 2*i - 2] = 4*i + 3
-                order[n - 2*i - 1] = 4*i + 4
+            for i in range(int(n / 4)):
+                order.extend([2 * i + 1, 2 * i + 2, n - 2 * i - 1, n - 2 * i])
+        elif mode == "brochure-reversed":
+            if n % 4:
+                raise RuntimeError(f"Page number is {n}, but must be a multiple of 4.")
+            order = n * [0]
+            for i in range(int(n / 4)):
+                order[2 * i] = 4 * i + 1
+                order[2 * i + 1] = 4 * i + 2
+                order[n - 2 * i - 2] = 4 * i + 3
+                order[n - 2 * i - 1] = 4 * i + 4
         else:
-            raise NameError('Unknown mode %s for option --reorder-pages !' % mode)
+            raise NameError(f"Unknown mode {mode} for option --reorder-pages !")
         # monfichier.pdf -> monfichier-brochure.pdf
-        new_name = '%s-%s.pdf' % (pdf_name[:pdf_name.index('.')], mode)
-        execute('pdftk %s cat %s output %s' % (pdf_name, ' '.join(str(i) for i in order), new_name))
-
+        new_name = "%s-%s.pdf" % (pdf_name[: pdf_name.index(".")], mode)
+        execute("pdftk %s cat %s output %s" % (pdf_name, " ".join(str(i) for i in order), new_name))

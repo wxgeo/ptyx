@@ -907,6 +907,8 @@ class Compiler:
         code, seed = self._read_seed(code)
         self._state["plain_ptyx_code"] = code
         self._state["loaded_extensions"] = extensions
+        # Set the seed used for pseudo-random numbers generation.
+        # (The seed value is set in the ptyx file using special tag #SEED{}).
         self._state["seed"] = seed
         assert "#INCLUDE{" not in code
         assert "#LOAD{" not in code

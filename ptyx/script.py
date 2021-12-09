@@ -34,7 +34,7 @@ from ptyx.latexgenerator import compiler
 from ptyx import __version__, __release_date__
 
 if sys.version_info.major == 2:
-    raise RuntimeError("Python version 3.6+ is needed !")
+    raise RuntimeError("Python version 3.8+ is needed !")
 
 
 # Options parsing
@@ -194,9 +194,6 @@ def ptyx(parser=parser):
         compiler.generate_syntax_tree()
         # print(compiler.state['syntax_tree'].display())
 
-        # Set the seed used for pseudo-random numbers generation.
-        # (The seed value is set in the ptyx file using special tag #SEED{}).
-        #        compiler.read_seed()
         # Compile and generate output files (tex or pdf)
         filenames, output_name, nums = make_files(input_name, **vars(options))
 
