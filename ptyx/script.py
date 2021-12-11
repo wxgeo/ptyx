@@ -39,141 +39,146 @@ if sys.version_info.major == 2:
     raise RuntimeError("Python version 3.8+ is needed !")
 
 
-# Options parsing
-parser = argparse.ArgumentParser(
-    prog="pTyX",
-    description="Compile .ptyx files into .tex or .pdf files.",
-    usage="ptyx [options] filename(s).\nTry 'ptyx --help' for more information.",
-)
+class PtyxArgumentParser(argparse.ArgumentParser):
+    """Parse pTyX command line interface options."""
 
-parser.add_argument("filenames", nargs="+")
+    def __init__(self):
+        super().__init__(
+            prog="pTyX",
+            description="Compile .ptyx files into .tex or .pdf files.",
+            usage="ptyx [options] filename(s).\nTry 'ptyx --help' for more information.",
+        )
+        self.add_argument("filenames", nargs="+")
+        self.add_argument(
+            "-n",
+            "--number",
+            type=int,
+            help="Number of pdf files to generate. Default is %s.\n \
+                       Ex: ptyx -n 5 my_file.ptyx"
+            % param["total"],
+        )
+        self.add_argument(
+            "-f",
+            "--formats",
+            default=param["default_format"],
+            choices=["pdf", "tex", "pdf+tex", "tex+pdf"],
+            help="Output format. Default is %(default)s.\n" "Ex: ptyx -f tex my_file.ptyx",
+        )
+        self.add_argument(
+            "-r",
+            "--remove",
+            action="store_true",
+            help="Remove the `.compile` folder after compilation.",
+        )
+        self.add_argument("-b", "--debug", action="store_true", help="Debug mode.")
+        self.add_argument(
+            "-q", "--quiet", action="store_true", help="Suppress most of latex processor output."
+        )
+        self.add_argument(
+            "-s",
+            "--start",
+            default=1,
+            type=int,
+            help="Number of the first generated file \
+                       (initial value of internal NUM counter). Default is %(default)s.",
+        )
+        self.add_argument(
+            "-c",
+            "--cat",
+            action="store_true",
+            help="Cat all generated pdf files inside a single one. \
+                       The pdftk command must be installed.",
+        )
+        self.add_argument(
+            "-C",
+            "--compress",
+            action="store_true",
+            help="Like --cat, but compress final pdf file using pdf2ps and ps2pdf.",
+        )
+        self.add_argument(
+            "--reorder-pages",
+            choices=["brochure", "brochure-reversed"],
+            help="Reorder pages for printing.\n\
+                Currently, only 'brochure' and 'brochure-reversed' mode are supported.\
+                The `pdftk` command must be installed.\n\
+                Ex: ptyx --reorder-pages=brochure-reversed -f pdf my_file.ptyx.",
+        )
+        self.add_argument(
+            "--names",
+            metavar="CSV_FILE",
+            help="Name of a CSV file containing a column of names \
+                       (and optionally a second column with forenames). \n \
+                       The names will be used to generate the #NAME tag \
+                       replacement value.\n \
+                       Additionally, if `-n` option is not specified, \
+                       default value will be the number of names in the CSV file.",
+        )
+        group = self.add_mutually_exclusive_group()
+        group.add_argument(
+            "-p",
+            "--document-pages-number",
+            metavar="N",
+            type=int,
+            help="Keep only pdf files whose pages number match N. \
+                This may be useful for printing pdf later. \
+                Note that the number of files may not be respected then, so \
+                you may have to adjust the number of files manually.",
+        )
+        group.add_argument(
+            "-P",
+            "--same-document-pages-number",
+            action="store_true",
+            help="Ensure that all documents have the same number of pages.",
+        )
+        self.add_argument(
+            "-nc",
+            "--no-correction",
+            action="store_true",
+            help="Don't generate a correction of the test.",
+        )
+        self.add_argument(
+            "-g",
+            "--generate-batch-for-windows-printing",
+            action="store_true",
+            help="Generate a batch file for printing all pdf files using SumatraPDF.",
+        )
+        self.add_argument(
+            "--context",
+            default="",
+            type=str,
+            help="Manually customize context (ie. internal namespace).\n \
+                       Ex: ptyx --context \"a = 3; b = 2; t = 'hello'\"",
+        )
+        self.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
-parser.add_argument(
-    "-n",
-    "--number",
-    type=int,
-    help="Number of pdf files to generate. Default is %s.\n \
-               Ex: ptyx -n 5 my_file.ptyx"
-    % param["total"],
-)
-parser.add_argument(
-    "-f",
-    "--formats",
-    default=param["default_format"],
-    choices=["pdf", "tex", "pdf+tex", "tex+pdf"],
-    help="Output format. Default is %(default)s.\n" "Ex: ptyx -f tex my_file.ptyx",
-)
-parser.add_argument(
-    "-r", "--remove", action="store_true", help="Remove the `.compile` folder after compilation."
-)
-parser.add_argument("-b", "--debug", action="store_true", help="Debug mode.")
-parser.add_argument(
-    "-q", "--quiet", action="store_true", help="Suppress most of latex processor output."
-)
-parser.add_argument(
-    "-s",
-    "--start",
-    default=1,
-    type=int,
-    help="Number of the first generated file \
-               (initial value of internal NUM counter). Default is %(default)s.",
-)
-parser.add_argument(
-    "-c",
-    "--cat",
-    action="store_true",
-    help="Cat all generated pdf files inside a single one. \
-               The pdftk command must be installed.",
-)
-parser.add_argument(
-    "-C",
-    "--compress",
-    action="store_true",
-    help="Like --cat, but compress final pdf file using pdf2ps and ps2pdf.",
-)
-parser.add_argument(
-    "--reorder-pages",
-    choices=["brochure", "brochure-reversed"],
-    help="Reorder pages for printing.\n\
-        Currently, only 'brochure' and 'brochure-reversed' mode are supported.\
-        The `pdftk` command must be installed.\n\
-        Ex: ptyx --reorder-pages=brochure-reversed -f pdf my_file.ptyx.",
-)
-parser.add_argument(
-    "--names",
-    metavar="CSV_FILE",
-    help="Name of a CSV file containing a column of names \
-               (and optionally a second column with forenames). \n \
-               The names will be used to generate the #NAME tag \
-               replacement value.\n \
-               Additionally, if `-n` option is not specified, \
-               default value will be the number of names in the CSV file.",
-)
-
-parser.add_argument(
-    "-p",
-    "--document-pages-number",
-    metavar="N",
-    type=int,
-    help="Keep only pdf files whose pages number match N. \
-        This may be useful for printing pdf later. \
-        Note that the number of files may not be respected then, so \
-        you may have to adjust the number of files manually.",
-)
-
-parser.add_argument(
-    "-P",
-    "--same-document-pages-number",
-    action="store_true",
-    help="Ensure that all documents have the same number of pages.",
-)
-
-parser.add_argument(
-    "-nc", "--no-correction", action="store_true", help="Don't generate a correction of the test."
-)
-
-parser.add_argument(
-    "-g",
-    "--generate-batch-for-windows-printing",
-    action="store_true",
-    help="Generate a batch file for printing all pdf files using SumatraPDF.",
-)
-parser.add_argument(
-    "--context",
-    default="",
-    type=str,
-    help="Manually customize context (ie. internal namespace).\n \
-               Ex: ptyx --context \"a = 3; b = 2; t = 'hello'\"",
-)
-parser.add_argument(
-    "--version", action="version", version=f"%(prog)s {__version__}"
-)
+    def parse_args(self, **kwargs):
+        options = super().parse_args(**kwargs)
+        options.formats = options.formats.split("+")
+        if options.compress or options.cat:
+            # pdftk and ghostscript must be installed.
+            if "pdf" not in options.formats:
+                raise RuntimeError(
+                    "--cat or --compress option invalid unless pdf output is selected."
+                )
+        if options.debug:
+            param["debug"] = True
+        if options.names:
+            with open(pth(options.names)) as f:
+                options.names = [" ".join(line) for line in csv.reader(f)]
+                print("Names extracted from CSV file:")
+                print(options.names)
+        else:
+            options.names = []
+        if options.number is None:
+            options.number = len(options.names) or param["total"]
+        return options
 
 
-def ptyx(parser_=parser):
+def ptyx(parser=PtyxArgumentParser()):
+    """Main pTyX procedure."""
     # First, parse all arguments (filenames, options...)
     # --------------------------------------------------
-    options = parser_.parse_args()
-    options.formats = options.formats.split("+")
-
-    if options.compress or options.cat:
-        # pdftk and ghostscript must be installed.
-        if "pdf" not in options.formats:
-            raise RuntimeError("--cat or --compress option invalid unless pdf output is selected.")
-
-    if options.debug:
-        param["debug"] = True
-
-    if options.names:
-        with open(pth(options.names)) as f:
-            options.names = [" ".join(line) for line in csv.reader(f)]
-            print("Names extracted from CSV file:")
-            print(options.names)
-    else:
-        options.names = []
-
-    if options.number is None:
-        options.number = len(options.names) or param["total"]
+    options = parser.parse_args()
 
     # TODO: remove kwargs and explicitly pass arguments, to verify types.
     kwargs = vars(options)
@@ -230,4 +235,4 @@ def ptyx(parser_=parser):
 
 
 if __name__ == "__main__":
-    ptyx(parser)
+    ptyx()
