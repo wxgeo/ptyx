@@ -23,15 +23,17 @@
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-import argparse, os, sys, csv
+import argparse
+import csv
+import sys
 from ast import literal_eval
+from pathlib import Path
 
-from ptyx.config import param
-from ptyx.utilities import pth
+from ptyx import __version__
 from ptyx.compilation import make_files
+from ptyx.config import param
 from ptyx.latexgenerator import compiler
-
-from ptyx import __version__, __release_date__
+from ptyx.utilities import pth
 
 if sys.version_info.major == 2:
     raise RuntimeError("Python version 3.8+ is needed !")
@@ -95,7 +97,7 @@ parser.add_argument(
     help="Reorder pages for printing.\n\
         Currently, only 'brochure' and 'brochure-reversed' mode are supported.\
         The `pdftk` command must be installed.\n\
-        Ex: ptyx --reorder-pages=brochure-reversed -f pdf myfile.ptyx.",
+        Ex: ptyx --reorder-pages=brochure-reversed -f pdf my_file.ptyx.",
 )
 parser.add_argument(
     "--names",
@@ -110,13 +112,20 @@ parser.add_argument(
 
 parser.add_argument(
     "-p",
-    "--filter-by-pages-number",
+    "--document-pages-number",
     metavar="N",
     type=int,
     help="Keep only pdf files whose pages number match N. \
         This may be useful for printing pdf later. \
         Note that the number of files may not be respected then, so \
         you may have to adjust the number of files manually.",
+)
+
+parser.add_argument(
+    "-P",
+    "--same-document-pages-number",
+    action="store_true",
+    help="Ensure that all documents have the same number of pages.",
 )
 
 parser.add_argument(
@@ -132,20 +141,19 @@ parser.add_argument(
 parser.add_argument(
     "--context",
     default="",
+    type=str,
     help="Manually customize context (ie. internal namespace).\n \
                Ex: ptyx --context \"a = 3; b = 2; t = 'hello'\"",
 )
 parser.add_argument(
-    "--version",
-    action="version",
-    version="%(prog)s " + "%s (%s/%s/%s)" % ((__version__,) + __release_date__),
+    "--version", action="version", version=f"%(prog)s {__version__}"
 )
 
 
-def ptyx(parser=parser):
+def ptyx(parser_=parser):
     # First, parse all arguments (filenames, options...)
     # --------------------------------------------------
-    options = parser.parse_args()
+    options = parser_.parse_args()
     options.formats = options.formats.split("+")
 
     if options.compress or options.cat:
@@ -167,15 +175,17 @@ def ptyx(parser=parser):
     if options.number is None:
         options.number = len(options.names) or param["total"]
 
-    ctxt = options.context
-    options.context = {}
-    for keyval in ctxt.split(";"):
+    # TODO: remove kwargs and explicitly pass arguments, to verify types.
+    kwargs = vars(options)
+
+    context = {}
+    for keyval in kwargs.pop("context", "").split(";"):
         if keyval.strip():
             key, val = keyval.split("=", 1)
             key = key.strip()
             if not str.isidentifier(key):
                 raise NameError(f"{key} is not a valid variable name.")
-            options.context[key] = literal_eval(val)
+            context[key] = literal_eval(val)
 
     # Time to act ! Let's compile all ptyx files...
     # ---------------------------------------------
@@ -183,7 +193,7 @@ def ptyx(parser=parser):
     for input_name in options.filenames:
         # Read pTyX file.
         print(f"Reading {input_name}...")
-        input_name = pth(input_name)
+        input_name = Path(input_name).expanduser().resolve()
         compiler.read_file(input_name)
         # Parse #INCLUDE tags, load extensions if needed, read seed.
         compiler.preparse()
@@ -195,11 +205,11 @@ def ptyx(parser=parser):
         # print(compiler.state['syntax_tree'].display())
 
         # Compile and generate output files (tex or pdf)
-        filenames, output_name, nums = make_files(input_name, **vars(options))
+        output_basename, nums = make_files(input_name, **kwargs)
 
         # Keep track of the seed used.
         seed_value = compiler.seed
-        seed_file_name = os.path.join(os.path.dirname(output_name), ".seed")
+        seed_file_name = output_basename.parent / ".seed"
         with open(seed_file_name, "w") as seed_file:
             seed_file.write(str(seed_value))
 
@@ -214,10 +224,7 @@ def ptyx(parser=parser):
 
             tags = compiler.syntax_tree.tags
             if any(tag in tags for tag in ANSWER_tags):
-                filenames, output_name, nums2 = make_files(
-                    input_name, correction=True, _nums=nums, **vars(options)
-                )
-                assert nums2 == nums, repr((nums, nums2))
+                make_files(input_name, correction=True, _nums=nums, context=context, **kwargs)
 
         compiler.close()
 

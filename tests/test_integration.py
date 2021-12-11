@@ -1,6 +1,6 @@
 import sys
 from os import fsync
-from os.path import isfile, join, split
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 
@@ -25,9 +25,10 @@ Is $x \mapsto #{a*x+b}$ a linear function~?
         fsync(f.fileno())
     sys.argv = ['ptyx', f.name]
     ptyx(parser)
-    folder, fname = split(f.name)
-    assert isfile(join(folder, '.compile', fname, f"{fname[:-5]}.tex"))
-    assert isfile(join(folder, '.compile', fname, f"{fname[:-5]}.pdf"))
+    filename = Path(f.name)
+    compile_directory = filename.parent / '.compile' / filename.stem
+    for ext in ".tex", ".pdf":
+        assert (compile_directory / (filename.stem + ext)).is_file()
 
 if __name__ == '__main__':
     test_basic_test()

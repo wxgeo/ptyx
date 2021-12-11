@@ -5,12 +5,19 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from os import chdir, mkdir
-from os.path import dirname, basename, join, isdir, isfile
-from typing import Optional, Dict, Iterable
+from os.path import dirname, isdir, isfile
+from pathlib import Path
+from typing import Optional, Dict, Iterable, List, Sequence, Tuple
 
 from ptyx.config import param
 from ptyx.latexgenerator import compiler
+
+
+def append_suffix(path: Path, suffix):
+    """>>> append_suffix(Path("/home/user/file"), "-corr")
+    Path("/home/user/file-corr")
+    """
+    return path.with_name(path.name + suffix)
 
 
 class _LoggedStream(object):
@@ -55,8 +62,11 @@ class Logging(object):
         sys.stderr = _LoggedStream(self.logfile, sys.stderr)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
+        assert isinstance(sys.stdout, _LoggedStream)
+        assert isinstance(sys.stderr, _LoggedStream)
         sys.stdout = sys.stdout.default
         sys.stderr = sys.stderr.default
+
         self.logfile.close()
 
 
@@ -73,48 +83,43 @@ def execute(string, quiet=False):
     return output
 
 
-def make_files(input_name, correction=False, _nums=None, **options):
+def make_files(
+    input_name: Path,
+    correction: bool = False,
+    context: Optional[dict] = None,
+    quiet: Optional[bool] = None,
+    remove: Optional[bool] = None,
+    same_document_pages_number: Optional[bool] = None,
+    _nums: Iterable[int] = None,
+    **options,
+) -> Tuple[Path, List[int]]:
     # `_nums` is used when generating the answers of the quiz.
     # In the first pass, when generating the quizzes, some numbers may
     # have been skipped (because they don't satisfy the page number constraint).
     if _nums is not None:
         assert correction
         _nums = list(_nums)  # make a copy
-
+    if context is None:
+        context = {}
     formats = options.get("formats", param["formats"])
     names = options.get("names", [])
-    input_name = str(input_name)  # XXX: use pathlib.Path instead
-
-    chdir(dirname(input_name))
 
     # Create an empty `.compile/{input_name}` subfolder.
-    if not isdir(".compile"):
-        mkdir(".compile")
-        # XXX: handle errors (e.g `.compile` might be an existing file).
-    compilation_dir = join(dirname(input_name), ".compile", basename(input_name))
-
+    compilation_dir = input_name.parent / ".compile" / input_name.stem
     if not correction and isdir(compilation_dir):
         shutil.rmtree(compilation_dir)
-    if not isdir(compilation_dir):
-        mkdir(compilation_dir)
+    compilation_dir.mkdir(parents=True, exist_ok=True)
 
-    # Choose output names
-    if input_name.endswith(".ptyx"):
-        output_name = input_name[:-5]
-    elif input_name.endswith(".tex"):
-        output_name = input_name[:-4]
-        if "tex" in formats:
-            output_name += "_"
-        # the trailing _ avoids name conflicts with the .tex file generated
-    else:
-        output_name = input_name + "_"
-    output_name = join(compilation_dir, basename(output_name))
-
+    # Set output base name
+    output_basename = compilation_dir / input_name.stem
+    if input_name.suffix != ".ptyx":
+        # Avoid potential name conflict between input and output.
+        output_basename = append_suffix(output_basename, "_")
     if correction:
-        output_name += "-corr"
+        output_basename = append_suffix(output_basename, "-corr")
 
-    filenames = []
-    nums = []
+    filenames: List[Path] = []
+    nums: List[int] = []
     n = options.get("number", param["total"])
     total = 0
     num = options.get("start", 1)
@@ -123,27 +128,26 @@ def make_files(input_name, correction=False, _nums=None, **options):
             num = _nums.pop(0)
         if names:
             name = names[total]
-            filename = f"{output_name}-{name}"
+            filename = append_suffix(output_basename, f"-{name}")
         else:
-            filename = f"{output_name}-{num}" if n > 1 else output_name
+            filename = append_suffix(output_basename, f"-{num}" if n > 1 else "")
 
-        options.setdefault("context", {})
-        options["context"].update(PTYX_WITH_ANSWERS=correction, PTYX_NUM=num)
+        context.update(PTYX_WITH_ANSWERS=correction, PTYX_NUM=num)
 
         # Output is redirected to a .log file
-        logfile = filename + "-python.log"
+        logfile = append_suffix(filename, "-python.log")
         print("\nLog file:", logfile, "\n")
-        with Logging(logfile if not options.get("remove") else ""):
+        with Logging(logfile if not remove else ""):
             infos = make_file(
                 filename,
                 formats,
-                context=options["context"],
+                context=context,
                 plain_latex=options.get("plain_latex"),
-                quiet=options.get("quiet"),
+                quiet=quiet,
             )
 
         pages = infos.get("pages_number")
-        target = options.get("filter_by_pages_number")
+        target = options.get("document_pages_number")
         if not correction and pages and target and pages != target:
             print(f"Warning: skipping {filename} (incorrect page number) !")
         else:
@@ -160,20 +164,19 @@ def make_files(input_name, correction=False, _nums=None, **options):
     # ~ print('\n'.join(('', sep, msg1, msg2, sep, '')))
 
     # Join different versions in a single pdf, and compress if asked to do so.
-    join_files(output_name, filenames, **options)
+    join_files(output_basename, filenames, **options)
 
     if options.get("generate_batch_for_windows_printing"):
-        name = "print%s.bat" % ("_corr" if correction else "")
-        bat_file_name = os.path.join(os.path.dirname(input_name), name)
+        bat_file_name = input_name.parent / ("print_corr.bat" if correction else "print.bat")
         with open(bat_file_name, "w") as bat_file:
             bat_file.write(
                 param["win_print_command"]
-                + " ".join("%s.pdf" % os.path.basename(f) for f in filenames)
+                + " ".join('"%s.pdf"' % os.path.basename(f) for f in filenames)
             )
 
     # Copy pdf file to parent directory.
     for ext in formats:
-        name = f"{output_name}.{ext}"
+        name = output_basename.with_suffix(f".{ext}")
         if isfile(name):
             shutil.copy(name, dirname(input_name))
         else:
@@ -181,21 +184,21 @@ def make_files(input_name, correction=False, _nums=None, **options):
                 name = f"{filename}.{ext}"
                 shutil.copy(name, dirname(input_name))
     # Remove `.compile` folder if asked to.
-    if options.get("remove"):
+    if remove:
         shutil.rmtree(compilation_dir)
 
-    return filenames, output_name, nums
+    return output_basename, nums
 
 
 def make_file(
-    output_name,
+    output_name: Path,
     formats: Optional[Iterable] = None,
     context: Optional[Dict] = None,
     plain_latex: Optional[bool] = None,
     quiet: Optional[bool] = None,
 ):
     """Generate latex and/or pdf file from ptyx source file."""
-    # TODO: Current make_file() API is strange.
+    # TODO: Current make_file() API is a bit strange.
     # Instead of using `formats` and `plain_latex`, use `input_format` (ptyx|tex)
     # and `output_format` (tex|pdf).
     # Raise an error if input_format and output_format are both set to tex.
@@ -208,23 +211,26 @@ def make_file(
         context.setdefault("PTYX_NUM", 1)
         plain_latex = compiler.get_latex(**context)
 
-    with open(output_name + ".tex", "w") as texfile:
+    texfile_name = output_name.with_suffix(".tex")
+    with open(texfile_name, "w") as texfile:
         texfile.write(plain_latex)
         if "pdf" in formats:
             texfile.flush()
-            pages_number = _compile_latex_file(texfile.name, quiet=quiet)
+            pages_number = _compile_latex_file(texfile_name, quiet=quiet)
             infos["pages_number"] = pages_number
     return infos
 
 
-def _compile_latex_file(filename, dest=None, quiet: bool = False) -> Optional[int]:
+def _compile_latex_file(
+    filename: Path, dest: Optional[Path] = None, quiet: bool = False
+) -> Optional[int]:
     """Compile the latex file and return the number of pages of the pdf
     (or None if not found)."""
     # By default, pdflatex use current directory as destination folder.
     # However, much of the time, we want destination folder to be the one
     # where the tex file was found.
     if dest is None:
-        dest = os.path.dirname(filename)
+        dest = filename.parent
 
     command = param["quiet_tex_command"] if quiet else param["tex_command"]
     command += f' -output-directory "{dest}" "{filename}"'
@@ -246,10 +252,10 @@ def _compile_latex_file(filename, dest=None, quiet: bool = False) -> Optional[in
     return int(m.group(1)) if m is not None else None
 
 
-def join_files(output_name, pdfnames, seed_file_name=None, **options):
+def join_files(output_basename: Path, pdfnames: Sequence[Path], seed_file_name=None, **options):
     """Join different versions in a single pdf, then compress it if asked to do so."""
-    output_name = str(output_name)  # XXX: use pathlib.Path instead
-    pdf_name = output_name + ".pdf"
+    # TODO: use pathlib.Path instead
+    pdf_name = str(output_basename) + ".pdf"
     number = len(pdfnames)
 
     if options.get("compress") or options.get("cat"):
