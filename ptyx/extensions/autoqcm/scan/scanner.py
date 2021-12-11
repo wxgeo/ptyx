@@ -36,14 +36,23 @@ from typing import Iterator
 
 from PIL import Image
 from numpy import int8, array
+
 # File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
 # script_path = dirname(abspath(sys._getframe().f_code.co_filename))
 # sys.path.insert(0, join(script_path, '../..'))
 
 from ..compile.header import answers_and_score
 from ..tools.config_parser import load, get_correct_answers
-from .scan_pic import (scan_picture, ANSI_YELLOW, ANSI_RESET, ANSI_CYAN,
-                       ANSI_GREEN, ANSI_RED, color2debug, CalibrationError)
+from .scan_pic import (
+    scan_picture,
+    ANSI_YELLOW,
+    ANSI_RESET,
+    ANSI_CYAN,
+    ANSI_GREEN,
+    ANSI_RED,
+    color2debug,
+    CalibrationError,
+)
 from .amend import amend_all
 from .pdftools import extract_pdf_pictures, PIC_EXTS, number_of_pages
 from .tools import search_by_extension, print_framed_msg
@@ -52,8 +61,8 @@ from .tools import search_by_extension, print_framed_msg
 def pic_names_iterator(data: dict) -> Iterator[int]:
     """Iterate over all pics found in data (i.e. all the pictures already analysed)."""
     for d in data.values():
-        for pic_data in d['pages'].values():
-            path = Path(pic_data['pic_path'])
+        for pic_data in d["pages"].values():
+            path = Path(pic_data["pic_path"])
             # return pdfhash/picnumber.png
             yield path.relative_to(path.parent.parent)
 
@@ -87,8 +96,8 @@ class MCQPictureParser:
         self.correct_answers = {}
 
     def _load_data(self):
-        if self.dirs['data'].is_dir():
-            for filename in self.dirs['data'].glob('*/*.scandata'):
+        if self.dirs["data"].is_dir():
+            for filename in self.dirs["data"].glob("*/*.scandata"):
                 ID = int(filename.stem)
                 with open(filename) as f:
                     try:
@@ -99,7 +108,7 @@ class MCQPictureParser:
                         # XXX: remove this once Ubuntu 22.04 will be released.
                         f.seek(0)
                         s = f.read()
-                        if sys.version_info < (3, 9) and 'set()' in s:
+                        if sys.version_info < (3, 9) and "set()" in s:
                             self.data[ID] = eval(s)
                         else:
                             print(f"ERROR when reading {filename} :")
@@ -109,18 +118,18 @@ class MCQPictureParser:
                         raise
 
     def _store_data(self, pdf_hash: str, doc_id, p, matrix=None):
-        folder = self.dirs['data'] / pdf_hash
+        folder = self.dirs["data"] / pdf_hash
         folder.mkdir(exist_ok=True)
-        with open(folder / f'{doc_id}.scandata', 'w') as f:
+        with open(folder / f"{doc_id}.scandata", "w") as f:
             f.write(repr(self.data[doc_id]))
         # We will store a compressed version of the matrix.
         # (It would consume too much memory else).
         if matrix is not None:
-            webp = folder / f'{doc_id}-{p}.webp'
+            webp = folder / f"{doc_id}-{p}.webp"
             Image.fromarray((255 * matrix).astype(int8)).save(str(webp), format="WEBP")
 
     def get_pic(self, doc_id, p, as_matrix=False):
-        webp = next(self.dirs['data'].glob(f'*/{doc_id}-{p}.webp'))
+        webp = next(self.dirs["data"].glob(f"*/{doc_id}-{p}.webp"))
         im = Image.open(str(webp))
         if as_matrix:
             return array(im.convert("L")) / 255
@@ -129,11 +138,11 @@ class MCQPictureParser:
     def _read_name_manually(self, doc_id, matrix=None, p=None, default=None):
         if matrix is None:
             matrix = self.get_pic(doc_id, p, as_matrix=True)
-        student_ids = self.config['ids']
-        student_ID = ''
-        print('Name can not be read automatically.')
-        print('Please read the name on the picture which will be displayed now.')
-        input('-- Press enter --')
+        student_ids = self.config["ids"]
+        student_ID = ""
+        print("Name can not be read automatically.")
+        print("Please read the name on the picture which will be displayed now.")
+        input("-- Press enter --")
         #    subprocess.run(["display", "-resize", "1920x1080", pic_path])
         # TODO: use first letters of students name to find student.
         # (ask again if not found, or if several names match first letters)
@@ -143,8 +152,8 @@ class MCQPictureParser:
             # Don't relaunch process if it is still alive.
             # (process.poll() is not None for dead processes.)
             if process is None or process.poll() is not None:
-                process = color2debug(matrix[0:int(3 / 4 * nlines), :], wait=False)
-            name = input('Student name or ID:').strip()
+                process = color2debug(matrix[0 : int(3 / 4 * nlines), :], wait=False)
+            name = input("Student name or ID:").strip()
             if not name:
                 if default is None:
                     continue
@@ -152,9 +161,9 @@ class MCQPictureParser:
             if student_ids:
                 if name in student_ids:
                     name, student_ID = student_ids[name], name
-                elif any((d in name) for d in '0123456789'):
+                elif any((d in name) for d in "0123456789"):
                     # This is not a student name !
-                    print('Unknown ID.')
+                    print("Unknown ID.")
                     continue
             print("Name: %s" % name)
             if input("Is it correct ? (Y/n)").lower() not in ("y", "yes", ""):
@@ -165,7 +174,7 @@ class MCQPictureParser:
         # Keep track of manually entered information (will be useful
         # if `scan.py` has to be run again later !)
         #        self.more_infos[ID] = (name, student_ID)
-        with open(self.files['cfg'], 'a', newline='') as csvfile:
+        with open(self.files["cfg"], "a", newline="") as csvfile:
             writerow = csv.writer(csvfile).writerow
             writerow([str(doc_id), name, student_ID])
         return name, student_ID
@@ -177,26 +186,26 @@ class MCQPictureParser:
         questions_not_seen = {}
         pages_not_seen = {}
         for ID in self.data:
-            questions = set(self.config['ordering'][ID]['questions'])
-            diff = questions - set(self.data[ID]['answered'])
+            questions = set(self.config["ordering"][ID]["questions"])
+            diff = questions - set(self.data[ID]["answered"])
             if diff:
-                questions_not_seen[ID] = ', '.join(str(q) for q in diff)
+                questions_not_seen[ID] = ", ".join(str(q) for q in diff)
             # All tests may not have the same number of pages, since
             # page breaking will occur at a different place for each test.
-            pages = set(self.config['boxes'][ID])
-            diff = pages - set(self.data[ID]['pages'])
+            pages = set(self.config["boxes"][ID])
+            diff = pages - set(self.data[ID]["pages"])
             if diff:
-                pages_not_seen[ID] = ', '.join(str(p) for p in diff)
+                pages_not_seen[ID] = ", ".join(str(p) for p in diff)
         if pages_not_seen:
-            self._warn('= WARNING =')
-            self._warn('Pages not seen:')
+            self._warn("= WARNING =")
+            self._warn("Pages not seen:")
             for ID in sorted(pages_not_seen):
-                self._warn(f'    • Test {ID}: page(s) {pages_not_seen[ID]}')
+                self._warn(f"    • Test {ID}: page(s) {pages_not_seen[ID]}")
         if questions_not_seen:
-            self._warn('=== ERROR ===')
-            self._warn('Questions not seen !')
+            self._warn("=== ERROR ===")
+            self._warn("Questions not seen !")
             for ID in sorted(questions_not_seen):
-                self._warn(f'    • Test {ID}: question(s) {questions_not_seen[ID]}')
+                self._warn(f"    • Test {ID}: question(s) {questions_not_seen[ID]}")
 
         if questions_not_seen:
             # Don't raise an error for pages not found (only a warning in log)
@@ -212,8 +221,8 @@ class MCQPictureParser:
         As a precaution, we should signal the problem to the user, and ask him
         what he wants to do.
         """
-        ID = pic_data['ID']
-        p = pic_data['page']
+        ID = pic_data["ID"]
+        p = pic_data["page"]
 
         # This page has never been seen before, everything is OK.
         if (ID, p) not in self.already_seen:
@@ -221,65 +230,67 @@ class MCQPictureParser:
             return False
 
         # This is problematic: it seems like the same page has been seen twice.
-        lastpic_path = pic_data['pic_path']
-        lastpic = Path(lastpic_path).relative_to(self.dirs['pic'])
+        lastpic_path = pic_data["pic_path"]
+        lastpic = Path(lastpic_path).relative_to(self.dirs["pic"])
         firstpic_path = self.data[ID]["pages"][p]["pic_path"]
-        firstpic = Path(firstpic_path).relative_to(self.dirs['pic'])
+        firstpic = Path(firstpic_path).relative_to(self.dirs["pic"])
         assert isinstance(lastpic_path, str)
         assert isinstance(firstpic_path, str)
 
-        self._warn(f'WARNING: Page {p} of test #{ID} seen twice '
-                   f'(in "{firstpic}" and "{lastpic}") !')
+        self._warn(
+            f"WARNING: Page {p} of test #{ID} seen twice " f'(in "{firstpic}" and "{lastpic}") !'
+        )
         action = None
         keys = ("name", "student ID", "answered")
         if all(pic_data[key] == self.data[ID]["pages"][p][key] for key in keys):
             # Same information found on the two pages, just keep one version.
-            action = 'f'
-            self._warn('Both page have the same information, keeping only first one...')
+            action = "f"
+            self._warn("Both page have the same information, keeping only first one...")
 
         # We have a problem: this is a duplicate.
         # In other words, we have 2 different versions of the same page.
         # Ask the user what to do.
-        while action not in ('f', 'l'):
-            print('What must we do ?')
-            print('- See pictures (s)')
-            print('- Keep only first one (f)')
-            print('- Keep only last one (l)')
+        while action not in ("f", "l"):
+            print("What must we do ?")
+            print("- See pictures (s)")
+            print("- Keep only first one (f)")
+            print("- Keep only last one (l)")
 
-            action = input('Answer:')
-            if action == 's':
+            action = input("Answer:")
+            if action == "s":
                 with tempfile.TemporaryDirectory() as tmpdirname:
-                    path = Path(tmpdirname) / 'test.png'
+                    path = Path(tmpdirname) / "test.png"
                     # https://stackoverflow.com/questions/39141694/how-to-display-multiple-images-in-unix-command-line
-                    subprocess.run(["convert", firstpic_path, lastpic_path, "-append", str(path)],
-                                   check=True)
+                    subprocess.run(
+                        ["convert", firstpic_path, lastpic_path, "-append", str(path)], check=True
+                    )
                     subprocess.run(["feh", "-F", str(path)], check=True)
-                    input('-- pause --')
+                    input("-- pause --")
         # We must memorize which version should be skipped in case user
         # launch scan another time.
-        skipped_pic = (firstpic if action == 'l' else lastpic)
-        with open(self.files['skipped'], 'a', newline='', encoding="utf8") as file:
-            file.write(f'{skipped_pic}\n')
+        skipped_pic = firstpic if action == "l" else lastpic
+        with open(self.files["skipped"], "a", newline="", encoding="utf8") as file:
+            file.write(f"{skipped_pic}\n")
 
-        if action == 'l':
+        if action == "l":
             # Remove first picture information.
             del self.data[ID]["pages"][p]
             self._store_data(firstpic.parent.name, ID, p)
 
-        return (action == 'f')
+        return action == "f"
 
     def _extract_name(self, doc_id: str, d: dict, matrix):
-        pic_data = d['pages'][1]
+        pic_data = d["pages"][1]
         # (a) The first page should contain the name
         #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
         # However, if the name was already set (using `more_infos`),
         # don't overwrite it.
-        if not d['name']:
+        if not d["name"]:
             # Store the name read (except if ask not to do so).
             if not self.args.ask_for_name:
-                d['name'] = pic_data['name']
+                d["name"] = pic_data["name"]
 
-        name = d['name']
+        name = d["name"]
 
         # (b) Update name manually if it was not found
         #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
@@ -291,147 +302,161 @@ class MCQPictureParser:
         #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
         while name in self.name2sheetID:
             print(f"Test #{self.name2sheetID[name]}: {name}")
-            print(f'Test #{doc_id}: {name}')
-            print_framed_msg(f'Error : 2 tests for same student ({name}) !\n'
-                             "Please modify at least one name (enter nothing to keep a name).")
+            print(f"Test #{doc_id}: {name}")
+            print_framed_msg(
+                f"Error : 2 tests for same student ({name}) !\n"
+                "Please modify at least one name (enter nothing to keep a name)."
+            )
             # Remove twin name from name2sheetID, and get the corresponding previous test ID.
             ID0 = self.name2sheetID.pop(name)
             # Ask for a new name.
             name0, student_ID0 = self._read_name_manually(ID0, p=1, default=name)
             # Update all infos.
             self.name2sheetID[name0] = ID0
-            self.data[ID0]['name'] = name0
-            self.data[ID0]['student ID'] = student_ID0
+            self.data[ID0]["name"] = name0
+            self.data[ID0]["student ID"] = student_ID0
             # Ask for a new name for new test too.
             name = self._read_name_manually(doc_id, matrix, default=name)[0]
 
-        assert name, 'Name should not be left empty at this stage !'
+        assert name, "Name should not be left empty at this stage !"
         self.name2sheetID[name] = doc_id
-        d['name'] = name
+        d["name"] = name
 
     def _calculate_scores(self):
         cfg = self.config
-        default_mode = cfg['mode']['default']
-        default_correct = cfg['correct']['default']
-        default_incorrect = cfg['incorrect']['default']
-        default_skipped = cfg['skipped']['default']
+        default_mode = cfg["mode"]["default"]
+        default_correct = cfg["correct"]["default"]
+        default_incorrect = cfg["incorrect"]["default"]
+        default_skipped = cfg["skipped"]["default"]
 
         max_score = 0
         # Take a random student test, and calculate max score for it.
         # Maximal score = (number of questions)x(score when answer is correct)
         for q in next(iter(cfg["ordering"].values()))["questions"]:
             q = str(q)
-            if cfg['mode'].get(q, default_mode) != 'skip':
-                max_score += int(cfg['correct'].get(q, default_correct))
-        cfg['max_score'] = max_score
+            if cfg["mode"].get(q, default_mode) != "skip":
+                max_score += int(cfg["correct"].get(q, default_correct))
+        cfg["max_score"] = max_score
 
         for ID in self.data:
             correct_ans = self.correct_answers[ID]
             print(f'Test {ID} - {self.data[ID]["name"]}')
             d = self.data[ID]
-            for q in sorted(d['answered']):
-                answered = set(d['answered'][q])
+            for q in sorted(d["answered"]):
+                answered = set(d["answered"][q])
                 correct_ones = correct_ans[q]
-                mode = cfg['mode'].get(q, default_mode)
+                mode = cfg["mode"].get(q, default_mode)
 
-                if mode == 'all':
-                    ok = (answered == correct_ones)
-                elif mode == 'some':
+                if mode == "all":
+                    ok = answered == correct_ones
+                elif mode == "some":
                     # Answer is valid if and only if :
                     # (proposed ≠ ∅ and proposed ⊆ correct) or (proposed = correct = ∅)
-                    ok = ((answered and answered.issubset(correct_ones))
-                          or (not answered and not correct_ones))
-                elif mode == 'skip':
-                    print(f'Question {q} skipped...')
+                    ok = (answered and answered.issubset(correct_ones)) or (
+                        not answered and not correct_ones
+                    )
+                elif mode == "skip":
+                    print(f"Question {q} skipped...")
                     continue
                 else:
-                    raise RuntimeError('Invalid mode (%s) !' % mode)
+                    raise RuntimeError("Invalid mode (%s) !" % mode)
                 if ok:
-                    earn = float(cfg['correct'].get(q, default_correct))
+                    earn = float(cfg["correct"].get(q, default_correct))
                     color = ANSI_GREEN
                 elif not answered:
-                    earn = float(cfg['skipped'].get(q, default_skipped))
+                    earn = float(cfg["skipped"].get(q, default_skipped))
                     color = ANSI_YELLOW
                 else:
-                    earn = float(cfg['incorrect'].get(q, default_incorrect))
+                    earn = float(cfg["incorrect"].get(q, default_incorrect))
                     color = ANSI_RED
-                print(f'-  {color}Rating (Q{q}): {color}{earn:g}{ANSI_RESET}')
-                d['score'] += earn
-                d['score_per_question'][q] = earn
+                print(f"-  {color}Rating (Q{q}): {color}{earn:g}{ANSI_RESET}")
+                d["score"] += earn
+                d["score_per_question"][q] = earn
 
     def _generate_outcome(self):
         max_score = self.config["max_score"]
         # Generate CSV file with results.
-        scores = {d['name']: d['score'] for d in self.data.values()}
+        scores = {d["name"]: d["score"] for d in self.data.values()}
         # ~ print(scores)
-        scores_path = self.dirs['scan'] / 'scores.csv'
-        print(f'{ANSI_CYAN}SCORES (/{max_score:g}):{ANSI_RESET}')
-        with open(scores_path, 'w', newline='') as csvfile:
+        scores_path = self.dirs["scan"] / "scores.csv"
+        print(f"{ANSI_CYAN}SCORES (/{max_score:g}):{ANSI_RESET}")
+        with open(scores_path, "w", newline="") as csvfile:
             writerow = csv.writer(csvfile).writerow
-            writerow(('Name', 'Score'))
+            writerow(("Name", "Score"))
             for name in sorted(scores):
-                print(f' - {name}: {scores[name]:g}')
+                print(f" - {name}: {scores[name]:g}")
                 writerow([name, scores[name]])
         if scores.values():
             mean = round(sum(scores.values()) / len(scores.values()), 2)
-            print(f'{ANSI_YELLOW}Mean: {mean:g}/{max_score:g}{ANSI_RESET}')
+            print(f"{ANSI_YELLOW}Mean: {mean:g}/{max_score:g}{ANSI_RESET}")
         else:
-            print('No score found !')
+            print("No score found !")
         print(f'\nResults stored in "{scores_path}"\n')
 
         # Generate CSV file with ID and pictures names for all students.
-        info_path = self.dirs['scan'] / 'infos.csv'
-        info = [(d['name'], d['student ID'], ID, d['score'],
-                 [d['pages'][p]['pic_path'] for p in d['pages']])
-                for ID, d in self.data.items()]
-        print(f'{ANSI_CYAN}SCORES (/{max_score:g}):{ANSI_RESET}')
-        with open(info_path, 'w', newline='') as csvfile:
+        info_path = self.dirs["scan"] / "infos.csv"
+        info = [
+            (
+                d["name"],
+                d["student ID"],
+                ID,
+                d["score"],
+                [d["pages"][p]["pic_path"] for p in d["pages"]],
+            )
+            for ID, d in self.data.items()
+        ]
+        print(f"{ANSI_CYAN}SCORES (/{max_score:g}):{ANSI_RESET}")
+        with open(info_path, "w", newline="") as csvfile:
             writerow = csv.writer(csvfile).writerow
-            writerow(('Name', 'Student ID', 'Test ID', 'Score', 'Pictures'))
+            writerow(("Name", "Student ID", "Test ID", "Score", "Pictures"))
             for name, student_ID, doc_id, score, paths in sorted(info):
-                paths = ', '.join(str(pth) for pth in paths)
-                writerow([name, student_ID, f'#{doc_id}', score, paths])
+                paths = ", ".join(str(pth) for pth in paths)
+                writerow([name, student_ID, f"#{doc_id}", score, paths])
         print(f'Infos stored in "{info_path}"\n')
 
         amend_all(self)
 
         if self.args.correction:
             from ....compilation import make_file, join_files
+
             # Generate pdf files, with the score and the table of correct answers for each test.
             pdf_paths = []
             for doc_id, d in self.data.items():
                 # ~ identifier, answers, name, score, students, ids
-                name = d['name']
-                score = d['score']
-                path = self.dirs['pdf'] / '%s-%s-corr.score' % (self.files['base'], doc_id)
+                name = d["name"]
+                score = d["score"]
+                path = self.dirs["pdf"] / "%s-%s-corr.score" % (self.files["base"], doc_id)
                 pdf_paths.append(path)
-                print(f'Generating pdf file for student {name} (subject {doc_id}, score {score})...')
-                latex = answers_and_score(self.config, name, doc_id,
-                                          (score if not self.args.hide_scores else None), max_score)
-                make_file(path, plain_latex=latex,
-                          remove=True,
-                          formats=['pdf'],
-                          quiet=True,
-                          )
-            join_files(self.dirs['results'], pdf_paths, remove_all=True, compress=True)
+                print(
+                    f"Generating pdf file for student {name} (subject {doc_id}, score {score})..."
+                )
+                latex = answers_and_score(
+                    self.config,
+                    name,
+                    doc_id,
+                    (score if not self.args.hide_scores else None),
+                    max_score,
+                )
+                make_file(path, plain_latex=latex, remove=True, formats=["pdf"], quiet=True)
+            join_files(self.dirs["results"], pdf_paths, remove_all=True, compress=True)
 
     def _generate_paths(self):
         root = Path(self.args.path).expanduser().resolve()
         if not root.is_dir():
             root = root.parent
             if not root.is_dir():
-                raise FileNotFoundError('%s does not seem to be a directory !' % root)
-        self.dirs['root'] = root
+                raise FileNotFoundError("%s does not seem to be a directory !" % root)
+        self.dirs["root"] = root
 
         # Read configuration file.
-        configfile = search_by_extension(root, '.autoqcm.config.json')
+        configfile = search_by_extension(root, ".autoqcm.config.json")
         self.config = load(configfile)
         self.correct_answers = get_correct_answers(self.config)
         # ------------------
         # Generate the paths
         # ------------------
 
-        self.dirs['input'] = self.args.scan or (root / 'scan')
+        self.dirs["input"] = self.args.scan or (root / "scan")
 
         # `.scan` directory is used to write intermediate files.
         # Directory tree:
@@ -442,22 +467,22 @@ class MCQPictureParser:
         # .scan/cfg/skipped.csv -> pages to skip.
         # .scan/scores.csv
         # .scan/data -> data stored as .scandata files (used to resume interrupted scan).
-        self.dirs['scan'] = self.args.dir or (self.dirs['root'] / '.scan')
-        self.dirs['data'] = self.dirs['scan'] / 'data'
-        self.dirs['cfg'] = self.dirs['scan'] / 'cfg'
-        self.dirs['pic'] = self.dirs['scan'] / 'pic'
-        self.dirs['pdf'] = self.dirs['scan'] / 'pdf'
-        self.dirs['log'] = self.dirs['scan'] / 'log'
+        self.dirs["scan"] = self.args.dir or (self.dirs["root"] / ".scan")
+        self.dirs["data"] = self.dirs["scan"] / "data"
+        self.dirs["cfg"] = self.dirs["scan"] / "cfg"
+        self.dirs["pic"] = self.dirs["scan"] / "pic"
+        self.dirs["pdf"] = self.dirs["scan"] / "pdf"
+        self.dirs["log"] = self.dirs["scan"] / "log"
 
-        if self.args.reset and self.dirs['scan'].is_dir():
-            rmtree(self.dirs['scan'])
+        if self.args.reset and self.dirs["scan"].is_dir():
+            rmtree(self.dirs["scan"])
 
         for directory in self.dirs.values():
             if not directory.is_dir():
                 directory.mkdir()
 
-        self.files['base'] = search_by_extension(self.dirs['root'], '.ptyx').stem
-        self.dirs['results'] = self.dirs['pdf'] / (self.files['base'] + "-results")
+        self.files["base"] = search_by_extension(self.dirs["root"], ".ptyx").stem
+        self.dirs["results"] = self.dirs["pdf"] / (self.files["base"] + "-results")
 
     #    def _extract_pictures_from_pdf(self):
     #        # First, we must test if pdf files have changed.
@@ -472,24 +497,24 @@ class MCQPictureParser:
         self._load_data()
 
         # Read manually entered informations (if any).
-        self.files['cfg'] = self.dirs['cfg'] / 'more_infos.csv'
-        if self.files['cfg'].is_file():
-            with open(self.files['cfg'], 'r', newline='') as csvfile:
+        self.files["cfg"] = self.dirs["cfg"] / "more_infos.csv"
+        if self.files["cfg"].is_file():
+            with open(self.files["cfg"], "r", newline="") as csvfile:
                 reader = csv.reader(csvfile)
                 for row in reader:
                     try:
                         sheet_ID, name, student_ID = row
                     except ValueError:
                         sheet_ID, name = row
-                        student_ID = ''
+                        student_ID = ""
                     self.more_infos[int(sheet_ID)] = (name, student_ID)
                 print("Retrieved infos:", self.more_infos)
 
         # List manually verified pages.
         # They should not be verified anymore.
-        self.files['verified'] = self.dirs['cfg'] / 'verified.txt'
-        if self.files['verified'].is_file():
-            with open(self.files['verified'], 'r', encoding="utf8", newline='') as file:
+        self.files["verified"] = self.dirs["cfg"] / "verified.txt"
+        if self.files["verified"].is_file():
+            with open(self.files["verified"], "r", encoding="utf8", newline="") as file:
                 self.verified = set(Path(line.strip()) for line in file.readlines())
                 print("Pages manually verified:")
                 for path in self.verified:
@@ -499,9 +524,9 @@ class MCQPictureParser:
 
         # List skipped pictures.
         # Next time, they will be skipped with no warning.
-        self.files['skipped'] = self.dirs['cfg'] / 'skipped.txt'
-        if self.files['skipped'].is_file():
-            with open(self.files['skipped'], 'r', encoding="utf8", newline='') as file:
+        self.files["skipped"] = self.dirs["cfg"] / "skipped.txt"
+        if self.files["skipped"].is_file():
+            with open(self.files["skipped"], "r", encoding="utf8", newline="") as file:
                 self.skipped |= set(Path(line.strip()) for line in file.readlines())
                 print("Pictures skipped:")
                 for path in sorted(self.skipped):
@@ -511,11 +536,11 @@ class MCQPictureParser:
         """This is used for debuging (it allows to test pages one by one)."""
         args = self.args
         if not any(args.picture.endswith(ext) for ext in PIC_EXTS):
-            raise TypeError('Allowed picture extensions: ' + ', '.join(PIC_EXTS))
+            raise TypeError("Allowed picture extensions: " + ", ".join(PIC_EXTS))
         pic_path = Path(args.picture).expanduser().resolve()
         if not pic_path.is_file():
-            pic_path = self.dirs['pic'] / args.picture
-        verify = (args.manual_verification is not False)
+            pic_path = self.dirs["pic"] / args.picture
+        verify = args.manual_verification is not False
         pic_data, _ = scan_picture(pic_path, self.config, manual_verification=verify)
         print(pic_data)
         sys.exit(0)
@@ -526,8 +551,8 @@ class MCQPictureParser:
         Return: {hash: pdf path}
         """
         hashes = dict()
-        for path in self.dirs['input'].glob('*.pdf'):
-            with open(path, 'rb') as pdf_file:
+        for path in self.dirs["input"].glob("*.pdf"):
+            with open(path, "rb") as pdf_file:
                 hashes[blake2b(pdf_file.read(), digest_size=20).hexdigest()] = path
         return hashes
 
@@ -537,17 +562,18 @@ class MCQPictureParser:
 
         def test_path(pth):
             if not pth.is_dir():
-                raise RuntimeError(f'Folder "{pth.parent}" should only contain folders.\n'
-                                   'You may clean it manually, or remove it with following command:\n'
-                                   f'rm -r "{pth.parent}"'
-                                   )
+                raise RuntimeError(
+                    f'Folder "{pth.parent}" should only contain folders.\n'
+                    "You may clean it manually, or remove it with following command:\n"
+                    f'rm -r "{pth.parent}"'
+                )
 
         # For each removed pdf files, remove corresponding pictures and data
-        for path in self.dirs['pic'].iterdir():
+        for path in self.dirs["pic"].iterdir():
             test_path(path)
             if path.name not in hash2pdf:
                 rmtree(path)
-        for path in self.dirs['data'].iterdir():
+        for path in self.dirs["data"].iterdir():
             test_path(path)
             if path.name not in hash2pdf:
                 rmtree(path)
@@ -557,18 +583,19 @@ class MCQPictureParser:
             folder = self.dirs["pic"] / pdfhash
             if not folder.is_dir():
                 extract_pdf_pictures(pdfpath, folder)
-            elif number_of_pages(pdfpath) != len([f for f in folder.iterdir()
-                                                  if f.suffix.lower() in PIC_EXTS]):
+            elif number_of_pages(pdfpath) != len(
+                [f for f in folder.iterdir() if f.suffix.lower() in PIC_EXTS]
+            ):
                 # Extraction was probably interrupted
                 rmtree(folder)
                 folder.mkdir()
                 extract_pdf_pictures(pdfpath, folder)
 
-    def _warn(self, *values, sep=' ', end='\n'):
+    def _warn(self, *values, sep=" ", end="\n"):
         """Print to stdout and write to log file."""
         msg = sep.join(str(val) for val in values) + end
         print(msg)
-        with open(self.dirs['log'] / self.logname, 'a', encoding='utf8') as logfile:
+        with open(self.dirs["log"] / self.logname, "a", encoding="utf8") as logfile:
             logfile.write(msg)
         self.warnings = True
 
@@ -615,12 +642,11 @@ class MCQPictureParser:
         # Extract informations from the pictures.
         # ---------------------------------------
 
-        self.name2sheetID = {d['name']: ID for ID, d in data.items()}
+        self.name2sheetID = {d["name"]: ID for ID, d in data.items()}
 
-        self.already_seen = set((ID, p) for ID, d in data.items() for p in d['pages'])
+        self.already_seen = set((ID, p) for ID, d in data.items() for p in d["pages"])
 
-        pic_list = sorted(f for f in self.dirs['pic'].glob("*/*")
-                          if f.suffix.lower() in PIC_EXTS)
+        pic_list = sorted(f for f in self.dirs["pic"].glob("*/*") if f.suffix.lower() in PIC_EXTS)
 
         assert all(isinstance(path, Path) for path in self.skipped)
         assert all(isinstance(path, Path) for path in self.verified)
@@ -629,12 +655,12 @@ class MCQPictureParser:
             if not (args.start <= i <= args.end):
                 continue
             # Make pic_path relative, so that folder may be moved if needed.
-            pic_path = pic_path.relative_to(self.dirs['pic'])
+            pic_path = pic_path.relative_to(self.dirs["pic"])
             if pic_path in self.skipped:
                 continue
-            print('-------------------------------------------------------')
-            print('Page', i)
-            print('File:', pic_path)
+            print("-------------------------------------------------------")
+            print("Page", i)
+            print("File:", pic_path)
 
             # 1) Extract all the data of an image
             #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
@@ -643,46 +669,52 @@ class MCQPictureParser:
                 # Warning: args.manual_verification can be None, so the order is important
                 # below : False and None -> False (but None and False -> None).
                 manual_verification = (pic_path not in self.verified) and args.manual_verification
-                pic_data, matrix = scan_picture(self.dirs['pic'] / pic_path, self.config,
-                                                manual_verification)
+                pic_data, matrix = scan_picture(
+                    self.dirs["pic"] / pic_path, self.config, manual_verification
+                )
                 # `pic_data` FORMAT is specified in `scan_pic.py`.
                 # (Search for `pic_data =` in `scan_pic.py`).
-                pic_data['pic_path'] = str(pic_path)
+                pic_data["pic_path"] = str(pic_path)
                 print()
 
             except CalibrationError:
-                self._warn(f'WARNING: {pic_path} seems invalid ! Skipping...')
-                input('-- PAUSE --')
-                with open(self.files['skipped'], 'a', newline='', encoding="utf8") as file:
-                    file.write(f'{pic_path}\n')
+                self._warn(f"WARNING: {pic_path} seems invalid ! Skipping...")
+                input("-- PAUSE --")
+                with open(self.files["skipped"], "a", newline="", encoding="utf8") as file:
+                    file.write(f"{pic_path}\n")
                 continue
 
-            if pic_data['verified']:
+            if pic_data["verified"]:
                 # If the page has been manually verified, keep track of it,
                 # so it won't be verified next time if a second pass is needed.
-                with open(self.files['verified'], 'a', newline='', encoding="utf8") as file:
-                    file.write(f'{pic_path}\n')
+                with open(self.files["verified"], "a", newline="", encoding="utf8") as file:
+                    file.write(f"{pic_path}\n")
 
-            ID = pic_data['ID']
-            page = pic_data['page']
+            ID = pic_data["ID"]
+            page = pic_data["page"]
 
             if self._keep_previous_version(pic_data):
                 continue
 
             # 2) Gather data
             #    ‾‾‾‾‾‾‾‾‾‾‾
-            name, student_ID = self.more_infos.get(ID, ('', ''))
-            data_for_this_ID = data.setdefault(ID, {'pages': {},
-                                                    'name': name,
-                                                    'student ID': student_ID,
-                                                    'answered': {},
-                                                    'score': 0,
-                                                    'score_per_question': {}})
-            data_for_this_ID['pages'][page] = pic_data
+            name, student_ID = self.more_infos.get(ID, ("", ""))
+            data_for_this_ID = data.setdefault(
+                ID,
+                {
+                    "pages": {},
+                    "name": name,
+                    "student ID": student_ID,
+                    "answered": {},
+                    "score": 0,
+                    "score_per_question": {},
+                },
+            )
+            data_for_this_ID["pages"][page] = pic_data
 
-            for q in pic_data['answered']:
-                ans = data_for_this_ID['answered'].setdefault(q, set())
-                ans |= pic_data['answered'][q]
+            for q in pic_data["answered"]:
+                ans = data_for_this_ID["answered"].setdefault(q, set())
+                ans |= pic_data["answered"][q]
 
             # 3) 1st page of the test => retrieve the student name
             #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾

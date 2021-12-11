@@ -6,6 +6,3 @@ __release_date__ = (8, 12, 2021)
 
 # Import ptyx.config first, to setup ptyx !
 from ptyx.config import param
-
-
-

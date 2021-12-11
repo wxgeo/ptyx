@@ -23,11 +23,9 @@
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-
-
 ## File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
-#script_path = dirname(abspath(sys._getframe().f_code.co_filename))
-#sys.path.insert(0, join(script_path, '../..'))
+# script_path = dirname(abspath(sys._getframe().f_code.co_filename))
+# sys.path.insert(0, join(script_path, '../..'))
 
 from .args import create_parser
 from .scanner import MCQPictureParser

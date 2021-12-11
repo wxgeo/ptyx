@@ -44,52 +44,56 @@ from ptyx.latexgenerator import LatexGenerator
 #    CUSTOM TAGS
 # ------------------
 
+
 class GeophyxLatexGenerator(LatexGenerator):
     def _parse_CALC_tag(self, node):
         args, kw = self._parse_options(node)
         assert len(args) <= 1 and len(kw) == 0
-        name = (args[0] if args else 'RESULT')
+        name = args[0] if args else "RESULT"
 
-        fonctions = [key for key, val in self.context.items()
-                     if isinstance(val, (type(sympy.sqrt), type(sympy.cos)))]
+        fonctions = [
+            key
+            for key, val in self.context.items()
+            if isinstance(val, (type(sympy.sqrt), type(sympy.cos)))
+        ]
 
         def eval_and_store(txt, name):
             formule = traduire_formule(txt, fonctions=fonctions)
-            print('Formule interpretation:', txt, ' → ', formule)
+            print("Formule interpretation:", txt, " → ", formule)
             self.context[name] = self._eval_python_expr(formule)
             return txt
 
-        self._parse_children(node.children[0].children, function=eval_and_store,
-                             name=name)
-
+        self._parse_children(node.children[0].children, function=eval_and_store, name=name)
 
     def _parse_GCALC_tag(self, node):
         state = random.getstate()
         args, kw = self._parse_options(node)
         for key in kw:
             kw[key] = eval(kw[key])
+
         def _eval2latex(code):
-            print('code::' + repr(code))
+            print("code::" + repr(code))
             return Interprete(**kw).evaluer(code.strip())[1]
+
         self._parse_children(node.children, function=_eval2latex, **kw)
         random.setstate(state)
-
 
     def _parse_GEO_tag(self, node):
         state = random.getstate()
         args, kw = self._parse_options(node)
-        scale = kw.pop('scale', None)
+        scale = kw.pop("scale", None)
         for key in kw:
             kw[key] = eval(kw[key])
+
         def _eval2latex(code):
-            print('code::' + repr(code))
+            print("code::" + repr(code))
             feuille = Feuille(**kw)
-            for commande in code.split('\n'):
+            for commande in code.split("\n"):
                 feuille.executer(commande)
-            return feuille.exporter('tikz', echelle=scale)
+            return feuille.exporter("tikz", echelle=scale)
+
         self._parse_children(node.children, function=_eval2latex, **kw)
         random.setstate(state)
-
 
     def _parse_TABVAL_tag(self, node):
         state = random.getstate()
@@ -99,7 +103,6 @@ class GeophyxLatexGenerator(LatexGenerator):
         self._parse_children(node.children, function=tabval, **kw)
         random.setstate(state)
 
-
     def _parse_TABVAR_tag(self, node):
         state = random.getstate()
         args, kw = self._parse_options(node)
@@ -107,7 +110,6 @@ class GeophyxLatexGenerator(LatexGenerator):
             kw[key] = eval(kw[key])
         self._parse_children(node.children, function=tabvar, **kw)
         random.setstate(state)
-
 
     def _parse_TABSIGN_tag(self, node):
         state = random.getstate()
@@ -119,17 +121,16 @@ class GeophyxLatexGenerator(LatexGenerator):
 
 
 __latex_generator_extension__ = GeophyxLatexGenerator
-__tags__ = {'CALC': (1, 0, None),
-            'GCALC': (0, 0, ['@END_GCALC', '@END']),
-            'GEO': (0, 0, ['@END_GEO', '@END']),
-            'TABSIGN': (0, 0, ['@END_TABSIGN', '@END']),
-            'TABVAL': (0, 0, ['@END_TABVAL', '@END']),
-            'TABVAR': (0, 0, ['@END_TABVAR', '@END']),
-            }
+__tags__ = {
+    "CALC": (1, 0, None),
+    "GCALC": (0, 0, ["@END_GCALC", "@END"]),
+    "GEO": (0, 0, ["@END_GEO", "@END"]),
+    "TABSIGN": (0, 0, ["@END_TABSIGN", "@END"]),
+    "TABVAL": (0, 0, ["@END_TABVAL", "@END"]),
+    "TABVAR": (0, 0, ["@END_TABVAR", "@END"]),
+}
 
 
 def main(code, compiler):
     # Code is left untouched, this extension only adds new commands.
     return code
-
-

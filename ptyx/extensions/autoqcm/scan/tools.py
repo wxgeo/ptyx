@@ -20,17 +20,17 @@ def search_by_extension(directory: Path, ext: str) -> Path:
     ext = ext.lower()
     names = [name for name in listdir(directory) if name.lower().endswith(ext)]
     if not names:
-        raise FileNotFoundError('No `%s` file found in that directory (%s) ! '
-                                % (ext, directory))
+        raise FileNotFoundError("No `%s` file found in that directory (%s) ! " % (ext, directory))
     elif len(names) > 1:
-        raise RuntimeError('Several `%s` file found in that directory (%s) ! '
-            'Keep one and delete all others (or rename their extensions).'
-            % (ext, directory))
+        raise RuntimeError(
+            "Several `%s` file found in that directory (%s) ! "
+            "Keep one and delete all others (or rename their extensions)." % (ext, directory)
+        )
     return directory / names[0]
 
 
 def print_framed_msg(msg):
-    decoration = max(len(line) for line in msg.split('\n'))*'-'
+    decoration = max(len(line) for line in msg.split("\n")) * "-"
     print(decoration)
     print(msg)
     print(decoration)
@@ -38,10 +38,11 @@ def print_framed_msg(msg):
 
 def tmp_store(obj):
     "For debuging."
-    with open(expanduser('~/tmp.pickle'), 'wb') as f:
+    with open(expanduser("~/tmp.pickle"), "wb") as f:
         pickle.dump(obj, f)
+
 
 def tmp_load():
     "For debuging."
-    with open(expanduser('~/tmp.pickle'), 'rb') as f:
+    with open(expanduser("~/tmp.pickle"), "rb") as f:
         return pickle.load(f)

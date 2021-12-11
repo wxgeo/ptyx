@@ -70,33 +70,29 @@ from .compile.qcm2ptyx import generate_ptyx_code
 from .tools.config_parser import dump
 
 
-
-    # Note for closing tags:
-    # '@END' means closing tag #END must be consumed, unlike 'END'.
-    # So, use '@END_QUESTIONS_BLOCK' to close QUESTIONS_BLOCK,
-    # but use 'END_QUESTIONS_BLOCK' to close QUESTION, since
-    # #END_QUESTIONS_BLOCK must not be consumed then (it must close
-    # QUESTIONS_BLOCK too).
+# Note for closing tags:
+# '@END' means closing tag #END must be consumed, unlike 'END'.
+# So, use '@END_QUESTIONS_BLOCK' to close QUESTIONS_BLOCK,
+# but use 'END_QUESTIONS_BLOCK' to close QUESTION, since
+# #END_QUESTIONS_BLOCK must not be consumed then (it must close
+# QUESTIONS_BLOCK too).
 
 
 __tags__ = {
     # Tags used to structure MCQ
-    'QCM': (0, 0, ['@END_QCM']),
-    'SECTION': (0, 0, ['SECTION', 'END_QCM']),
-    'NEW_QUESTION': (0, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION',
-                            'SECTION', 'END_QCM']),
-    'CONSECUTIVE_QUESTION': (0, 0, ['NEW_QUESTION', 'CONSECUTIVE_QUESTION',
-                                    'SECTION', 'END_QCM']),
-    'VERSION': (1, 0, ['VERSION', 'NEW_QUESTION', 'CONSECUTIVE_QUESTION',
-                       'SECTION', 'END_QCM']),
-    'ANSWERS_BLOCK': (0, 0, ['@END_ANSWERS_BLOCK']),
-    'NEW_ANSWER': (2, 0, ['NEW_ANSWER', 'END_ANSWERS_BLOCK']),
-    'ANSWERS_LIST': (2, 0, None),
+    "QCM": (0, 0, ["@END_QCM"]),
+    "SECTION": (0, 0, ["SECTION", "END_QCM"]),
+    "NEW_QUESTION": (0, 0, ["NEW_QUESTION", "CONSECUTIVE_QUESTION", "SECTION", "END_QCM"]),
+    "CONSECUTIVE_QUESTION": (0, 0, ["NEW_QUESTION", "CONSECUTIVE_QUESTION", "SECTION", "END_QCM"]),
+    "VERSION": (1, 0, ["VERSION", "NEW_QUESTION", "CONSECUTIVE_QUESTION", "SECTION", "END_QCM"]),
+    "ANSWERS_BLOCK": (0, 0, ["@END_ANSWERS_BLOCK"]),
+    "NEW_ANSWER": (2, 0, ["NEW_ANSWER", "END_ANSWERS_BLOCK"]),
+    "ANSWERS_LIST": (2, 0, None),
     # Other tags
-    'QCM_HEADER': (1, 0, None),
-    'DEBUG_AUTOQCM': (0, 0, None),
+    "QCM_HEADER": (1, 0, None),
+    "DEBUG_AUTOQCM": (0, 0, None),
     # Deprecated tags
-    'L_ANSWERS': (1, 0, None),
+    "L_ANSWERS": (1, 0, None),
 }
 __latex_generator_extension__ = AutoQCMLatexGenerator
 
@@ -138,21 +134,24 @@ def main(text, compiler):
                 file_found = True
                 with open(path) as file:
                     file_content = file.read().strip()
-                    if file_content[:2].strip() != '*':
-                        file_content = '*\n' + file_content
+                    if file_content[:2].strip() != "*":
+                        file_content = "*\n" + file_content
                     lines = []
-                    for line in file_content.split('\n'):
+                    for line in file_content.split("\n"):
                         lines.append(line)
-                        if (line.startswith('* ') or line.startswith('> ')
-                                or line.startswith('OR ')
-                                or line.rstrip() in ('*', '>', 'OR')):
+                        if (
+                            line.startswith("* ")
+                            or line.startswith("> ")
+                            or line.startswith("OR ")
+                            or line.rstrip() in ("*", ">", "OR")
+                        ):
                             lines.append(f'#PRINT{{IMPORT DE "{path}"}}')
-                    contents.append('\n'.join(lines))
+                    contents.append("\n".join(lines))
         if not file_found:
             print(f"WARNING: no file corresponding to {pattern!r} !")
-        return '\n\n' + '\n\n'.join(contents) + '\n\n'
+        return "\n\n" + "\n\n".join(contents) + "\n\n"
 
-    text = re.sub(r'^-- (.+)$', include, text, flags=re.MULTILINE)
+    text = re.sub(r"^-- (.+)$", include, text, flags=re.MULTILINE)
 
     # Call extended_python extension.
     text = extended_python.main(text, compiler)
@@ -168,27 +167,27 @@ def close(compiler):
     folder = file_path.parent
     name = file_path.name
     id_table_pos = None
-    for n in autoqcm_data['ordering']:
+    for n in autoqcm_data["ordering"]:
         # XXX: what if files are not auto-numbered, but a list
         # of names is provided to Ptyx instead ?
         # (cf. command line options).
-        if len(autoqcm_data['ordering']) == 1:
-            filename = f'{name[:-5]}.pos'
+        if len(autoqcm_data["ordering"]) == 1:
+            filename = f"{name[:-5]}.pos"
         else:
-            filename = f'{name[:-5]}-{n}.pos'
-        full_path = folder / '.compile' / name / filename
-        d = autoqcm_data['boxes'][n] = {}
+            filename = f"{name[:-5]}-{n}.pos"
+        full_path = folder / ".compile" / name / filename
+        d = autoqcm_data["boxes"][n] = {}
         with open(full_path) as f:
             for line in f:
-                k, v = line.split(': ', 1)
+                k, v = line.split(": ", 1)
                 k = k.strip()
-                if k == 'ID-table':
+                if k == "ID-table":
                     if id_table_pos is None:
-                        id_table_pos = [float(s.strip('() \n')) for s in v.split(',')]
-                        autoqcm_data['id-table-pos'] = id_table_pos
+                        id_table_pos = [float(s.strip("() \n")) for s in v.split(",")]
+                        autoqcm_data["id-table-pos"] = id_table_pos
                     continue
-                page, x, y = [s.strip('p() \n') for s in v.split(',')]
+                page, x, y = [s.strip("p() \n") for s in v.split(",")]
                 d.setdefault(page, {})[k] = [float(x), float(y)]
 
-    config_file = file_path.with_suffix('.ptyx.autoqcm.config.json')
+    config_file = file_path.with_suffix(".ptyx.autoqcm.config.json")
     dump(config_file, autoqcm_data)

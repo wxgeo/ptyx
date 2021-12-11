@@ -1,6 +1,7 @@
 # Attention, l'image doit être placée dans le même répertoire
 # que votre programme python.
 
+
 def lire_image(nom_image):
     """Cette fonction prend en argument le nom d'une image PBM
     et renvoie une matrice (c-à-d. une grille) de 0 et de 1
@@ -14,8 +15,7 @@ def lire_image(nom_image):
         print("Format d'image incorrect !")
     # La 2e ligne contient les dimensions de l'image.
     l, h = lignes[1].split()
-    print("L'image a pour largeur " + l +
-          " et pour hauteur " + h)
+    print("L'image a pour largeur " + l + " et pour hauteur " + h)
     l = int(l)
     h = int(h)
     # Les lignes suivantes contiennent les données.
@@ -77,4 +77,4 @@ def echanger_1_0(matrice):
     return matrice
 
 
-#affiche_grille(lire_image("smiley.pbm"))
+# affiche_grille(lire_image("smiley.pbm"))

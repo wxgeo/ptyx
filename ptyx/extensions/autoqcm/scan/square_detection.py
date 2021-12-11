@@ -5,19 +5,19 @@ from os.path import join
 from numpy import array, nonzero, transpose, interp, int8
 from PIL import Image
 
-COLORS = {'red':        (255, 0, 0),
-          'green':      (0, 255, 0),
-          'blue':       (0, 0, 255),
-          'yellow':     (255, 255, 0),
-          'magenta':    (255, 0, 255),
-          'cyan':       (0, 255, 255),
-          'white':      (255, 255, 255),
-          'black':      (0, 0, 0),
-          'orange':     (255, 128, 0),
-          'purple':     (128, 128, 0),
-          }
+COLORS = {
+    "red": (255, 0, 0),
+    "green": (0, 255, 0),
+    "blue": (0, 0, 255),
+    "yellow": (255, 255, 0),
+    "magenta": (255, 0, 255),
+    "cyan": (0, 255, 255),
+    "white": (255, 255, 255),
+    "black": (0, 0, 0),
+    "orange": (255, 128, 0),
+    "purple": (128, 128, 0),
+}
 # See also: https://pypi.org/project/webcolors/
-
 
 
 def top_left_iterator(stop, step=1):
@@ -35,12 +35,13 @@ def top_left_iterator(stop, step=1):
             yield (n, k)
 
 
-
 def total_grayness(m):
-    return interp(m, [0,0.2,0.8,1], [0, 0.1, 0.9, 1]).sum()
+    return interp(m, [0, 0.2, 0.8, 1], [0, 0.1, 0.9, 1]).sum()
 
 
-def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4, mode='row', debug=False):
+def find_black_rectangle(
+    matrix, width=50, height=50, error=0.30, gray_level=0.4, mode="row", debug=False
+):
     """Detect a black rectangle of given size (in pixels) in matrix.
 
     The n*m matrix must contain only floats between 0 (white) and 1 (black).
@@ -62,26 +63,30 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
     # ~ color2debug(matrix)
     # First, convert grayscale image to black and white.
     if debug:
-        print(f'`find_black_rectangle` parameters: width={width}, '
-              f'height={height}, error={error}, gray_level={gray_level}')
+        print(
+            f"`find_black_rectangle` parameters: width={width}, "
+            f"height={height}, error={error}, gray_level={gray_level}"
+        )
         color2debug(matrix, display=True)
     m = array(matrix, copy=False) < gray_level
     if debug:
         color2debug(1 - m, display=True)
     # Black pixels are represented by False, white ones by True.
-    #pic_height, pic_width = m.shape
-    per_line = (1 - error)*width
-    per_col = (1 - error)*height
-    goal = per_line*height
+    # pic_height, pic_width = m.shape
+    per_line = (1 - error) * width
+    per_col = (1 - error) * height
+    goal = per_line * height
     to_avoid = []
     # Find a black pixel, starting from top left corner,
     # and scanning line by line (ie. from top to bottom).
-    if mode == 'row':
+    if mode == "row":
         black_pixels = nonzero(m)
-    elif mode == 'column':
+    elif mode == "column":
         black_pixels = reversed(nonzero(transpose(array(m))))
     else:
-        raise RuntimeError("Unknown mode: %s. Mode should be either 'row' or 'column'." % repr(mode))
+        raise RuntimeError(
+            "Unknown mode: %s. Mode should be either 'row' or 'column'." % repr(mode)
+        )
     if debug:
         print(mode, black_pixels)
     for (i, j) in zip(*black_pixels):
@@ -89,25 +94,27 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
         if debug:
             print("Black pixel found at %s, %s" % (i, j))
         # ~ color2debug(m.astype(float), (i, j), (i + width, j + height), color=(255,0,255))
-        if any((li_min <= i <= li_max and co_min <= j <= co_max)
-                for (li_min, li_max, co_min, co_max) in to_avoid):
+        if any(
+            (li_min <= i <= li_max and co_min <= j <= co_max)
+            for (li_min, li_max, co_min, co_max) in to_avoid
+        ):
             continue
         assert m[i, j] == 1
-        total = m[i:i+height, j:j+width].sum()
+        total = m[i : i + height, j : j + width].sum()
         if debug:
             print(f"Total: {total} | Goal: {goal}")
-            if total >= goal/5:
-                color2debug(matrix, (i, j), (i+height, j+width), display=True)
+            if total >= goal / 5:
+                color2debug(matrix, (i, j), (i + height, j + width), display=True)
         # ~ print(f'Black pixels ratio: {total}/{width*height} ; Min: {goal}.')
         # ~ input('- pause -')
-#        print("Detection: %s found (minimum was %s)." % (total, goal))
+        #        print("Detection: %s found (minimum was %s)." % (total, goal))
         if total >= goal:
-            #~ print("\nBlack square found at (%s,%s)." % (i, j))
+            # ~ print("\nBlack square found at (%s,%s)." % (i, j))
             # Adjust detection if top left corner is a bit "damaged"
             # (ie. if some pixels are missing there), or if this pixel is
             # only an artefact before the square.
             if debug:
-                color2debug(matrix, (i,j), (i + 2,j + 2), fill=True)
+                color2debug(matrix, (i, j), (i + 2, j + 2), fill=True)
             i0 = i
             j0 = j
             # Note: limit adjustement range (in case there are two consecutive squares)
@@ -115,8 +122,11 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
                 horizontal = vertical = False
                 # Horizontal adjustement:
                 try:
-                    while abs(j - j0) < error*width \
-                        and (m[i:i+height, j+width+1].sum() > per_col > m[i:i+height, j].sum()):
+                    while abs(j - j0) < error * width and (
+                        m[i : i + height, j + width + 1].sum()
+                        > per_col
+                        > m[i : i + height, j].sum()
+                    ):
                         j += 1
                         if debug:
                             print("j+=1")
@@ -127,8 +137,12 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
                 # to shift it in the opposite direction.
                 if not horizontal:
                     try:
-                        while abs(j - j0) < error*width \
-                            and m[i:i+height, j+width].sum() < per_col < m[i:i+height, j-1].sum():
+                        while (
+                            abs(j - j0) < error * width
+                            and m[i : i + height, j + width].sum()
+                            < per_col
+                            < m[i : i + height, j - 1].sum()
+                        ):
                             j -= 1
                             if debug:
                                 print("j-=1")
@@ -137,7 +151,12 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
                         pass
                 # Vertical adjustement:
                 try:
-                    while abs(i - i0) < error*height and m[i+height+1, j:j+width].sum() > per_line > m[i, j:j+width].sum():
+                    while (
+                        abs(i - i0) < error * height
+                        and m[i + height + 1, j : j + width].sum()
+                        > per_line
+                        > m[i, j : j + width].sum()
+                    ):
                         i += 1
                         if debug:
                             print("i+=1")
@@ -145,7 +164,12 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
                 except IndexError:
                     pass
                 try:
-                    while abs(i - i0) < error*height and m[i+height, j:j+width].sum() < per_line < m[i-1, j:j+width].sum():
+                    while (
+                        abs(i - i0) < error * height
+                        and m[i + height, j : j + width].sum()
+                        < per_line
+                        < m[i - 1, j : j + width].sum()
+                    ):
                         i -= 1
                         if debug:
                             print("i-=1")
@@ -176,31 +200,34 @@ def find_black_rectangle(matrix, width=50, height=50, error=0.30, gray_level=.4,
             #      ≃ error*size          size
 
             # Avoid to detect an already found square.
-            if any((li_min <= i <= li_max and co_min <= j <= co_max)
-                    for (li_min, li_max, co_min, co_max) in to_avoid):
+            if any(
+                (li_min <= i <= li_max and co_min <= j <= co_max)
+                for (li_min, li_max, co_min, co_max) in to_avoid
+            ):
                 continue
 
-            to_avoid.append((i - error*height - 1, i + height - 2, j - error*width - 1, j + width - 2))
-            #~ print("Final position of this new square is (%s, %s)" % (i, j))
-            #~ print("Forbidden areas are now:")
-            #~ print(to_avoid)
+            to_avoid.append(
+                (i - error * height - 1, i + height - 2, j - error * width - 1, j + width - 2)
+            )
+            # ~ print("Final position of this new square is (%s, %s)" % (i, j))
+            # ~ print("Forbidden areas are now:")
+            # ~ print(to_avoid)
             if debug:
-                input('-- pause --')
+                input("-- pause --")
             yield (i, j)
 
 
-
-
-def find_black_square(matrix, size, error=.4, gray_level=.4, **kw):
-    return find_black_rectangle(matrix, width=size, height=size, error=error, gray_level=gray_level, **kw)
+def find_black_square(matrix, size, error=0.4, gray_level=0.4, **kw):
+    return find_black_rectangle(
+        matrix, width=size, height=size, error=error, gray_level=gray_level, **kw
+    )
 
 
 def detect_all_squares(matrix, size=50, error=0.30):
     return list(find_black_square(matrix, size=size, error=error))
 
 
-
-def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, margin=0, _debug=False):
+def test_square_color(m, i, j, size, proportion=0.3, gray_level=0.75, margin=0, _debug=False):
     """Return True if square is black, False else.
 
     (i, j) is top left corner of the square, where i is line number
@@ -209,17 +236,19 @@ def test_square_color(m, i, j, size, proportion=0.3, gray_level=.75, margin=0, _
     to be considered black (`gray_level` is the level below which a pixel
     is considered black).
     """
-    if size <= 2*margin + 4:
-        raise ValueError('Square too small for current margins !')
-    square = m[i+margin : i+size-margin, j+margin : j+size-margin] < gray_level
+    if size <= 2 * margin + 4:
+        raise ValueError("Square too small for current margins !")
+    square = m[i + margin : i + size - margin, j + margin : j + size - margin] < gray_level
     if _debug:
-        print(square, square.sum(), len(square)**2)
-        print("proportion of black pixels detected: %s (minimum required was %s)"
-                                        % (square.sum()/size**2, proportion))
+        print(square, square.sum(), len(square) ** 2)
+        print(
+            "proportion of black pixels detected: %s (minimum required was %s)"
+            % (square.sum() / size ** 2, proportion)
+        )
     # Test also the core of the square, since borders may induce false
     # positives if proportion is kept low (like default value).
     core = square[2:-2, 2:-2]
-    return square.sum() > proportion*len(square)**2 and core.sum() > proportion*len(core)**2
+    return square.sum() > proportion * len(square) ** 2 and core.sum() > proportion * len(core) ** 2
 
 
 def eval_square_color(m, i, j, size, margin=0, _debug=False):
@@ -233,40 +262,36 @@ def eval_square_color(m, i, j, size, margin=0, _debug=False):
     (i, j) is top left corner of the square, where i is line number
     and j is column number.
     """
-    if size <= 2*margin:
-        raise ValueError('Square too small for current margins !')
+    if size <= 2 * margin:
+        raise ValueError("Square too small for current margins !")
     # Warning: pixels outside the sheet shouldn't be considered black !
     # Since we're doing a sum, 0 should represent white and 1 black,
     # so as if a part of the square is outside the sheet, it is considered
     # white, not black ! This explain the `1 - m[...]` below.
-    square = 1 - m[i+margin : i+size-margin, j+margin : j+size-margin]
-    return square.sum()/(size - margin)**2
-
+    square = 1 - m[i + margin : i + size - margin, j + margin : j + size - margin]
+    return square.sum() / (size - margin) ** 2
 
 
 def adjust_checkbox(m, i, j, size, level1=0.5, level2=0.6, delta=5):
-    #return (i, j)
+    # return (i, j)
     # Try to adjust top edge of the checkbox
     i0, j0 = i, j
-    if m[i:i+size, j:j+1].sum() < level1*size:
+    if m[i : i + size, j : j + 1].sum() < level1 * size:
         for i in range(i0 - delta, i0 + delta + 1):
-            if m[i:i+size, j:j+1].sum() > level2*size:
+            if m[i : i + size, j : j + 1].sum() > level2 * size:
                 break
         else:
             i = i0
-    if m[i:i+1, j:j+size].sum() < level1*size:
+    if m[i : i + 1, j : j + size].sum() < level1 * size:
         for j in range(j0 - delta, j0 + delta + 1):
-            if m[i:i+1, j:j+size].sum() > level2*size:
+            if m[i : i + 1, j : j + size].sum() > level2 * size:
                 break
         else:
             j = j0
     return i, j
 
 
-
-
-
-def find_lonely_square(m, size, error=.4, gray_level=.4):
+def find_lonely_square(m, size, error=0.4, gray_level=0.4):
     """Find all black squares surrounded by a white area.
 
     - `size` is the length of the edge (in pixels).
@@ -283,17 +308,34 @@ def find_lonely_square(m, size, error=.4, gray_level=.4):
         # Test if all surrounding squares are white.
         # (If not, it could be a false positive, caused by a stain
         # or by some student writing.)
-        if not any(test_square_color(m, i_, j_, s, proportion=0.5, gray_level=0.5)
-                    for i_, j_ in [(i - s, j - s), (i - s, j), (i - s, j + s),
-                                   (i, j - s), (i, j + s),
-                                   (i + s, j - s), (i + s, j), (i + s, j + s)]):
+        if not any(
+            test_square_color(m, i_, j_, s, proportion=0.5, gray_level=0.5)
+            for i_, j_ in [
+                (i - s, j - s),
+                (i - s, j),
+                (i - s, j + s),
+                (i, j - s),
+                (i, j + s),
+                (i + s, j - s),
+                (i + s, j),
+                (i + s, j + s),
+            ]
+        ):
             yield (i, j)
     # ~ raise LookupError("No lonely black square in the search area.")
 
 
-
-def color2debug(array=None, from_=None, to_=None, color='red',
-                display=True, thickness=2, fill=False, _d={}, wait=True):
+def color2debug(
+    array=None,
+    from_=None,
+    to_=None,
+    color="red",
+    display=True,
+    thickness=2,
+    fill=False,
+    _d={},
+    wait=True,
+):
     """Display picture with a red (by default) rectangle for debuging.
 
     `array` is an array containing the image data (image must be gray mode,
@@ -325,7 +367,7 @@ def color2debug(array=None, from_=None, to_=None, color='red',
     if ID not in _d:
         # Load image only if not loaded previously.
         # .astype(int8) will make more arrays representable.
-        _d[ID] = Image.fromarray((255*array).astype(int8)).convert('RGB')
+        _d[ID] = Image.fromarray((255 * array).astype(int8)).convert("RGB")
     rgb = _d[ID]
     height, width = array.shape
     if from_ is not None:
@@ -366,18 +408,17 @@ def color2debug(array=None, from_=None, to_=None, color='red',
 
     if display:
         del _d[ID]
-        if subprocess.call(['which', 'feh']) != 0:
-            raise RuntimeError('The `feh` command is not found, please '
-                        'install it (`sudo apt install feh` on Ubuntu).')
+        if subprocess.call(["which", "feh"]) != 0:
+            raise RuntimeError(
+                "The `feh` command is not found, please "
+                "install it (`sudo apt install feh` on Ubuntu)."
+            )
         with tempfile.TemporaryDirectory() as tmpdirname:
-            path = join(tmpdirname, 'test.png')
+            path = join(tmpdirname, "test.png")
             rgb.save(path)
             if wait:
                 process = subprocess.run(["feh", "-F", path])
             else:
-                process = subprocess.Popen(["feh", "-F", path],
-                                           stdin=subprocess.DEVNULL)
-            input('-- pause --\n')
+                process = subprocess.Popen(["feh", "-F", path], stdin=subprocess.DEVNULL)
+            input("-- pause --\n")
             return process
-
-

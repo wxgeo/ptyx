@@ -17,21 +17,16 @@ except ImportError:
 from ptyx.config import param
 
 
-
-
-
-
 class CustomLatexPrinter(LatexPrinter):
-
     def __init__(self, settings):
         defaults = {
-                   'decimales': 18,
-                    "mat_str": "pmatrix",
-                    "mat_delim": "",
-                    "mode": "inline",
-                    "fold_frac_powers": False,
-                    "fold_short_frac": False,
-                    }
+            "decimales": 18,
+            "mat_str": "pmatrix",
+            "mat_delim": "",
+            "mode": "inline",
+            "fold_frac_powers": False,
+            "fold_short_frac": False,
+        }
         self._default_settings.update(defaults)
         LatexPrinter.__init__(self, settings)
 
@@ -52,15 +47,18 @@ class CustomLatexPrinter(LatexPrinter):
             # See if the class of expr is known, or if one of its super
             # classes is known, and use that print function
             for cls in type(expr).__mro__:
-                printmethod = '_print_' + cls.__name__
+                printmethod = "_print_" + cls.__name__
                 if hasattr(self, printmethod):
                     return getattr(self, printmethod)(expr, *args, **kwargs)
 
             # If the printer defines a name for a printing method
             # (Printer.printmethod) and the object knows for itself how it
             # should be printed, use that method.
-            if (self.printmethod and hasattr(expr, self.printmethod)
-                    and not isinstance(expr, BasicMeta)):
+            if (
+                self.printmethod
+                and hasattr(expr, self.printmethod)
+                and not isinstance(expr, BasicMeta)
+            ):
                 return getattr(expr, self.printmethod)(self, *args, **kwargs)
 
             # Unknown object, fall back to the emptyPrinter.
@@ -77,7 +75,7 @@ class CustomLatexPrinter(LatexPrinter):
 
     def _print_Abs(self, *args, **kw):
         res = LatexPrinter._print_Abs(self, *args, **kw)
-        return res.replace(r'\lvert', r'|').replace(r'\rvert', r'|')
+        return res.replace(r"\lvert", r"|").replace(r"\rvert", r"|")
 
     def _print_Pi(self, *args, **kw):
         return r"\pi"
@@ -88,8 +86,8 @@ class CustomLatexPrinter(LatexPrinter):
     def _print_Function(self, expr, exp=None):
         func = expr.func.__name__
 
-        if hasattr(self, '_print_' + func):
-            return getattr(self, '_print_' + func)(expr, exp)
+        if hasattr(self, "_print_" + func):
+            return getattr(self, "_print_" + func)(expr, exp)
 
         else:
             if exp is not None:
@@ -102,36 +100,35 @@ class CustomLatexPrinter(LatexPrinter):
                 args = [str(self._print(arg)) for arg in expr.args]
                 return name + r"\left(%s\right)" % ",".join(args)
 
-#    def _print_Float(self, expr):
-#        s = LatexPrinter._print_Float(self, expr)
-#        if s.startswith(r'1.0 \times '):  # sympy 0.7.3
-#            return s[11:]
-#        elif s.startswith(r'1.0 \cdot '):  # sympy 0.7.5
-#            return s[10:]
-#        elif r'\times' not in s:
-#            # Ne pas supprimer un zéro de la puissance !
-#            s = s.rstrip('0').rstrip('.')
-#        return s
+    #    def _print_Float(self, expr):
+    #        s = LatexPrinter._print_Float(self, expr)
+    #        if s.startswith(r'1.0 \times '):  # sympy 0.7.3
+    #            return s[11:]
+    #        elif s.startswith(r'1.0 \cdot '):  # sympy 0.7.5
+    #            return s[10:]
+    #        elif r'\times' not in s:
+    #            # Ne pas supprimer un zéro de la puissance !
+    #            s = s.rstrip('0').rstrip('.')
+    #        return s
 
     def _print_Infinity(self, expr):
         return r"+\infty"
 
     def _print_Order(self, expr):
-        return r"\mathcal{O}\left(%s\right)" % \
-            self._print(expr.args[0])
+        return r"\mathcal{O}\left(%s\right)" % self._print(expr.args[0])
 
     def _print_Mul(self, expr):
         args = expr.args
         if args[-1] is I:
             if len(args) == 2 and args[0] == -1:
                 return LatexPrinter._print_Mul(self, expr)
-            return '%s %s' % (self._print(Mul(*args[:-1])), self._print(I))
+            return "%s %s" % (self._print(Mul(*args[:-1])), self._print(I))
         return LatexPrinter._print_Mul(self, expr)
         # return ' '.join(self._print(arg) for arg in expr.args)
 
     def _print_set(self, expr):
         if expr:
-            return r'\left\{%s\right\}' % r'\,;\,'.join(self._print(val) for val in expr)
+            return r"\left\{%s\right\}" % r"\,;\,".join(self._print(val) for val in expr)
         return r"\emptyset"
 
     def _print_tuple(self, expr):
@@ -149,7 +146,7 @@ class CustomLatexPrinter(LatexPrinter):
 
     def doprint(self, expr):
         tex = LatexPrinter.doprint(self, expr)
-        return tex.replace(r'\operatorname{', r'\mathrm{')
+        return tex.replace(r"\operatorname{", r"\mathrm{")
 
 
 def custom_latex(expr, **settings):
@@ -161,30 +158,29 @@ def custom_latex(expr, **settings):
 
 def sympy2latex(expr, **flags):
     "Convert a sympy expression to LaTeX code."
-    if flags.get('str'):
+    if flags.get("str"):
         latex = str(expr)
-    elif isinstance(expr, float) or (sympy and isinstance(expr, Float)) \
-            or flags.get('.'):
+    elif isinstance(expr, float) or (sympy and isinstance(expr, Float)) or flags.get("."):
         # -0.06000000000000001 means probably -0.06 ; that's because
         # floating point arithmetic is not based on decimal numbers, and
         # so some decimal numbers do not have exact internal representation.
         # Python str() handles this better than sympy.latex().
         # Keep 'only' 14 digits (precision rarely  exceed 16 or 17 digits with raw floats,
         # and then decreased with successive operations...)
-        latex = format(float(expr), '.14g')
+        latex = format(float(expr), ".14g")
         if latex == "-0":
             latex = "0"
     else:
-        latex = custom_latex(expr, mode='plain')
+        latex = custom_latex(expr, mode="plain")
 
     if isinstance(expr, float) or (sympy and isinstance(expr, Basic)):
         # In french, german... a comma is used as floating point.
         # However, if `float` flag is set, floating point is left unchanged
         # (useful for Tikz for example).
-        if not flags.get('.'):
+        if not flags.get("."):
             # It would be much better to subclass sympy LaTeX printer
-            latex = latex.replace('.', param['floating_point'])
+            latex = latex.replace(".", param["floating_point"])
 
     # TODO: subclass sympy LaTeX printer (cf. mathlib in wxgeometrie)
-    latex = latex.replace(r'\operatorname{log}', r'\operatorname{ln}')
+    latex = latex.replace(r"\operatorname{log}", r"\operatorname{ln}")
     return latex

@@ -37,7 +37,6 @@ from .header import (
 )
 
 
-
 def _has_option(node, option):
     return option in [opt.strip() for opt in node.options.split(",")]
 
@@ -137,7 +136,6 @@ class AutoQCMLatexGenerator(LatexGenerator):
             "id_format": None,
         }
         self.current_question = ""
-
 
     def _test_singularity_and_append(self, code: str, answers_list: list) -> str:
         code = code.strip()
@@ -260,8 +258,7 @@ class AutoQCMLatexGenerator(LatexGenerator):
                     "----------------------------------\n"
                 )
         self._parse_children(
-            node.children[1:i],
-            function=partial(remember_last_question, latex_generator=self),
+            node.children[1:i], function=partial(remember_last_question, latex_generator=self)
         )
         # This is the end of the question itself.
 
@@ -333,10 +330,7 @@ class AutoQCMLatexGenerator(LatexGenerator):
             # This avoids proposing twice the same answer by mistake, which
             # may occur easily when using random values.
             functions.append(
-                partial(
-                    self._test_singularity_and_append,
-                    answers_list=self.autoqcm_answers,
-                )
+                partial(self._test_singularity_and_append, answers_list=self.autoqcm_answers)
             )
 
         self._parse_children(node.children[2:], function=functions)
@@ -361,8 +355,6 @@ class AutoQCMLatexGenerator(LatexGenerator):
     def _close_answer(self):
         # Close 'AutoQCMTab{' written by `_parse_NEW_ANSWER_tag()`.
         self.write(r"}\quad" "\n")
-
-
 
     def _parse_ANSWERS_LIST_tag(self, node):
         """This tag generates answers from a python list.
@@ -559,5 +551,3 @@ class AutoQCMLatexGenerator(LatexGenerator):
         barcode = ID_band(ID=n, calibration=calibration)
 
         self.write("\n".join([header, barcode, check_id_or_name]))
-
-
