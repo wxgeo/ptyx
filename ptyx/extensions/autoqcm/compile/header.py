@@ -1,7 +1,7 @@
 import csv
 from os.path import abspath, dirname, isabs, join, expanduser
 from string import ascii_letters
-from typing import Sequence
+from typing import Sequence, List, Optional
 
 from ..parameters import (
     CELL_SIZE_IN_CM,
@@ -199,7 +199,7 @@ def students_checkboxes(names: Sequence[str], _n_student=None):
     return "\n".join(content)
 
 
-def student_ID_table(ID_length, max_ndigits, digits):
+def student_ID_table(ID_length:int, max_ndigits:int, digits: List[set]) -> str:
     """"Generate a table where the student will write its identification number.
 
     The table have a row for each digit, where the student check corresponding
@@ -245,7 +245,7 @@ def student_ID_table(ID_length, max_ndigits, digits):
     return "\n".join(content)
 
 
-def table_for_answers(config, ID=None):
+def table_for_answers(config: dict, ID: Optional[int] = None) -> str:
     """Generate the table where students select correct answers.
 
     - `config` is a dict generated when compiling test.
@@ -313,7 +313,7 @@ def table_for_answers(config, ID=None):
     return "\n".join(content)
 
 
-def packages_and_macros():
+def packages_and_macros() -> List[str]:
     "Generate LaTeX default header (loading LaTeX packages and defining some custom macros)."
     # https://tex.stackexchange.com/questions/37297/how-to-get-element-position-in-latex
     paper_format = f"{PAPER_FORMAT.lower()}paper"
@@ -391,7 +391,7 @@ def packages_and_macros():
     ]
 
 
-def answers_and_score(config, name, identifier, score, max_score):
+def answers_and_score(config: dict, name: str, identifier: int, score: int, max_score: int):
     "Generate plain LaTeX code corresponding to score and correct answers."
     table = table_for_answers(config, identifier)
     if score is not None:
