@@ -49,13 +49,24 @@ class PtyxArgumentParser(argparse.ArgumentParser):
             usage="ptyx [options] filename(s).\nTry 'ptyx --help' for more information.",
         )
         self.add_argument("filenames", nargs="+")
-        self.add_argument(
+        group = self.add_mutually_exclusive_group()
+        group.add_argument(
             "-n",
-            "--number",
+            "--number-of-documents",
             type=int,
             help="Number of pdf files to generate. Default is %s.\n \
                        Ex: ptyx -n 5 my_file.ptyx"
             % param["total"],
+        )
+        group.add_argument(
+            "--names",
+            metavar="CSV_FILE",
+            help="Name of a CSV file containing a column of names \
+                               (and optionally a second column with forenames). \n \
+                               The names will be used to generate the #NAME tag \
+                               replacement value.\n \
+                               Additionally, if `-n` option is not specified, \
+                               default value will be the number of names in the CSV file.",
         )
         self.add_argument(
             "-f",
@@ -79,7 +90,7 @@ class PtyxArgumentParser(argparse.ArgumentParser):
             "--start",
             default=1,
             type=int,
-            help="Number of the first generated file \
+            help="Number of the first generated document \
                        (initial value of internal NUM counter). Default is %(default)s.",
         )
         self.add_argument(
@@ -103,32 +114,27 @@ class PtyxArgumentParser(argparse.ArgumentParser):
                 The `pdftk` command must be installed.\n\
                 Ex: ptyx --reorder-pages=brochure-reversed -f pdf my_file.ptyx.",
         )
-        self.add_argument(
-            "--names",
-            metavar="CSV_FILE",
-            help="Name of a CSV file containing a column of names \
-                       (and optionally a second column with forenames). \n \
-                       The names will be used to generate the #NAME tag \
-                       replacement value.\n \
-                       Additionally, if `-n` option is not specified, \
-                       default value will be the number of names in the CSV file.",
-        )
-        group = self.add_mutually_exclusive_group()
-        group.add_argument(
+        group2 = self.add_mutually_exclusive_group()
+        group2.add_argument(
             "-p",
-            "--document-pages-number",
+            "--fixed_number_of_pages",
             metavar="N",
+            nargs="?",
             type=int,
+            default=argparse.SUPPRESS,
             help="Keep only pdf files whose pages number match N. \
                 This may be useful for printing pdf later. \
-                Note that the number of files may not be respected then, so \
-                you may have to adjust the number of files manually.",
+                Note that the number of documents may not be respected then, so \
+                you may have to adjust the number of documents manually.",
         )
-        group.add_argument(
+        group2.add_argument(
             "-P",
-            "--same-document-pages-number",
+            "--auto-fixed_number_of_pages",
             action="store_true",
-            help="Ensure that all documents have the same number of pages.",
+            help=(
+                "Ensure that all documents have the same number of pages. "
+                "The number of documents is respected."
+            ),
         )
         self.add_argument(
             "-nc",
@@ -167,6 +173,7 @@ class PtyxArgumentParser(argparse.ArgumentParser):
                 options.names = [" ".join(line) for line in csv.reader(f)]
                 print("Names extracted from CSV file:")
                 print(options.names)
+            options.number_of_documents = len(options.names)
         else:
             options.names = []
         if options.number is None:
@@ -182,6 +189,11 @@ def ptyx(parser=PtyxArgumentParser()):
 
     # TODO: remove kwargs and explicitly pass arguments, to verify types.
     kwargs = vars(options)
+    if "fixed_number_of_pages" in kwargs:
+        kwargs["pages"] = kwargs["fixed_number_of_pages"]
+        kwargs["fixed_number_of_pages"] = True
+    else:
+        kwargs["fixed_number_of_pages"] = False
 
     context = {}
     for keyval in kwargs.pop("context", "").split(";"):

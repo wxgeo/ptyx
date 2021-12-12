@@ -5,7 +5,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from os.path import dirname, isdir, isfile
 from pathlib import Path
 from typing import Optional, Dict, Iterable, List, Sequence, Tuple
 
@@ -86,10 +85,11 @@ def execute(string, quiet=False):
 def make_files(
     input_name: Path,
     correction: bool = False,
+    fixed_number_of_pages: bool = False,
+    pages: Optional[int] = None,
     context: Optional[dict] = None,
     quiet: Optional[bool] = None,
     remove: Optional[bool] = None,
-    same_document_pages_number: Optional[bool] = None,
     _nums: Iterable[int] = None,
     **options,
 ) -> Tuple[Path, List[int]]:
@@ -100,13 +100,12 @@ def make_files(
         assert correction
         _nums = list(_nums)  # make a copy
     if context is None:
-        context = {}
+        context = {"PTYX_WITH_ANSWERS": correction}
     formats = options.get("formats", param["formats"])
-    names = options.get("names", [])
 
     # Create an empty `.compile/{input_name}` subfolder.
     compilation_dir = input_name.parent / ".compile" / input_name.stem
-    if not correction and isdir(compilation_dir):
+    if not correction and compilation_dir.is_dir():
         shutil.rmtree(compilation_dir)
     compilation_dir.mkdir(parents=True, exist_ok=True)
 
@@ -118,23 +117,23 @@ def make_files(
     if correction:
         output_basename = append_suffix(output_basename, "-corr")
 
-    filenames: List[Path] = []
-    nums: List[int] = []
-    n = options.get("number", param["total"])
-    total = 0
+    # Information to collect
+    compilation_info: Dict[int, Path] = {}
+    # nums: List[int] = []
+    # filenames: List[Path] = []
+    pages_per_document: Dict[int, Dict[int, Path]] = {}
+
+    target = options.get("number_of_documents", param["total"])
+    # Compilation number, used to initialize random numbers generator.
     num = options.get("start", 1)
-    while total < n:
-        if _nums:
+    while len(compilation_info) < target:
+        # 1. Generate context.
+        filename = append_suffix(output_basename, f"-{num}")
+        if correction:
             num = _nums.pop(0)
-        if names:
-            name = names[total]
-            filename = append_suffix(output_basename, f"-{name}")
-        else:
-            filename = append_suffix(output_basename, f"-{num}" if n > 1 else "")
-
-        context.update(PTYX_WITH_ANSWERS=correction, PTYX_NUM=num)
-
-        # Output is redirected to a .log file
+        context.update(PTYX_NUM=num)
+        # 2. Compile.
+        # Output is redirected to a `.log` file.
         logfile = append_suffix(filename, "-python.log")
         print("\nLog file:", logfile, "\n")
         with Logging(logfile if not remove else ""):
@@ -145,23 +144,32 @@ def make_files(
                 plain_latex=options.get("plain_latex"),
                 quiet=quiet,
             )
+        pdf_pages_number = infos.get("pages_number")
 
-        pages = infos.get("pages_number")
-        target = options.get("document_pages_number")
-        if not correction and pages and target and pages != target:
-            print(f"Warning: skipping {filename} (incorrect page number) !")
-        else:
-            total += 1
-            filenames.append(filename)
-            nums.append(num)
-        num += 1
+        if not correction:
+            # 3. Test if the new generated file satisfies all options constraints.
+            num += 1
+            if fixed_number_of_pages:
+                if pages is None:
+                    # This is a bit subtle. We want all compiled documents to have
+                    # the same pages number, yet we don't want to set it manually.
+                    # So, we compile documents and memorize their size.
+                    # We'll sort compilation results by the length of the resulting document.
+                    # We'll keep one "bag" for each size of document.
+                    # However, at each loop, if the compiled document is of size n,
+                    # it's enough to put on the table the bag of all the n-sized and to
+                    # put the new document inside. Before beginning next loop, the bag size will be tested.
+                    # There's no need to have a look on the others, since they haven't change...
+                    compilation_info = pages_per_document.setdefault(pdf_pages_number, {})
+                elif pages != pdf_pages_number:
+                    # Pages number is set manually, and don't match.
+                    print(f"Warning: skipping {filename} (incorrect page number) !")
+                    continue
 
-    assert len(filenames) == n
-    # ~ if len(filenames) < n:
-    # ~ msg1 = ('Warning: only %s pdf files generated (not %s) !' % (len(filenames), n))
-    # ~ msg2 = '(Unreleased pdf did not match page number constraints).'
-    # ~ sep = max(len(msg1), len(msg2))*'~'
-    # ~ print('\n'.join(('', sep, msg1, msg2, sep, '')))
+        compilation_info[num] = filename
+
+    assert len(compilation_info) == target
+    filenames = list(compilation_info.values())
 
     # Join different versions in a single pdf, and compress if asked to do so.
     join_files(output_basename, filenames, **options)
@@ -174,20 +182,26 @@ def make_files(
                 + " ".join('"%s.pdf"' % os.path.basename(f) for f in filenames)
             )
 
-    # Copy pdf file to parent directory.
+    # Copy tex/pdf file to parent directory.
     for ext in formats:
         name = output_basename.with_suffix(f".{ext}")
-        if isfile(name):
-            shutil.copy(name, dirname(input_name))
+        if name.is_file():
+            shutil.copy(name, input_name.parent)
+        elif options.get("names"):
+            names = options["names"]
+            assert len(names) == len(filenames)
+            for filename, name in zip(filenames, names):
+                new_name = filename.with_stem(name).name
+                shutil.copy(filename.with_suffix(ext), input_name.parent / new_name)
         else:
             for filename in filenames:
-                name = f"{filename}.{ext}"
-                shutil.copy(name, dirname(input_name))
+                shutil.copy(filename.with_suffix(ext), input_name.parent)
+
     # Remove `.compile` folder if asked to.
     if remove:
         shutil.rmtree(compilation_dir)
 
-    return output_basename, nums
+    return output_basename, list(compilation_info.keys())
 
 
 def make_file(
