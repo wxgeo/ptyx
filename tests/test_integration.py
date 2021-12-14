@@ -4,12 +4,13 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 
-from ptyx.script import parser, ptyx
+from ptyx.script import ptyx
+
 
 def test_basic_test():
-    with NamedTemporaryFile(suffix='.ptyx', delete=False) as f:
+    with NamedTemporaryFile(suffix=".ptyx", delete=False) as f:
         f.write(
-r'''\documentclass[]{scrartcl}
+            r"""\documentclass[]{scrartcl}
 #SEED{120}
 \begin{document}
 
@@ -20,15 +21,19 @@ b = randint(2, 9)
 
 Is $x \mapsto #{a*x+b}$ a linear function~?
 
-\end{document}'''.encode('utf-8'))
+\end{document}""".encode(
+                "utf-8"
+            )
+        )
         f.flush()
         fsync(f.fileno())
-    sys.argv = ['ptyx', f.name]
-    ptyx(parser)
+    sys.argv = ["ptyx", f.name]
+    ptyx()
     filename = Path(f.name)
-    compile_directory = filename.parent / '.compile' / filename.stem
+    compile_directory = filename.parent / ".compile" / filename.stem
     for ext in ".tex", ".pdf":
         assert (compile_directory / (filename.stem + ext)).is_file()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_basic_test()

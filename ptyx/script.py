@@ -176,8 +176,8 @@ class PtyxArgumentParser(argparse.ArgumentParser):
             options.number_of_documents = len(options.names)
         else:
             options.names = []
-        if options.number is None:
-            options.number = len(options.names) or param["total"]
+        if options.number_of_documents is None:
+            options.number_of_documents = param["total"]
         return options
 
 

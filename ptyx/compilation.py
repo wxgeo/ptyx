@@ -128,10 +128,10 @@ def make_files(
     num = options.get("start", 1)
     while len(compilation_info) < target:
         # 1. Generate context.
-        filename = append_suffix(output_basename, f"-{num}")
         if correction:
             num = _nums.pop(0)
         context.update(PTYX_NUM=num)
+        filename = append_suffix(output_basename, f"-{num}") if target > 1 else output_basename
         # 2. Compile.
         # Output is redirected to a `.log` file.
         logfile = append_suffix(filename, "-python.log")
@@ -184,16 +184,22 @@ def make_files(
 
     # Copy tex/pdf file to parent directory.
     for ext in formats:
-        name = output_basename.with_suffix(f".{ext}")
+        assert ext[0] != '.'
+        ext = f".{ext}"
+        name = output_basename.with_suffix(ext)
         if name.is_file():
+            # There is only one file (only one document was generated,
+            # or they were several documents but they were joined into a single document).
             shutil.copy(name, input_name.parent)
         elif options.get("names"):
+            # Rename files according to the given names' list.
             names = options["names"]
             assert len(names) == len(filenames)
             for filename, name in zip(filenames, names):
                 new_name = filename.with_stem(name).name
                 shutil.copy(filename.with_suffix(ext), input_name.parent / new_name)
         else:
+            # Copy files without changing names.
             for filename in filenames:
                 shutil.copy(filename.with_suffix(ext), input_name.parent)
 
