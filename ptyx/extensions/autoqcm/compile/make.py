@@ -31,7 +31,7 @@ def make(pth: str = ".", num: int = 1) -> None:
     compiler.generate_syntax_tree()
 
     # Compile and generate output files (tex or pdf)
-    _, output_name, nums = make_files(ptyx_filename, compress=True, number=num, same_pages_number=True)
+    output_name, nums = make_files(ptyx_filename, compress=True, number=num, same_pages_number=True)
 
     # Keep track of the seed used.
     seed_value = compiler.seed
@@ -39,7 +39,7 @@ def make(pth: str = ".", num: int = 1) -> None:
     with open(seed_file_name, "w") as seed_file:
         seed_file.write(str(seed_value))
 
-    _, _, nums2 = make_files(ptyx_filename, correction=True, _nums=nums, compress=True)
+    _, nums2 = make_files(ptyx_filename, correction=True, _nums=nums, compress=True)
     assert nums2 == nums, repr((nums, nums2))
 
     pdf_with_all_versions = (output_name.parent / output_name.stem).with_suffix(".all.pdf")
