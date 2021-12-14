@@ -22,7 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
                 'ptyx=ptyx.script:ptyx',
-		'scan=ptyx.extensions.autoqcm.scan.script:scan'],
+		'scan=ptyx.extensions.autoqcm.cli:scan'],
     },
     python_requires='>=3.6',
     install_requires=['numpy', 'sympy', 'Pillow'],
