@@ -7,16 +7,16 @@ from ptyx.compilation import make_files, make_file
 from ptyx.latexgenerator import compiler
 
 
-def make(pth: str = ".", num: int = 1) -> None:
+def make(path: Path, num: int = 1) -> None:
     """Implement `autoqcm make` command.
     """
-    pth = Path(pth).resolve()
-    all_ptyx_files = list(pth.glob("*.ptyx")) if pth.suffix != ".ptyx" else pth
+    path = path.resolve()
+    all_ptyx_files = list(path.glob("*.ptyx")) if path.suffix != ".ptyx" else path
     if len(all_ptyx_files) == 0:
-        raise FileNotFoundError(f"No .ptyx file found in '{pth}'.")
+        raise FileNotFoundError(f"No .ptyx file found in '{path}'.")
     elif len(all_ptyx_files) > 1:
         raise FileNotFoundError(
-            f"Several .ptyx file found in '{pth}', I don't know which to chose."
+            f"Several .ptyx file found in '{path}', I don't know which to chose."
         )
     ptyx_filename = all_ptyx_files[0]
     # Read pTyX file.

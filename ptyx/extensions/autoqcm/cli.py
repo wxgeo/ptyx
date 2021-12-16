@@ -1,14 +1,17 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 AutoQCM Command Line Interface
 
 @author: Nicolas Pourcelot
 """
-
+import shutil
+import sys
 from argparse import ArgumentParser
+from pathlib import Path
 from typing import Optional
 
-from .compile.make import make
+from ptyx.extensions.autoqcm.compile.make import make
 
 
 def main(args: Optional[list] = None) -> None:
@@ -18,12 +21,12 @@ def main(args: Optional[list] = None) -> None:
     add_parser = subparsers.add_parser
     # create the parser for the "init" command
     new_parser = add_parser("new", help="Create an empty ptyx file.")
-    # parser_init.add_argument('--force', action='store_true', help='init --force help')
+    new_parser.add_argument("path", nargs="?", metavar="PATH", type=Path, default="new-mcq")
     new_parser.set_defaults(func=new)
 
     # create the parser for the "make" command
     make_parser = add_parser("make", help="Generate pdf file.")
-    make_parser.add_argument("path", metavar="PATH", type=str)
+    make_parser.add_argument("path", nargs="?", metavar="PATH", type=Path, default=".")
     make_parser.add_argument(
         "--num",
         "-n",
@@ -124,11 +127,21 @@ def main(args: Optional[list] = None) -> None:
         parser.print_help()
 
 
-def new() -> None:
+def new(path: Path) -> None:
     """Implement `autoqcm new` command."""
-    raise NotImplementedError
+    template = Path(__file__).resolve().parent / "template"
+    if path.exists():
+        print(f"ERROR: path {path} already exists.", file=sys.stderr)
+        sys.exit(1)
+    else:
+        shutil.copytree(template, path)
+        print(f"Success: a new MCQ was created at {path}.")
 
 
 def scan() -> None:
     """Implement `autoqcm scan` command."""
     raise NotImplementedError
+
+
+if __name__ == "__main__":
+    main()
