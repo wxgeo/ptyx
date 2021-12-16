@@ -124,16 +124,18 @@ def main(text, compiler):
     #         ],
     #    }
 
+    remove_comments = compiler.syntax_tree_generator.remove_comments
+
     # First pass, only to include files.
     def include(match):
         file_found = False
         pattern = match.group(1).strip()
         contents = []
-        for path in compiler.dir_path.glob(pattern):
+        for path in sorted(compiler.dir_path.glob(pattern)):
             if path.is_file():
                 file_found = True
                 with open(path) as file:
-                    file_content = file.read().strip()
+                    file_content = remove_comments(file.read().strip())
                     if file_content[:2].strip() != "*":
                         file_content = "*\n" + file_content
                     lines = []
@@ -165,16 +167,16 @@ def close(compiler):
     autoqcm_data = compiler.latex_generator.autoqcm_data
     file_path = compiler.file_path
     folder = file_path.parent
-    name = file_path.name
+    name = file_path.stem
     id_table_pos = None
     for n in autoqcm_data["ordering"]:
         # XXX: what if files are not auto-numbered, but a list
         # of names is provided to Ptyx instead ?
         # (cf. command line options).
         if len(autoqcm_data["ordering"]) == 1:
-            filename = f"{name[:-5]}.pos"
+            filename = f"{name}.pos"
         else:
-            filename = f"{name[:-5]}-{n}.pos"
+            filename = f"{name}-{n}.pos"
         full_path = folder / ".compile" / name / filename
         d = autoqcm_data["boxes"][n] = {}
         with open(full_path) as f:
