@@ -62,7 +62,7 @@ def ID_band(ID, calibration=True):
       (256 will be encoded as 0).
     """
 
-    l = [
+    latex = [
         r"""\newcommand\CustomHeader{%
     \begin{tikzpicture}[remember picture,overlay,
                     every node/.style={inner sep=0,outer sep=-0.2}]"""
@@ -70,7 +70,7 @@ def ID_band(ID, calibration=True):
     if calibration:
         pos = CALIBRATION_SQUARE_POSITION
         pos2 = CALIBRATION_SQUARE_POSITION + CALIBRATION_SQUARE_SIZE
-        l.append(
+        latex.append(
             fr"""
         \draw[fill=black] ([xshift={pos}cm,yshift=-{pos}cm]current page.north west)
             rectangle ([xshift={pos2}cm,yshift=-{pos2}cm]current page.north west);
@@ -81,7 +81,7 @@ def ID_band(ID, calibration=True):
         \draw[fill=black] ([xshift=-{pos}cm,yshift={pos}cm]current page.south east)
             rectangle ([xshift=-{pos2}cm,yshift={pos2}cm]current page.south east);"""
         )
-    l.append(
+    latex.append(
         r"""\node at ([yshift=-1cm]current page.north) [anchor=north] {
             \begin{tikzpicture}
             \definecolor{color0}{rgb}{1,1,1}
@@ -89,10 +89,10 @@ def ID_band(ID, calibration=True):
             \draw[fill=black] (0,0) rectangle (0.25,0.25);
             \tikzmath {"""
     )
-    l.append(_byte_as_codebar(r"\thepage"))
-    l.append(_byte_as_codebar(ID % 256, n=1))
-    l.append(_byte_as_codebar(ID // 256, n=2))
-    l.append(
+    latex.append(_byte_as_codebar(r"\thepage"))
+    latex.append(_byte_as_codebar(ID % 256, n=1))
+    latex.append(_byte_as_codebar(ID // 256, n=2))
+    latex.append(
         fr"""}}
         \node[anchor=west] at  ({{2.5+2*\j}},0.1)
             {{\scriptsize\textbf{{\#{ID}}}~:~{{\thepage}}/\zpageref{{LastPage}}}};
@@ -108,7 +108,7 @@ def ID_band(ID, calibration=True):
             dessus de cette ligne}}\,\,\textuparrow\,\,}};
     \end{{tikzpicture}}}}"""
     )
-    return "".join(l)
+    return "".join(latex)
 
 
 def extract_ID_NAME_from_csv(csv_path, script_path):
@@ -172,6 +172,7 @@ def students_checkboxes(names: Sequence[str], _n_student=None):
     ]
 
     # Generate the corresponding names' table in LaTeX.
+    b = None
     for i, name in enumerate(reversed(names)):
         # Truncate long names.
         if len(name) >= 15:
@@ -187,6 +188,9 @@ def students_checkboxes(names: Sequence[str], _n_student=None):
             fr'''\draw[fill={color}] ({a},0) rectangle ({b},1) ({c},0)
             node[below] {{\tiny \rotatebox{{-90}}{{\texttt{{{name}}}}}}};'''
         )
+    if b is None:
+        # No names.
+        return ""
     b += 1
     content.append(
         fr"""\draw[rounded corners] (-3,2) rectangle ({b}, -6.5);
@@ -199,7 +203,7 @@ def students_checkboxes(names: Sequence[str], _n_student=None):
     return "\n".join(content)
 
 
-def student_ID_table(ID_length:int, max_ndigits:int, digits: List[set]) -> str:
+def student_ID_table(ID_length: int, max_ndigits: int, digits: List[set]) -> str:
     """"Generate a table where the student will write its identification number.
 
     The table have a row for each digit, where the student check corresponding
@@ -262,7 +266,7 @@ def table_for_answers(config: dict, ID: Optional[int] = None) -> str:
     questions = d["questions"]
     answers = d["answers"]
     n_questions = len(questions)
-    n_max_answers = max(len(l) for l in answers.values())
+    n_max_answers = max(len(nums) for nums in answers.values())
     flip = n_max_answers > n_questions
     if flip:
         tkzoptions.extend(["x={(0cm,-1cm)}", "y={(-1cm,0cm)}"])
@@ -314,7 +318,7 @@ def table_for_answers(config: dict, ID: Optional[int] = None) -> str:
 
 
 def packages_and_macros() -> List[str]:
-    "Generate LaTeX default header (loading LaTeX packages and defining some custom macros)."
+    """Generate LaTeX default header (loading LaTeX packages and defining some custom macros)."""
     # https://tex.stackexchange.com/questions/37297/how-to-get-element-position-in-latex
     paper_format = f"{PAPER_FORMAT.lower()}paper"
     # LaTeX header is in two part, so as user may insert some customization here.
@@ -392,7 +396,7 @@ def packages_and_macros() -> List[str]:
 
 
 def answers_and_score(config: dict, name: str, identifier: int, score: int, max_score: int):
-    "Generate plain LaTeX code corresponding to score and correct answers."
+    """Generate plain LaTeX code corresponding to score and correct answers."""
     table = table_for_answers(config, identifier)
     if score is not None:
         score = (
