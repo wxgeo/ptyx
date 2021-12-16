@@ -872,7 +872,8 @@ class Compiler:
             self.latex_generator.__class__ = CustomLatexGenerator
         for name in names:
             # execute `main()` function of extension.
-            code = extensions[name].main(code, self)
+            if hasattr(extensions[name], "main"):
+                code = extensions[name].main(code, self)
         return code, extensions
 
     def _read_seed(self, code: str):
@@ -899,9 +900,10 @@ class Compiler:
         code = self._state.get("input")
         if code is None:
             raise RuntimeError("Compiler.read_code() or Compiler.read_file() must be run first.")
+        remove_comments = self.syntax_tree_generator.remove_comments
         # Remove comments first, so one can comment a file inclusion for example.
-        code = self.syntax_tree_generator.remove_comments(code)
-        code = self._include_subfiles(code)
+        code = remove_comments(code)
+        code = remove_comments(self._include_subfiles(code))
         self._state["after_include"] = code
         code, extensions = self._call_extensions(code)
         code, seed = self._read_seed(code)
@@ -910,6 +912,9 @@ class Compiler:
         # Set the seed used for pseudo-random numbers generation.
         # (The seed value is set in the ptyx file using special tag #SEED{}).
         self._state["seed"] = seed
+        assert " # " not in code, "Maybe a problem with an extension ?"
+        assert "\n# " not in code, "Maybe a problem with an extension ?"
+        assert not code.startswith("# "), "Maybe a problem with an extension ?"
         assert "#INCLUDE{" not in code
         assert "#LOAD{" not in code
         assert "#SEED{" not in code
