@@ -93,12 +93,15 @@ def make_files(
     _nums: Iterable[int] = None,
     **options,
 ) -> Tuple[Path, List[int]]:
+
+    target = options.get("number_of_documents", param["total"])
     # `_nums` is used when generating the answers of the quiz.
     # In the first pass, when generating the quizzes, some numbers may
     # have been skipped (because they don't satisfy the page number constraint).
     if _nums is not None:
         assert correction
         _nums = list(_nums)  # make a copy
+        target = len(_nums)
     if context is None:
         context = {"PTYX_WITH_ANSWERS": correction}
     formats = options.get("formats", param["formats"])
@@ -123,7 +126,6 @@ def make_files(
     # filenames: List[Path] = []
     pages_per_document: Dict[int, Dict[int, Path]] = {}
 
-    target = options.get("number_of_documents", param["total"])
     # Compilation number, used to initialize random numbers generator.
     num = options.get("start", 1)
     while len(compilation_info) < target:
@@ -148,7 +150,6 @@ def make_files(
 
         if not correction:
             # 3. Test if the new generated file satisfies all options constraints.
-            num += 1
             if fixed_number_of_pages:
                 if pages is None:
                     # This is a bit subtle. We want all compiled documents to have
@@ -167,6 +168,7 @@ def make_files(
                     continue
 
         compilation_info[num] = filename
+        num += 1
 
     assert len(compilation_info) == target
     filenames = list(compilation_info.values())

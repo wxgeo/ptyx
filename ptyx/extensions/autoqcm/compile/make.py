@@ -31,7 +31,9 @@ def make(path: Path, num: int = 1) -> None:
     compiler.generate_syntax_tree()
 
     # Compile and generate output files (tex or pdf)
-    output_name, nums = make_files(ptyx_filename, compress=True, number=num, same_pages_number=True)
+    output_name, nums = make_files(
+        ptyx_filename, compress=True, number_of_documents=num, fixed_number_of_pages=True
+    )
 
     # Keep track of the seed used.
     seed_value = compiler.seed
@@ -43,5 +45,8 @@ def make(path: Path, num: int = 1) -> None:
     assert nums2 == nums, repr((nums, nums2))
 
     pdf_with_all_versions = (output_name.parent / output_name.stem).with_suffix(".all.pdf")
-    make_file(pdf_with_all_versions, context={'AUTOQCM_KEEP_ALL_VERSIONS': True})
+    make_file(
+        pdf_with_all_versions,
+        context={"AUTOQCM_KEEP_ALL_VERSIONS": True, "PTYX_WITH_ANSWERS": True},
+    )
     compiler.close()
