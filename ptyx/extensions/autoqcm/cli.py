@@ -32,6 +32,7 @@ def main(args: Optional[list] = None) -> None:
         "-n",
         metavar="N",
         type=int,
+        default=1,
         help="Specify how many versions of the document must be generated.",
     )
     make_parser.set_defaults(func=make)
