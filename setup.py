@@ -22,6 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
                 'ptyx=ptyx.script:ptyx',
+                'autoqcm=ptyx.extensions.autoqcm.cli:main',
 		'scan=ptyx.extensions.autoqcm.cli:scan'],
     },
     python_requires='>=3.6',
