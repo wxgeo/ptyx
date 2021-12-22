@@ -128,6 +128,7 @@ def make_files(
 
     # Compilation number, used to initialize random numbers generator.
     num = options.get("start", 1)
+    assert target is not None
     while len(compilation_info) < target:
         # 1. Generate context.
         if correction:

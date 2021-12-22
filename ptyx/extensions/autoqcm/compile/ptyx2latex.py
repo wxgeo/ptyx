@@ -115,28 +115,6 @@ class SameAnswerError(RuntimeError):
 class AutoQCMLatexGenerator(LatexGenerator):
     """Extension of LatexGenerator handling new tags."""
 
-    def clear(self):
-        super().clear()
-        # Some tags use cache, for code which don't change between two successive compilation.
-        # (Typically, this is used for (most of) the header).
-        self.autoqcm_cache = {}
-        # Default configuration:
-        self.autoqcm_data = {
-            "mode": {"default": "some"},
-            "correct": {"default": 1},
-            "incorrect": {"default": 0},
-            "skipped": {"default": 0},
-            # 'correct_answers': correct_answers, # {1: [4], 2:[1,5], ...}
-            "students": [],
-            "id-table-pos": None,
-            "ids": {},
-            "ordering": {},
-            # {NUM: {'questions': [2,1,3...], 'answers': {1: [(2, True), (1, False), (3, True)...], ...}}, ...}
-            "boxes": {},  # {NUM: {'tag': 'p4, (23.456, 34.667)', ...}, ...}
-            "id_format": None,
-        }
-        self.current_question = ""
-
     def _test_singularity_and_append(self, code: str, answers_list: list) -> str:
         code = code.strip()
         if code in answers_list:
@@ -159,7 +137,7 @@ class AutoQCMLatexGenerator(LatexGenerator):
                 print("* " + s)
             print(stars)
             raise SameAnswerError(
-                "Same answer proposed twice in MCQ " "(see message above for more information) !"
+                "Same answer proposed twice in MCQ (see message above for more information) !"
             )
         else:
             answers_list.append(code)
@@ -177,9 +155,44 @@ class AutoQCMLatexGenerator(LatexGenerator):
         else:
             self._pick_and_parse_children(node, children, target=target)
 
+    def _autoqcm_reset_cache(self):
+        # Some tags use cache, for code which don't change between two successive compilation.
+        # (Typically, this is used for (most of) the header).
+        self.cache["autoqcm"] = {
+            "header": {},
+            "data": {
+                # Default configuration:
+                "mode": {"default": "some"},
+                "correct": {"default": 1},
+                "incorrect": {"default": 0},
+                "skipped": {"default": 0},
+                # 'correct_answers': correct_answers, # {1: [4], 2:[1,5], ...}
+                "students": [],
+                "id-table-pos": None,
+                "ids": {},
+                "ordering": {},
+                # {NUM: {'questions': [2,1,3...], 'answers': {1: [(2, True), (1, False), (3, True)...], ...}}, ...}
+                "boxes": {},  # {NUM: {'tag': 'p4, (23.456, 34.667)', ...}, ...}
+                "id_format": None,
+            },
+        }
+
+    @property
+    def autoqcm_data(self):
+        if "autoqcm" not in self.cache:
+            self._autoqcm_reset_cache()
+        return self.cache["autoqcm"]["data"]
+
+    @property
+    def autoqcm_cache(self):
+        if "autoqcm" not in self.cache:
+            self._autoqcm_reset_cache()
+        return self.cache["autoqcm"]["header"]
+
     def _parse_QCM_tag(self, node):
         self.write("\n")  # A new line is mandatory here if there is no text before MCQ.
         # ~ self.autoqcm_correct_answers = []
+        self.current_question = ""
         self.autoqcm_data["ordering"][self.NUM] = {"questions": [], "answers": {}}
         #    self.autoqcm_data['answers'] = {}
         # ~ self.autoqcm_data['question_num'] =

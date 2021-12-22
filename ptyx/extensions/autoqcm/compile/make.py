@@ -5,11 +5,45 @@ from pathlib import Path
 
 from ptyx.compilation import make_files, make_file
 from ptyx.latexgenerator import compiler
+from ..tools.config_parser import dump
+
+
+def generate_config_file(compiler):
+    autoqcm_data = compiler.latex_generator.autoqcm_data
+    file_path = compiler.file_path
+    folder = file_path.parent
+    name = file_path.stem
+    id_table_pos = None
+    for n in autoqcm_data["ordering"]:
+        # XXX: what if files are not auto-numbered, but a list
+        # of names is provided to Ptyx instead ?
+        # (cf. command line options).
+        if len(autoqcm_data["ordering"]) == 1:
+            filename = f"{name}.pos"
+        else:
+            filename = f"{name}-{n}.pos"
+        full_path = folder / ".compile" / name / filename
+        d = autoqcm_data["boxes"][n] = {}
+        with open(full_path) as f:
+            for line in f:
+                k, v = line.split(": ", 1)
+                k = k.strip()
+                if k == "ID-table":
+                    if id_table_pos is None:
+                        id_table_pos = [float(s.strip("() \n")) for s in v.split(",")]
+                        autoqcm_data["id-table-pos"] = id_table_pos
+                    continue
+                page, x, y = [s.strip("p() \n") for s in v.split(",")]
+                d.setdefault(page, {})[k] = [float(x), float(y)]
+
+    config_file = file_path.with_suffix(".ptyx.autoqcm.config.json")
+    dump(config_file, autoqcm_data)
 
 
 def make(path: Path, num: int = 1) -> None:
     """Implement `autoqcm make` command.
     """
+    assert isinstance(num, int)
     path = path.resolve()
     all_ptyx_files = list(path.glob("*.ptyx")) if path.suffix != ".ptyx" else path
     if len(all_ptyx_files) == 0:
@@ -34,6 +68,7 @@ def make(path: Path, num: int = 1) -> None:
     output_name, nums = make_files(
         ptyx_filename, compress=True, number_of_documents=num, fixed_number_of_pages=True
     )
+    generate_config_file(compiler)
 
     # Keep track of the seed used.
     seed_value = compiler.seed
@@ -44,9 +79,9 @@ def make(path: Path, num: int = 1) -> None:
     _, nums2 = make_files(ptyx_filename, correction=True, _nums=nums, compress=True)
     assert nums2 == nums, repr((nums, nums2))
 
+    # Generate a document including the different versions of all the questions.
     pdf_with_all_versions = (output_name.parent / output_name.stem).with_suffix(".all.pdf")
     make_file(
         pdf_with_all_versions,
         context={"AUTOQCM_KEEP_ALL_VERSIONS": True, "PTYX_WITH_ANSWERS": True},
     )
-    compiler.close()

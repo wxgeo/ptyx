@@ -161,35 +161,3 @@ def main(text, compiler):
     code = generate_ptyx_code(text)
     assert isinstance(code, str)
     return code
-
-
-def close(compiler):
-    autoqcm_data = compiler.latex_generator.autoqcm_data
-    file_path = compiler.file_path
-    folder = file_path.parent
-    name = file_path.stem
-    id_table_pos = None
-    for n in autoqcm_data["ordering"]:
-        # XXX: what if files are not auto-numbered, but a list
-        # of names is provided to Ptyx instead ?
-        # (cf. command line options).
-        if len(autoqcm_data["ordering"]) == 1:
-            filename = f"{name}.pos"
-        else:
-            filename = f"{name}-{n}.pos"
-        full_path = folder / ".compile" / name / filename
-        d = autoqcm_data["boxes"][n] = {}
-        with open(full_path) as f:
-            for line in f:
-                k, v = line.split(": ", 1)
-                k = k.strip()
-                if k == "ID-table":
-                    if id_table_pos is None:
-                        id_table_pos = [float(s.strip("() \n")) for s in v.split(",")]
-                        autoqcm_data["id-table-pos"] = id_table_pos
-                    continue
-                page, x, y = [s.strip("p() \n") for s in v.split(",")]
-                d.setdefault(page, {})[k] = [float(x), float(y)]
-
-    config_file = file_path.with_suffix(".ptyx.autoqcm.config.json")
-    dump(config_file, autoqcm_data)

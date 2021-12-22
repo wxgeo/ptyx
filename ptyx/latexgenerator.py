@@ -59,6 +59,9 @@ class LatexGenerator:
         self.parser = SyntaxTreeGenerator()
         # Access to compiler is needed by some extensions.
         self.compiler = compiler
+        # Add ability to share values between compilations (needed by some
+        # extensions).
+        self.cache = {}
 
     def clear(self):
         self.macros = {}
@@ -959,11 +962,6 @@ class Compiler:
             print("Warning: no API version specified. This may be an old pTyX file.")
         return latex
 
-    def close(self):
-        for module in self._state["loaded_extensions"].values():
-            if hasattr(module, "close"):
-                module.close(self)
-
     def add_new_tags(self, *tags: Tuple[str, Tuple]):
         """Add ability for extensions to extend syntax, adding new tags."""
         for name, syntax in tags:
@@ -983,7 +981,6 @@ class Compiler:
         self.preparse()
         self.generate_syntax_tree()
         latex = self.get_latex(**context)
-        self.close()
         return latex
 
     @property

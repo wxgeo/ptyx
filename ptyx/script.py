@@ -243,8 +243,6 @@ def ptyx(parser=PtyxArgumentParser()):
             if any(tag in tags for tag in ANSWER_tags):
                 make_files(input_name, correction=True, _nums=nums, context=context, **kwargs)
 
-        compiler.close()
-
 
 if __name__ == "__main__":
     ptyx()
