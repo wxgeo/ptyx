@@ -807,9 +807,11 @@ class Compiler:
         file_path = self.file_path
         return Path.cwd() if file_path is None else file_path.parent
 
-    def _resolve_path(self, path: str) -> Path:
+    def _resolve_path(self, path: Union[str, Path]) -> Path:
         """Interpret `path` relatively to input ptyx file."""
-        path = Path(path.strip()).expanduser()  # do NOT resolve yet !
+        if isinstance(path, str):
+            path = Path(path.strip())
+        path = path.expanduser()  # do NOT resolve yet !
         if not path.is_absolute():
             path = self.dir_path / path
         return path

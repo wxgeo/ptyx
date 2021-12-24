@@ -144,7 +144,6 @@ def make_files(
                 filename,
                 formats,
                 context=context,
-                plain_latex=options.get("plain_latex"),
                 quiet=quiet,
             )
         pdf_pages_number = infos.get("pages_number")
@@ -217,7 +216,6 @@ def make_file(
     output_name: Path,
     formats: Optional[Iterable] = None,
     context: Optional[Dict] = None,
-    plain_latex: Optional[bool] = None,
     quiet: Optional[bool] = None,
 ):
     """Generate latex and/or pdf file from ptyx source file."""
@@ -228,23 +226,24 @@ def make_file(
     infos = {}
     if formats is None:
         formats = param["formats"]
+    if context is None:
+        context = {}
 
     # make_file() can be used to compile plain LaTeX too.
-    if not plain_latex:
-        context.setdefault("PTYX_NUM", 1)
-        plain_latex = compiler.get_latex(**context)
+    context.setdefault("PTYX_NUM", 1)
+    latex = compiler.get_latex(**context)
 
     texfile_name = output_name.with_suffix(".tex")
     with open(texfile_name, "w") as texfile:
-        texfile.write(plain_latex)
+        texfile.write(latex)
         if "pdf" in formats:
             texfile.flush()
-            pages_number = _compile_latex_file(texfile_name, quiet=quiet)
+            pages_number = compile_latex(texfile_name, quiet=quiet)
             infos["pages_number"] = pages_number
     return infos
 
 
-def _compile_latex_file(
+def compile_latex(
     filename: Path, dest: Optional[Path] = None, quiet: bool = False
 ) -> Optional[int]:
     """Compile the latex file and return the number of pages of the pdf

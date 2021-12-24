@@ -518,7 +518,7 @@ class AutoQCMLatexGenerator(LatexGenerator):
                     if csv:
                         ids = extract_ID_NAME_from_csv(csv, str(self.compiler.file_path))
                     else:
-                        ids = None
+                        ids = {}
 
                     try:
                         data = _detect_ID_format(ids, id_format)

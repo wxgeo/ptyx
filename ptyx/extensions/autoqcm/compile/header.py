@@ -395,11 +395,12 @@ def packages_and_macros() -> List[str]:
     ]
 
 
-def answers_and_score(config: dict, name: str, identifier: int, score: int, max_score: int):
+def answers_and_score(config: dict, name: str, identifier: int, score: int):
     """Generate plain LaTeX code corresponding to score and correct answers."""
     table = table_for_answers(config, identifier)
     if score is not None:
-        score = (
+        max_score = config["max_score"]
+        score_latex = (
             r"""\begin{tikzpicture}
             \node[draw,very thick,rectangle, rounded corners,red!70!black] (0,0) {
             \begin{Large}
@@ -409,7 +410,7 @@ def answers_and_score(config: dict, name: str, identifier: int, score: int, max_
             % locals()
         )
     else:
-        score = ""
+        score_latex = ""
     left = MARGIN_LEFT_IN_CM
     right = MARGIN_RIGHT_IN_CM
     top = MARGIN_TOP_IN_CM
@@ -428,7 +429,7 @@ def answers_and_score(config: dict, name: str, identifier: int, score: int, max_
 
     \begin{document}
     \begin{Large}\textsc{%(name)s}\end{Large}
-    \hfill%(score)s
+    \hfill%(score_latex)s
 
     \bigskip
 

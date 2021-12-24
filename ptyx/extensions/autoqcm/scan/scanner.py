@@ -33,9 +33,11 @@ from ast import literal_eval
 from hashlib import blake2b
 from time import strftime
 from typing import Iterator
+from math import inf
+from typing import Union, Literal, Optional
 
 from PIL import Image
-from numpy import int8, array
+from numpy import int8, array, ndarray
 
 # File `compilation.py` is in ../.., so we have to "hack" `sys.path` a bit.
 # script_path = dirname(abspath(sys._getframe().f_code.co_filename))
@@ -56,9 +58,10 @@ from .scan_pic import (
 from .amend import amend_all
 from .pdftools import extract_pdf_pictures, PIC_EXTS, number_of_pages
 from .tools import search_by_extension, print_framed_msg
+from ptyx.compilation import make_file, join_files, compile_latex
 
 
-def pic_names_iterator(data: dict) -> Iterator[int]:
+def pic_names_iterator(data: dict) -> Iterator[Path]:
     """Iterate over all pics found in data (i.e. all the pictures already analysed)."""
     for d in data.values():
         for pic_data in d["pages"].values():
@@ -70,8 +73,8 @@ def pic_names_iterator(data: dict) -> Iterator[int]:
 class MCQPictureParser:
     """Main class for parsing pdf files containing all the scanned MCQ."""
 
-    def __init__(self, args):
-        self.args = args
+    def __init__(self, path: Union[str, Path], input_dir:Optional[Path]=None, output_dir:Optional[Path]=None):
+        self.path = Path(path).expanduser().resolve()
         # Main paths.
         self.dirs = {}
         self.files = {}
@@ -94,6 +97,8 @@ class MCQPictureParser:
         self.warnings = False
         self.logname = strftime("%Y.%m.%d-%H.%M.%S") + ".log"
         self.correct_answers = {}
+        self._generate_paths(input_dir, output_dir)
+        self._load_configuration()
 
     def _load_data(self):
         if self.dirs["data"].is_dir():
@@ -279,7 +284,8 @@ class MCQPictureParser:
 
         return action == "f"
 
-    def _extract_name(self, doc_id: str, d: dict, matrix):
+    def _extract_name(self, doc_id: str, d: dict, matrix:ndarray, ask: bool = False):
+        #TODO: what is matrix type ?
         pic_data = d["pages"][1]
         # (a) The first page should contain the name
         #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
@@ -287,7 +293,7 @@ class MCQPictureParser:
         # don't overwrite it.
         if not d["name"]:
             # Store the name read (except if ask not to do so).
-            if not self.args.ask_for_name:
+            if not ask:
                 d["name"] = pic_data["name"]
 
         name = d["name"]
@@ -329,15 +335,6 @@ class MCQPictureParser:
         default_incorrect = cfg["incorrect"]["default"]
         default_skipped = cfg["skipped"]["default"]
 
-        max_score = 0
-        # Take a random student test, and calculate max score for it.
-        # Maximal score = (number of questions)x(score when answer is correct)
-        for q in next(iter(cfg["ordering"].values()))["questions"]:
-            q = str(q)
-            if cfg["mode"].get(q, default_mode) != "skip":
-                max_score += int(cfg["correct"].get(q, default_correct))
-        cfg["max_score"] = max_score
-
         for ID in self.data:
             correct_ans = self.correct_answers[ID]
             print(f'Test {ID} - {self.data[ID]["name"]}')
@@ -373,12 +370,13 @@ class MCQPictureParser:
                 d["score"] += earn
                 d["score_per_question"][q] = earn
 
-    def _generate_outcome(self):
+    def generate_output(self):
+        """Generate CSV files with scores and annotated documents."""
         max_score = self.config["max_score"]
         # Generate CSV file with results.
         scores = {d["name"]: d["score"] for d in self.data.values()}
         # ~ print(scores)
-        scores_path = self.dirs["scan"] / "scores.csv"
+        scores_path = self.dirs["output"] / "scores.csv"
         print(f"{ANSI_CYAN}SCORES (/{max_score:g}):{ANSI_RESET}")
         with open(scores_path, "w", newline="") as csvfile:
             writerow = csv.writer(csvfile).writerow
@@ -394,7 +392,7 @@ class MCQPictureParser:
         print(f'\nResults stored in "{scores_path}"\n')
 
         # Generate CSV file with ID and pictures names for all students.
-        info_path = self.dirs["scan"] / "infos.csv"
+        info_path = self.dirs["output"] / "infos.csv"
         info = [
             (
                 d["name"],
@@ -413,50 +411,77 @@ class MCQPictureParser:
                 paths = ", ".join(str(pth) for pth in paths)
                 writerow([name, student_ID, f"#{doc_id}", score, paths])
         print(f'Infos stored in "{info_path}"\n')
-
         amend_all(self)
 
-        if self.args.correction:
-            from ....compilation import make_file, join_files
+    def generate_correction(self, display_score: bool = True) -> None:
+        """Generate pdf files, with the score and the table of correct answers for each test."""
+        pdf_paths = []
+        for doc_id, d in self.data.items():
+            # ~ identifier, answers, name, score, students, ids
+            name = d["name"]
+            score = d["score"]
+            path = self.dirs["pdf"] / "%s-%s-corr.score" % (self.files["base"], doc_id)
+            pdf_paths.append(path)
+            print(
+                f"Generating pdf file for student {name} (subject {doc_id}, score {score})..."
+            )
+            latex = answers_and_score(
+                self.config,
+                name,
+                doc_id,
+                (score if display_score else None),
+            )
+            texfile_name = path.with_suffix(".tex")
+            with open(texfile_name, "w") as texfile:
+                texfile.write(latex)
+                texfile.flush()
+            compile_latex(texfile_name, dest=path, quiet=True)
+        join_files(self.files["results"], pdf_paths, remove_all=True, compress=True)
 
-            # Generate pdf files, with the score and the table of correct answers for each test.
-            pdf_paths = []
-            for doc_id, d in self.data.items():
-                # ~ identifier, answers, name, score, students, ids
-                name = d["name"]
-                score = d["score"]
-                path = self.dirs["pdf"] / "%s-%s-corr.score" % (self.files["base"], doc_id)
-                pdf_paths.append(path)
-                print(
-                    f"Generating pdf file for student {name} (subject {doc_id}, score {score})..."
-                )
-                latex = answers_and_score(
-                    self.config,
-                    name,
-                    doc_id,
-                    (score if not self.args.hide_scores else None),
-                    max_score,
-                )
-                make_file(path, plain_latex=latex, remove=True, formats=["pdf"], quiet=True)
-            join_files(self.dirs["results"], pdf_paths, remove_all=True, compress=True)
+    def _load_configuration(self):
+        """Read configuration file, load configuration and calculate maximal score too."""
+        configfile = search_by_extension(self.path, ".autoqcm.config.json")
+        cfg = load(configfile)
+        self.correct_answers = get_correct_answers(cfg)
+        default_mode = cfg["mode"]["default"]
+        default_correct = cfg["correct"]["default"]
 
-    def _generate_paths(self):
-        root = Path(self.args.path).expanduser().resolve()
+        max_score = 0
+        # Take a random student test, and calculate max score for it.
+        # Maximal score = (number of questions)x(score when answer is correct)
+        for q in next(iter(cfg["ordering"].values()))["questions"]:
+            q = str(q)
+            if cfg["mode"].get(q, default_mode) != "skip":
+                max_score += int(cfg["correct"].get(q, default_correct))
+        cfg["max_score"] = max_score
+        self.config = cfg
+
+
+    def _make_dirs(self, reset:bool=False):
+        """Generate output directory structure.
+
+        If `reset` is True, remove all output directory content.
+        """
+        if reset and self.dirs["output"].is_dir():
+            rmtree(self.dirs["output"])
+
+        for directory in self.dirs.values():
+            if not directory.is_dir():
+                directory.mkdir()
+
+    def _generate_paths(self, input_dir: Optional[Path] = None, output_dir:Optional[Path] = None):
+        root = self.path
         if not root.is_dir():
             root = root.parent
             if not root.is_dir():
                 raise FileNotFoundError("%s does not seem to be a directory !" % root)
         self.dirs["root"] = root
 
-        # Read configuration file.
-        configfile = search_by_extension(root, ".autoqcm.config.json")
-        self.config = load(configfile)
-        self.correct_answers = get_correct_answers(self.config)
         # ------------------
         # Generate the paths
         # ------------------
 
-        self.dirs["input"] = self.args.scan or (root / "scan")
+        self.dirs["input"] = input_dir or (root / "scan")
 
         # `.scan` directory is used to write intermediate files.
         # Directory tree:
@@ -467,22 +492,15 @@ class MCQPictureParser:
         # .scan/cfg/skipped.csv -> pages to skip.
         # .scan/scores.csv
         # .scan/data -> data stored as .scandata files (used to resume interrupted scan).
-        self.dirs["scan"] = self.args.dir or (self.dirs["root"] / ".scan")
-        self.dirs["data"] = self.dirs["scan"] / "data"
-        self.dirs["cfg"] = self.dirs["scan"] / "cfg"
-        self.dirs["pic"] = self.dirs["scan"] / "pic"
-        self.dirs["pdf"] = self.dirs["scan"] / "pdf"
-        self.dirs["log"] = self.dirs["scan"] / "log"
-
-        if self.args.reset and self.dirs["scan"].is_dir():
-            rmtree(self.dirs["scan"])
-
-        for directory in self.dirs.values():
-            if not directory.is_dir():
-                directory.mkdir()
+        self.dirs["output"] = output_dir or (self.dirs["root"] / ".scan")
+        self.dirs["data"] = self.dirs["output"] / "data"
+        self.dirs["cfg"] = self.dirs["output"] / "cfg"
+        self.dirs["pic"] = self.dirs["output"] / "pic"
+        self.dirs["pdf"] = self.dirs["output"] / "pdf"
+        self.dirs["log"] = self.dirs["output"] / "log"
 
         self.files["base"] = search_by_extension(self.dirs["root"], ".ptyx").stem
-        self.dirs["results"] = self.dirs["pdf"] / (self.files["base"] + "-results")
+        self.files["results"] = self.dirs["pdf"] / (self.files["base"] + "-results")
 
     #    def _extract_pictures_from_pdf(self):
     #        # First, we must test if pdf files have changed.
@@ -532,18 +550,24 @@ class MCQPictureParser:
                 for path in sorted(self.skipped):
                     print(f"    • {path}")
 
-    def _parse_picture(self):
+    def scan_picture(self, picture: Union[str, Path], manual_verification: bool = True) -> None:
         """This is used for debuging (it allows to test pages one by one)."""
-        args = self.args
-        if not any(args.picture.endswith(ext) for ext in PIC_EXTS):
+        # f1-pic-003.jpg (page 25)
+        # f12-pic-005.jpg
+        # f12-pic-003.jpg
+        # f12-pic-004.jpg
+        # f12-pic-013.jpg
+        # f7-pic-013.jpg
+        # f9-pic-004.jpg
+        # f9-pic-005.jpg
+        # f13-pic-002.jpg
+        if not any(str(picture).endswith(ext) for ext in PIC_EXTS):
             raise TypeError("Allowed picture extensions: " + ", ".join(PIC_EXTS))
-        pic_path = Path(args.picture).expanduser().resolve()
+        pic_path = Path(picture).expanduser().resolve()
         if not pic_path.is_file():
-            pic_path = self.dirs["pic"] / args.picture
-        verify = args.manual_verification is not False
-        pic_data, _ = scan_picture(pic_path, self.config, manual_verification=verify)
+            pic_path = self.dirs["pic"] / picture
+        pic_data, _ = scan_picture(pic_path, self.config, manual_verification=manual_verification)
         print(pic_data)
-        sys.exit(0)
 
     def _generate_current_pdf_hashes(self) -> dict:
         """Return the hashes of all the pdf files found in `scan/` directory.
@@ -599,26 +623,16 @@ class MCQPictureParser:
             logfile.write(msg)
         self.warnings = True
 
-    def run(self):
-        args = self.args
-        self._generate_paths()
+    def scan_all(self, start: int = 1,
+                 end: Union[int, float]= inf,
+                 manual_verification: Optional[bool] = None,
+                 ask_for_name: bool = False,
+                 reset: bool = False,
+                 ):
+        """Extract information from pdf, calculate scores and annotate documents
+        to display correct answers."""
+        self._make_dirs(reset)
 
-        if args.picture:
-            # f1-pic-003.jpg (page 25)
-            # f12-pic-005.jpg
-            # f12-pic-003.jpg
-            # f12-pic-004.jpg
-            # f12-pic-013.jpg
-            # f7-pic-013.jpg
-            # f9-pic-004.jpg
-            # f9-pic-005.jpg
-            # f13-pic-002.jpg
-            self._parse_picture()
-
-        # This is the usual case: tests are stored in only one big pdf file ;
-        # we will process all these pdf pages.
-
-        data = self.data
         # Test if the PDF files of the input directory have changed and
         # extract the images from the PDF files if needed.
         self._update_input_data()
@@ -641,18 +655,16 @@ class MCQPictureParser:
         # ---------------------------------------
         # Extract informations from the pictures.
         # ---------------------------------------
-
+        data = self.data
         self.name2sheetID = {d["name"]: ID for ID, d in data.items()}
-
         self.already_seen = set((ID, p) for ID, d in data.items() for p in d["pages"])
-
         pic_list = sorted(f for f in self.dirs["pic"].glob("*/*") if f.suffix.lower() in PIC_EXTS)
 
         assert all(isinstance(path, Path) for path in self.skipped)
         assert all(isinstance(path, Path) for path in self.verified)
 
         for i, pic_path in enumerate(pic_list, start=1):
-            if not (args.start <= i <= args.end):
+            if not (start <= i <= end):
                 continue
             # Make pic_path relative, so that folder may be moved if needed.
             pic_path = pic_path.relative_to(self.dirs["pic"])
@@ -666,9 +678,9 @@ class MCQPictureParser:
             #    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 
             try:
-                # Warning: args.manual_verification can be None, so the order is important
+                # Warning: manual_verification can be None, so the order is important
                 # below : False and None -> False (but None and False -> None).
-                manual_verification = (pic_path not in self.verified) and args.manual_verification
+                manual_verification = (pic_path not in self.verified) and manual_verification
                 pic_data, matrix = scan_picture(
                     self.dirs["pic"] / pic_path, self.config, manual_verification
                 )
@@ -748,4 +760,15 @@ class MCQPictureParser:
         # ---------------------------------------------------
         # Time to synthetize & store all those informations !
         # ---------------------------------------------------
-        self._generate_outcome()
+        self.generate_output()
+
+
+def scan(path: Path, reset: bool=False, ask_for_name:bool=False, manual_verification:Literal["auto","always","never"]="auto") -> None:
+    """Implement `autoqcm scan` command."""
+    if manual_verification == "always":
+        verify = True
+    elif manual_verification == "never":
+        verify = False
+    else:
+        verify = None
+    MCQPictureParser(path).scan_all(reset=reset, ask_for_name=ask_for_name, manual_verification=verify)
