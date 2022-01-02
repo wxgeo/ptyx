@@ -40,7 +40,7 @@ def generate_config_file(compiler):
     dump(config_file, autoqcm_data)
 
 
-def make(path: Path, num: int = 1) -> None:
+def make(path: Path, num: int = 1, quiet: bool = False) -> None:
     """Implement `autoqcm make` command.
     """
     assert isinstance(num, int)
@@ -66,7 +66,11 @@ def make(path: Path, num: int = 1) -> None:
 
     # Compile and generate output files (tex or pdf)
     output_name, nums = make_files(
-        ptyx_filename, compress=True, number_of_documents=num, fixed_number_of_pages=True
+        ptyx_filename,
+        compress=True,
+        number_of_documents=num,
+        fixed_number_of_pages=True,
+        quiet=quiet,
     )
     generate_config_file(compiler)
 
@@ -76,7 +80,7 @@ def make(path: Path, num: int = 1) -> None:
     with open(seed_file_name, "w") as seed_file:
         seed_file.write(str(seed_value))
 
-    _, nums2 = make_files(ptyx_filename, correction=True, _nums=nums, compress=True)
+    _, nums2 = make_files(ptyx_filename, correction=True, _nums=nums, compress=True, quiet=quiet)
     assert nums2 == nums, repr((nums, nums2))
 
     # Generate a document including the different versions of all the questions.
@@ -84,4 +88,5 @@ def make(path: Path, num: int = 1) -> None:
     make_file(
         pdf_with_all_versions,
         context={"AUTOQCM_KEEP_ALL_VERSIONS": True, "PTYX_WITH_ANSWERS": True},
+        quiet=quiet,
     )

@@ -763,12 +763,12 @@ class MCQPictureParser:
         self.generate_output()
 
 
-def scan(path: Path, reset: bool=False, ask_for_name:bool=False, manual_verification:Literal["auto","always","never"]="auto") -> None:
+def scan(path: Path, reset: bool=False, ask_for_name:bool=False, verify:Literal["auto","always","never"]="auto") -> None:
     """Implement `autoqcm scan` command."""
-    if manual_verification == "always":
-        verify = True
-    elif manual_verification == "never":
-        verify = False
+    if verify == "always":
+        manual_verification = True
+    elif verify == "never":
+        manual_verification = False
     else:
-        verify = None
-    MCQPictureParser(path).scan_all(reset=reset, ask_for_name=ask_for_name, manual_verification=verify)
+        manual_verification = None
+    MCQPictureParser(path).scan_all(reset=reset, ask_for_name=ask_for_name, manual_verification=manual_verification)
