@@ -1,7 +1,7 @@
 r"""
 QUESTIONS
 
-This extension offers a new syntaw to write tests and answers.
+This extension offers a new syntax to write tests and answers.
 
 An example:
 
@@ -70,7 +70,7 @@ An example:
     ==================
 
 
-An other simpler example, with no enumeration (only one question):
+Another simpler example, with no enumeration (only one question):
 
     ~~~~~~~~~~~~~~~~~~~
 
@@ -94,11 +94,12 @@ def main(text, compiler):
     def inline_answer(m):
         content = m.group("content")
         # Don't use | to split as it is commonly used for absolute values in mathematics.
-        l = content.split(":::")
-        if len(l) == 2:
-            return "#QUESTION{%s}#ANSWER{%s}" % tuple(l)
+        question, answer, *remaining = content.split(":::")
+        if len(remaining) == 0:
+            return f"#QUESTION{{{question}}}#ANSWER{{{answer}}}"
         # It's not clear what to do if there are more than one :::.
-        return "#ANSWER{%s}" % content
+        print(f"WARNING: ambiguous syntax {content!r}!")
+        return f"#ANSWER{{{content}}}"
 
     text = sub("<{3,}(?P<content>.*?)>{3,}", inline_answer, text)
 
@@ -110,7 +111,7 @@ def main(text, compiler):
     # ~~~~~~~~~~~~~~~~~~
     text = sub(
         "\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*~{3,}[ \t]*\n[ \t]*~{3,}[ \t]*\n",
-        "\n#ASK_ONLY\n\g<content>\n#END\n",
+        "\n#ASK_ONLY\n\\g<content>\n#END\n",
         text,
         flags=DOTALL,
     )
@@ -125,27 +126,27 @@ def main(text, compiler):
             lines.append("#END")
 
     for line in text.split("\n"):
-        l = line.strip()
-        n = len(l)
+        stripped_line = line.strip()
+        n = len(stripped_line)
         if n == 0:
-            lines.append(line)  # line, not l (to keep spaces) !
-        elif l == "-":
+            lines.append(line)  # line, not stripped_line (to keep spaces) !
+        elif stripped_line == "-":
             # Blank line for answer.
             lines.append("")
             lines.append(r"\dotfill")
-        elif l == n * "_":
+        elif stripped_line == n * "_":
             # New question.
             close_any_ANS_ASK_blocks(stack, lines)
             lines.append("#ITEM")
             lines.append(r"\item")
             lines.append("#ASK")
             stack.append("ASK")
-        elif l == n * "-":
+        elif stripped_line == n * "-":
             # New answer.
             close_any_ANS_ASK_blocks(stack, lines)
             lines.append("#ANS")
             stack.append("ANS")
-        elif l == n * ".":
+        elif stripped_line == n * ".":
             # A block of python code.
             if stack[-1] == "PYTHON":
                 stack.pop()
@@ -153,7 +154,7 @@ def main(text, compiler):
             else:
                 stack.append("PYTHON")
                 lines.append("#PYTHON")
-        elif l == n * "~":
+        elif stripped_line == n * "~":
             # A block of text, either a lonely question, an explanation or question+answer.
             # ~~~~~~~~~~~~~~~~~
             # lonely question
@@ -166,7 +167,7 @@ def main(text, compiler):
             else:
                 lines.append("#ASK")
                 stack.append("ASK")
-        elif match("=+[ \t]*((SHUFFLE)|[?]*(!+[?]*)+)[ \t]*=+", l):
+        elif match("=+[ \t]*((SHUFFLE)|[?]*(!+[?]*)+)[ \t]*=+", stripped_line):
             # Open a group of randomly shuffled questions.
             close_any_ANS_ASK_blocks(stack, lines)
             stack.append("SHUFFLE")
@@ -176,7 +177,7 @@ def main(text, compiler):
             lines.append(r"\item")
             lines.append(r"#ASK")
             stack.append("ASK")
-        elif match("=+[ \t]*((QUESTIONS)|[?]+)[ \t]*=+", l):
+        elif match("=+[ \t]*((QUESTIONS)|[?]+)[ \t]*=+", stripped_line):
             # Open a group of questions.
             close_any_ANS_ASK_blocks(stack, lines)
             stack.append("QUESTIONS")
@@ -186,7 +187,7 @@ def main(text, compiler):
             lines.append(r"\item")
             lines.append(r"#ASK")
             stack.append("ASK")
-        elif l == n * "=":
+        elif stripped_line == n * "=":
             if "QUESTIONS" in stack or "SHUFFLE" in stack:
                 # End a group of questions.
                 close_any_ANS_ASK_blocks(stack, lines)
@@ -207,10 +208,10 @@ def main(text, compiler):
                 else:
                     lines.append("#ASK")
                     stack.append("ASK")
-        elif match("[ \t]*[*]+[ \t]*EXERCISE[ \t]*[*]+", l):
+        elif match("[ \t]*[*]+[ \t]*EXERCISE[ \t]*[*]+", stripped_line):
             lines.append(r"\section{}")
             lines.append("#ASK")
             stack.append("ASK")
         else:
-            lines.append(line)  # line, not l (to keep spaces) !
+            lines.append(line)  # line, not stripped_line (to keep spaces) !
     return "\n".join(lines)
