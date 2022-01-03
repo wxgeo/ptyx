@@ -1,4 +1,3 @@
-import builtins
 from functools import partial
 from math import degrees, atan, hypot
 
@@ -8,6 +7,7 @@ from numpy import array, flipud, fliplr, dot, amin, amax, zeros  # , percentile,
 from .square_detection import test_square_color, find_black_square, \
     eval_square_color, adjust_checkbox, \
     color2debug
+from .tools import round
 from ..parameters import (SQUARE_SIZE_IN_CM, CELL_SIZE_IN_CM,
                           CALIBRATION_SQUARE_POSITION, CALIBRATION_SQUARE_SIZE
                           )
@@ -35,14 +35,6 @@ CORNER_NAMES = {'tl': 'top-left', 'tr': 'top-right', 'bl': 'bottom-left',
 
 class CalibrationError(RuntimeError):
     "Error raised if calibration failed."
-
-
-def round(f, n=None):
-    # PEP3141 compatible round() implementation.
-    # round(f) should return an integer, but the problem is
-    # __builtin__.round(f) doesn't return an int if type(f) is np.float64.
-    # See: https://github.com/numpy/numpy/issues/11810
-    return (int(builtins.round(f)) if n is None else builtins.round(f, n))
 
 
 #def store_as_WEBP(m):
@@ -164,7 +156,7 @@ def find_corner_square(m, size, corner, max_whiteness):
         t2 = grid[i + 1, j]
         if t1 + t2 == 0:
             raise NotImplementedError
-        i0 = round((i - 1 + t2/(t1 + t2))*half)
+        i0 = round((i - 1 + t2 / (t1 + t2)) * half)
 
     # Same procedure, but horizontally now.
     if j == 0:
@@ -176,7 +168,7 @@ def find_corner_square(m, size, corner, max_whiteness):
         t2 = grid[i, j + 1]
         if t1 + t2 == 0:
             raise NotImplementedError
-        j0 = round((j - 1 + t2/(t1 + t2))*half)
+        j0 = round((j - 1 + t2 / (t1 + t2)) * half)
 
     # Adjust line by line for more precision.
     # First, vertically.
@@ -237,10 +229,10 @@ def orthogonal(corner, positions):
 
 
 def area_opposite_corners(positions):
-    i1 = round((positions['tl'][0] + positions['tr'][0])/2)
-    i2 = round((positions['bl'][0] + positions['br'][0])/2)
-    j1 = round((positions['tl'][1] + positions['bl'][1])/2)
-    j2 = round((positions['tr'][1] + positions['br'][1])/2)
+    i1 = round((positions['tl'][0] + positions['tr'][0]) / 2)
+    i2 = round((positions['bl'][0] + positions['br'][0]) / 2)
+    j1 = round((positions['tl'][1] + positions['bl'][1]) / 2)
+    j2 = round((positions['tr'][1] + positions['br'][1]) / 2)
     return (i1, j1), (i2, j2)
 
 
@@ -393,8 +385,8 @@ def calibrate(pic, m, debug=False):
     # Evaluate approximatively squares size using image dpi.
     # Square size is equal to SQUARE_SIZE_IN_CM in theory, but this vary
     # in practice depending on printer and scanner parameters (margins...).
-    square_size = round(SQUARE_SIZE_IN_CM*cm)
-    calib_square = round(CALIBRATION_SQUARE_SIZE*cm)
+    square_size = round(SQUARE_SIZE_IN_CM * cm)
+    calib_square = round(CALIBRATION_SQUARE_SIZE * cm)
     calib_shift_mm = 10*(2*CALIBRATION_SQUARE_POSITION + CALIBRATION_SQUARE_SIZE)
 
     # Detect the four big squares at the top left, top right, bottom left
@@ -678,7 +670,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
     f_cell_size = CELL_SIZE_IN_CM*pixels_per_mm*10
     cell_size = round(f_cell_size)
-    half_cell = round(f_cell_size/2)
+    half_cell = round(f_cell_size / 2)
 
     # Henceforth, we can convert LaTeX position to pixel with a good precision.
     def xy2ij(x, y):
@@ -689,7 +681,8 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
         (i, j) is the position in pixels, where i is the line and j the
         column, starting from the top left of the image.
         '''
-        i = (287 - y)*v_pixels_per_mm + TOP
+        # Top left square is printed at 1 cm from the left and the top of the sheet.
+        i = (287 - y)*v_pixels_per_mm + TOP  # 29.7 cm - 1 cm = 28.7 cm (A4 sheet format = 21 cm x 29.7 cm)
         j = (x - 10)*h_pixels_per_mm + LEFT
         return (round(i), round(j))
 
@@ -708,7 +701,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     # and interpret it as a binary number.
 
     for k in range(24):
-        j_ = round(j + (k + 1)*f_square_size)
+        j_ = round(j + (k + 1) * f_square_size)
         if k%2:
             color2debug(m, (i, j_), (i + square_size, j_ + square_size), display=False)
         else:
@@ -777,7 +770,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
 
             l = []
             for k in range(1, n_students + 1):
-                j = round(j0 + 2*k*f_square_size)
+                j = round(j0 + 2 * k * f_square_size)
                 l.append(test_square_color(search_area, i, j, square_size))
                 #~ if k > 15:
                     #~ print(l)
@@ -816,7 +809,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
             ev = eval_square_color
             for n in range(ID_length):
                 # Top of the row.
-                i = round(i0 + n*f_cell_size)
+                i = round(i0 + n * f_cell_size)
                 black_cells = []
                 # If a cell is black enough, a couple (indicator_of_blackness, digit)
                 # will be appended to the list `cells`.
@@ -831,7 +824,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
                     continue
                 for k, d in enumerate(digits_for_nth_character):
                     # Left ot the cell.
-                    j = round(j0 + (k + 1)*f_cell_size)
+                    j = round(j0 + (k + 1) * f_cell_size)
                     # ~ val = eval_square_color(m, i, j, cell_size)
                     # ~ print(d, val)
 

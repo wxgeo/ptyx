@@ -1,5 +1,5 @@
 from json import loads, dumps as _dumps, JSONEncoder
-from typing import Dict, Set, Any, Tuple
+from typing import Dict, Set, Any, Tuple, Optional
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -80,7 +80,7 @@ def load(path):
 
 
 def real2apparent(
-    original_q_num: int, original_a_num: int, config: dict, doc_id: str
+    original_q_num: int, original_a_num: Optional[int], config: dict, doc_id: int
 ) -> Tuple[int, int]:
     """Return apparent question number and answer number.
 
@@ -104,7 +104,7 @@ def real2apparent(
     raise IndexError(f"Answer {original_a_num} not found for question {original_q_num}.")
 
 
-def apparent2real(pdf_q_num: int, pdf_a_num: int, config: dict, doc_id: str) -> Tuple[int, int]:
+def apparent2real(pdf_q_num: int, pdf_a_num: Optional[int], config: dict, doc_id: int) -> Tuple[int, int]:
     """Return real question number and answer number.
 
     If `a` is None, return only question number.
@@ -122,7 +122,7 @@ def apparent2real(pdf_q_num: int, pdf_a_num: int, config: dict, doc_id: str) -> 
 
 
 def is_answer_correct(
-    q_num: int, a_num: int, config: dict, doc_id: str, use_original_num: bool = True
+    q_num: int, a_num: int, config: dict, doc_id: int, use_original_num: bool = True
 ) -> bool:
     if use_original_num:
         # q_num and a_num are question and answer number *before* shuffling questions.

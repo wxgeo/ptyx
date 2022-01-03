@@ -5,6 +5,7 @@ Created on Tue Oct 27 22:40:40 2020
 
 @author: nicolas
 """
+import builtins
 from os import listdir
 from os.path import expanduser
 from pathlib import Path
@@ -46,3 +47,11 @@ def tmp_load():
     "For debuging."
     with open(expanduser("~/tmp.pickle"), "rb") as f:
         return pickle.load(f)
+
+
+def round(f, n=None):
+    # PEP3141 compatible round() implementation.
+    # round(f) should return an integer, but the problem is
+    # __builtin__.round(f) doesn't return an int if type(f) is np.float64.
+    # See: https://github.com/numpy/numpy/issues/11810
+    return (int(builtins.round(f)) if n is None else builtins.round(f, n))
