@@ -54,4 +54,4 @@ def round(f, n=None):
     # round(f) should return an integer, but the problem is
     # __builtin__.round(f) doesn't return an int if type(f) is np.float64.
     # See: https://github.com/numpy/numpy/issues/11810
-    return (int(builtins.round(f)) if n is None else builtins.round(f, n))
+    return int(builtins.round(f)) if n is None else builtins.round(f, n)

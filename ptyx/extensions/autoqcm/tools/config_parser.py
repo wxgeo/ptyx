@@ -104,7 +104,9 @@ def real2apparent(
     raise IndexError(f"Answer {original_a_num} not found for question {original_q_num}.")
 
 
-def apparent2real(pdf_q_num: int, pdf_a_num: Optional[int], config: dict, doc_id: int) -> Tuple[int, int]:
+def apparent2real(
+    pdf_q_num: int, pdf_a_num: Optional[int], config: dict, doc_id: int
+) -> Tuple[int, int]:
     """Return real question number and answer number.
 
     If `a` is None, return only question number.

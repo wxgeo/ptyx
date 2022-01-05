@@ -15,7 +15,6 @@ from ptyx.extensions.autoqcm.compile.make import make
 from ptyx.extensions.autoqcm.scan.scanner import scan
 
 
-
 def main(args: Optional[list] = None) -> None:
     """Main entry point, called whenever `autoqcm` command is executed."""
     parser = ArgumentParser(description="Generate and manage pdf MCQs.")
@@ -37,12 +36,7 @@ def main(args: Optional[list] = None) -> None:
         default=1,
         help="Specify how many versions of the document must be generated.",
     )
-    make_parser.add_argument(
-        "--quiet",
-        "-q",
-        action="store_true",
-        help="Hide pdflatex output.",
-    )
+    make_parser.add_argument("--quiet", "-q", action="store_true", help="Hide pdflatex output.")
     make_parser.set_defaults(func=make)
 
     # create the parser for the "scan" command
@@ -106,8 +100,6 @@ def new(path: Path) -> None:
     else:
         shutil.copytree(template, path)
         print(f"Success: a new MCQ was created at {path}.")
-
-
 
 
 if __name__ == "__main__":

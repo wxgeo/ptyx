@@ -140,12 +140,7 @@ def make_files(
         logfile = append_suffix(filename, "-python.log")
         print("\nLog file:", logfile, "\n")
         with Logging(logfile if not remove else ""):
-            infos = make_file(
-                filename,
-                formats,
-                context=context,
-                quiet=quiet,
-            )
+            infos = make_file(filename, formats, context=context, quiet=quiet)
         pdf_pages_number = infos.get("pages_number")
 
         if not correction:
@@ -186,7 +181,7 @@ def make_files(
 
     # Copy tex/pdf file to parent directory.
     for ext in formats:
-        assert ext[0] != '.'
+        assert ext[0] != "."
         ext = f".{ext}"
         name = output_basename.with_suffix(ext)
         if name.is_file():

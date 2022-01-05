@@ -58,7 +58,7 @@ from .scan_pic import (
 from .amend import amend_all
 from .pdftools import extract_pdf_pictures, PIC_EXTS, number_of_pages
 from .tools import search_by_extension, print_framed_msg
-from ptyx.compilation import make_file, join_files, compile_latex
+from ptyx.compilation import join_files, compile_latex
 
 
 def pic_names_iterator(data: dict) -> Iterator[Path]:
@@ -73,7 +73,12 @@ def pic_names_iterator(data: dict) -> Iterator[Path]:
 class MCQPictureParser:
     """Main class for parsing pdf files containing all the scanned MCQ."""
 
-    def __init__(self, path: Union[str, Path], input_dir:Optional[Path]=None, output_dir:Optional[Path]=None):
+    def __init__(
+        self,
+        path: Union[str, Path],
+        input_dir: Optional[Path] = None,
+        output_dir: Optional[Path] = None,
+    ):
         self.path = Path(path).expanduser().resolve()
         # Main paths.
         self.dirs = {}
@@ -284,8 +289,8 @@ class MCQPictureParser:
 
         return action == "f"
 
-    def _extract_name(self, doc_id: str, d: dict, matrix:ndarray, ask: bool = False):
-        #TODO: what is matrix type ?
+    def _extract_name(self, doc_id: str, d: dict, matrix: ndarray, ask: bool = False):
+        # TODO: what is matrix type ?
         pic_data = d["pages"][1]
         # (a) The first page should contain the name
         #     ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾ ‾
@@ -422,15 +427,8 @@ class MCQPictureParser:
             score = d["score"]
             path = self.dirs["pdf"] / "%s-%s-corr.score" % (self.files["base"], doc_id)
             pdf_paths.append(path)
-            print(
-                f"Generating pdf file for student {name} (subject {doc_id}, score {score})..."
-            )
-            latex = answers_and_score(
-                self.config,
-                name,
-                doc_id,
-                (score if display_score else None),
-            )
+            print(f"Generating pdf file for student {name} (subject {doc_id}, score {score})...")
+            latex = answers_and_score(self.config, name, doc_id, (score if display_score else None))
             texfile_name = path.with_suffix(".tex")
             with open(texfile_name, "w") as texfile:
                 texfile.write(latex)
@@ -456,8 +454,7 @@ class MCQPictureParser:
         cfg["max_score"] = max_score
         self.config = cfg
 
-
-    def _make_dirs(self, reset:bool=False):
+    def _make_dirs(self, reset: bool = False):
         """Generate output directory structure.
 
         If `reset` is True, remove all output directory content.
@@ -469,7 +466,7 @@ class MCQPictureParser:
             if not directory.is_dir():
                 directory.mkdir()
 
-    def _generate_paths(self, input_dir: Optional[Path] = None, output_dir:Optional[Path] = None):
+    def _generate_paths(self, input_dir: Optional[Path] = None, output_dir: Optional[Path] = None):
         root = self.path
         if not root.is_dir():
             root = root.parent
@@ -623,12 +620,14 @@ class MCQPictureParser:
             logfile.write(msg)
         self.warnings = True
 
-    def scan_all(self, start: int = 1,
-                 end: Union[int, float]= inf,
-                 manual_verification: Optional[bool] = None,
-                 ask_for_name: bool = False,
-                 reset: bool = False,
-                 ):
+    def scan_all(
+        self,
+        start: int = 1,
+        end: Union[int, float] = inf,
+        manual_verification: Optional[bool] = None,
+        ask_for_name: bool = False,
+        reset: bool = False,
+    ):
         """Extract information from pdf, calculate scores and annotate documents
         to display correct answers."""
         self._make_dirs(reset)
@@ -763,7 +762,12 @@ class MCQPictureParser:
         self.generate_output()
 
 
-def scan(path: Path, reset: bool=False, ask_for_name:bool=False, verify:Literal["auto","always","never"]="auto") -> None:
+def scan(
+    path: Path,
+    reset: bool = False,
+    ask_for_name: bool = False,
+    verify: Literal["auto", "always", "never"] = "auto",
+) -> None:
     """Implement `autoqcm scan` command."""
     if verify == "always":
         manual_verification = True
@@ -771,4 +775,6 @@ def scan(path: Path, reset: bool=False, ask_for_name:bool=False, verify:Literal[
         manual_verification = False
     else:
         manual_verification = None
-    MCQPictureParser(path).scan_all(reset=reset, ask_for_name=ask_for_name, manual_verification=manual_verification)
+    MCQPictureParser(path).scan_all(
+        reset=reset, ask_for_name=ask_for_name, manual_verification=manual_verification
+    )
