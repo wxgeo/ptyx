@@ -1,5 +1,6 @@
 from functools import partial
 from math import degrees, atan, hypot
+from typing import Dict, Set, Tuple
 
 from PIL import Image
 from numpy import array, flipud, fliplr, dot, amin, amax, zeros  # , percentile, clip
@@ -41,7 +42,7 @@ CORNER_NAMES = {"tl": "top-left", "tr": "top-right", "bl": "bottom-left", "br": 
 
 
 class CalibrationError(RuntimeError):
-    "Error raised if calibration failed."
+    """Error raised if calibration failed."""
 
 
 # def store_as_WEBP(m):
@@ -57,19 +58,17 @@ class CalibrationError(RuntimeError):
 #    buffer = io.BytesIO(b)
 #    im = Image.open(buffer)
 #    return array(im)/255
-
-
-def load_as_matrix(pic_path):
-    return array(Image.open(pic_path).convert("L")) / 255
-
-
+#
+# def load_as_matrix(pic_path: str):
+#     return array(Image.open(pic_path).convert("L")) / 255
+#
 # def uncompress_array(buffer):
 #    im = Image.open(buffer)
 #    return array(im)/255
 
 
-def transform(pic, transformation, *args, **kw):
-    "Return a transformed version of `pic` and its matrix."
+def transform(pic, transformation: str, *args, **kw):
+    """Return a transformed version of `pic` and its matrix."""
     # cf. http://stackoverflow.com/questions/5252170/
     # specify-image-filling-color-when-rotating-in-python-with-pil-and-setting-expand
     rgba = pic.convert("RGBA")
@@ -77,11 +76,11 @@ def transform(pic, transformation, *args, **kw):
     white = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
     out = Image.composite(rgba, white, rgba)
     pic = out.convert(pic.mode)
+    # noinspection PyTypeChecker
     return pic, array(pic) / 255.0
 
 
-def find_black_cell(grid, ll, LL, detection_level):
-    k = i = j = 0
+def find_black_cell(grid, ll: int, LL: int, detection_level: float):
     for k in range(LL + ll):
         # j < ll <=> k - i < ll <=> k - ll < i <=> i >= k - ll + 1
         for i in range(max(0, k - ll + 1), min(k + 1, LL)):
@@ -95,8 +94,9 @@ def find_black_cell(grid, ll, LL, detection_level):
     raise LookupError(f"Corner square not found.")
 
 
+# noinspection PyArgumentList
 def find_corner_square(m, size, corner, max_whiteness):
-    L, l = m.shape
+    height, width = m.shape
     V, H = corner
     # First, flip the matrix if needed, so that the corner considered
     # is now the top left corner.
@@ -104,14 +104,14 @@ def find_corner_square(m, size, corner, max_whiteness):
         m = flipud(m)
     if H == "r":
         m = fliplr(m)
-    area = m[: L // 4, : l // 4]
+    area = m[: height // 4, : width // 4]
     #    color2debug(m, (0, 0), (L//4, l//4), color="blue", display=False)
 
     # Then, split area into a mesh grid.
     # The mesh size is half the size of the searched square.
     half = size // 2
-    LL = (L // 4) // half
-    ll = (l // 4) // half
+    LL = (height // 4) // half
+    ll = (width // 4) // half
     grid = zeros((LL, ll))
 
     # For each mesh grid cell, we calculate the whiteness of the cell.
@@ -141,9 +141,6 @@ def find_corner_square(m, size, corner, max_whiteness):
     # We stop when we found a black cell.
     i, j = find_black_cell(grid, ll, LL, detection_level)
 
-    i0 = half * i
-    j0 = half * j
-
     # Now, we must adjust the position of the square.
     # First, let's adjust it vertically.
     # We have detected the core of the square.
@@ -158,7 +155,7 @@ def find_corner_square(m, size, corner, max_whiteness):
         # the percentage in the cell below.
         # We now have a good approximation of the percentage of the square
         # to be found in the upper cell and in the lower cell.
-        # So, t2/(t1 + t2)*half is approximatively the vertical position
+        # So, t2/(t1 + t2)*half is approximately the vertical position
         # of the square, starting from the top of the upper cell.
         t1 = grid[i - 1, j]
         t2 = grid[i + 1, j]
@@ -183,7 +180,7 @@ def find_corner_square(m, size, corner, max_whiteness):
     j1 = j0
     j2 = j0 + size
     shift_down = False
-    while i0 < L // 4 - size and area[i0 + size, j1:j2].sum() < area[i0, j1:j2].sum():
+    while i0 < height // 4 - size and area[i0 + size, j1:j2].sum() < area[i0, j1:j2].sum():
         # shift one pixel down
         i0 += 1
         shift_down = True
@@ -196,7 +193,7 @@ def find_corner_square(m, size, corner, max_whiteness):
     i1 = i0
     i2 = i0 + size
     shift_right = False
-    while j0 < l // 4 - size and area[i1:i2, j0 + size].sum() < area[i1:i2, j0].sum():
+    while j0 < width // 4 - size and area[i1:i2, j0 + size].sum() < area[i1:i2, j0].sum():
         # shift one pixel right
         j0 += 1
         shift_right = True
@@ -217,14 +214,14 @@ def find_corner_square(m, size, corner, max_whiteness):
         raise LookupError(f"Corner square {corner} not found.")
 
     if V == "b":
-        i0 = L - 1 - i0 - size
+        i0 = height - 1 - i0 - size
     if H == "r":
-        j0 = l - 1 - j0 - size
+        j0 = width - 1 - j0 - size
 
     return i0, j0
 
 
-def orthogonal(corner, positions):
+def orthogonal(corner, positions) -> bool:
     V, H = corner
     corner1 = V + ("l" if H == "r" else "r")
     corner2 = ("t" if V == "b" else "b") + H
@@ -277,7 +274,7 @@ def detect_four_squares(m, square_size, cm, max_alignment_error_cm=0.4, debug=Fa
 
     if len(positions) == 4:
         # If there are 4 squares, and one is less dark than the others,
-        # let's drop it and use only the 3 darkers.
+        # let's drop it and use only the 3 darkest.
         # (The 4th square will be generated again using the position of the 3 others).
         for V in "tb":
             if positions[f"{V}r"][0] - positions[f"{V}l"][0] > max_alignment_error_cm * cm:
@@ -360,8 +357,8 @@ def detect_four_squares(m, square_size, cm, max_alignment_error_cm=0.4, debug=Fa
     return positions, ij1, ij2
 
 
-def find_ID_band(m, i, j1, j2, square_size):
-    "Return the top left corner (coordinates in pixels) of the ID band first square."
+def find_document_id_band(m, i, j1, j2, square_size):
+    """Return the top left corner (coordinates in pixels) of the document ID band first square."""
     margin = square_size
     i1, i2 = i - margin, i + square_size + margin
     j1, j2 = j1 + 3 * square_size, j2 - 2 * square_size
@@ -377,18 +374,18 @@ def find_ID_band(m, i, j1, j2, square_size):
 
 
 def calibrate(pic, m, debug=False):
-    "Detect picture resolution and ensure correct orientation."
+    """Detect picture resolution and ensure correct orientation."""
     # Ensure that the picture orientation is portrait, not landscape.
-    L, l = m.shape
-    print(f"Picture dimensions : {L}px x {l}px.")
+    height, width = m.shape
+    print(f"Picture dimensions : {height}px x {width}px.")
 
-    if L < l:
+    if height < width:
         pic, m = transform(pic, "transpose", method=Image.ROTATE_90)
-        L, l = m.shape
+        height, width = m.shape
 
-    assert l <= L
+    assert width <= height
 
-    # Calculate resolution (DPI and DPCM).
+    # Calculate resolution (DPI and dots per cm).
     cm = m.shape[1] / 21
     # Unit conversion: 1 inch = 2.54 cm
     print(f"Detect pixels/cm: {cm} (dpi: {2.54*cm})")
@@ -474,18 +471,17 @@ def calibrate(pic, m, debug=False):
     positions, (i1, j1), (i2, j2) = detect_four_squares(m, calib_square, cm, debug=debug)
 
     try:
-        i3, j3 = find_ID_band(m, i1, j1, j2, square_size)
+        i3, j3 = find_document_id_band(m, i1, j1, j2, square_size)
     except StopIteration:
         # Orientation probably incorrect.
         print("Reversed page detected: 180° rotation.")
         pic, m = transform(pic, "transpose", method=Image.ROTATE_180)
-        L, l = m.shape
+        height, width = m.shape
         p = positions
         for corner in p:
             i, j = p[corner]
-            i = L - 1 - i - calib_square
-            j = l - 1 - j - calib_square
-            V, H = corner
+            i = height - 1 - i - calib_square
+            j = width - 1 - j - calib_square
             p[corner] = i, j
             color2debug(
                 m, (i, j), (i + calib_square, j + calib_square), color="green", display=False
@@ -497,7 +493,7 @@ def calibrate(pic, m, debug=False):
         # Redetect calibration squares.
         # ~ positions, (i1, j1), (i2, j2) = detect_four_squares(m, square_size, cm, debug=debug)
         try:
-            i3, j3 = find_ID_band(m, i1, j1, j2, square_size)
+            i3, j3 = find_document_id_band(m, i1, j1, j2, square_size)
         except StopIteration:
             print("ERROR: Can't find identification band, displaying search areas in red.")
             print(i1, j1, i2, j2)
@@ -527,7 +523,7 @@ def calibrate(pic, m, debug=False):
     return m, h_pixels_per_mm, v_pixels_per_mm, positions["tl"], (i3, j3)
 
 
-def edit_answers(m, boxes, answered, config, test_ID, xy2ij, cell_size):
+def edit_answers(m, boxes, answered, config, doc_id, xy2ij, cell_size) -> None:
     print("Please verify answers detection:")
     input("-- Press ENTER --")
     process = color2debug(m, wait=False)
@@ -536,7 +532,6 @@ def edit_answers(m, boxes, answered, config, test_ID, xy2ij, cell_size):
         if ans.lower() in ("y", "yes"):
             process.terminate()
             process.terminate()
-            return answered
 
         while True:
             ans = input("Write a question number, or 0 to escape:")
@@ -546,7 +541,7 @@ def edit_answers(m, boxes, answered, config, test_ID, xy2ij, cell_size):
                 q0 = int(ans)
             except ValueError:
                 continue
-            q = apparent2real(q0, None, config, test_ID)
+            q = apparent2real(q0, None, config, doc_id)
             if q not in answered:
                 print("Invalid question number.")
                 continue
@@ -559,7 +554,7 @@ def edit_answers(m, boxes, answered, config, test_ID, xy2ij, cell_size):
             try:
                 for val in ans.split():
                     op, a0 = val[0], int(val[1:])
-                    q, a = apparent2real(q0, a0, config, test_ID)
+                    q, a = apparent2real(q0, a0, config, doc_id)
                     if op == "+":
                         if a in checked:
                             print(f"Warning: {a0} already in answers.")
@@ -580,7 +575,7 @@ def edit_answers(m, boxes, answered, config, test_ID, xy2ij, cell_size):
             # Color answers
             valid_answers = {}
             for key, pos in boxes.items():
-                # ~ should_have_answered = set() # for debuging only.
+                # ~ should_have_answered = set() # for debugging only.
                 i, j = xy2ij(*pos)
                 i, j = adjust_checkbox(m, i, j, cell_size)
                 q, a = key[1:].split("-")
@@ -639,6 +634,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     filename = str(filename)
     # Convert to grayscale picture.
     pic = Image.open(filename).convert("L")
+    # noinspection PyTypeChecker
     m = array(pic) / 255.0
     # Increase contrast if needed (the lightest pixel must be white,
     # the darkest must be black).
@@ -693,11 +689,8 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
         column, starting from the top left of the image.
         """
         # Top left square is printed at 1 cm from the left and the top of the sheet.
-        i = (
-            287 - y
-        ) * v_pixels_per_mm + TOP  # 29.7 cm - 1 cm = 28.7 cm (A4 sheet format = 21 cm x 29.7 cm)
-        j = (x - 10) * h_pixels_per_mm + LEFT
-        return (round(i), round(j))
+        # 29.7 cm - 1 cm = 28.7 cm (A4 sheet format = 21 cm x 29.7 cm)
+        return round((287 - y) * v_pixels_per_mm + TOP), round((x - 10) * h_pixels_per_mm + LEFT)
 
     # ------------------------------------------------------------------
     #                      READ IDENTIFIER
@@ -773,7 +766,6 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
             # Anyway, it's safer to take the max of them.
             vpos = TOP + 2 * square_size
 
-            student_number = None
             search_area = m[vpos : vpos + 4 * square_size, :]
             i, j0 = find_black_square(
                 search_area, size=square_size, error=0.3, mode="column"
@@ -781,24 +773,24 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
             # ~ color2debug((vpos + i, j0), (vpos + i + square_size, j0 + square_size), color=(0,255,0))
             vpos += i + square_size
 
-            l = []
+            checked_squares = []
             for k in range(1, n_students + 1):
                 j = round(j0 + 2 * k * f_square_size)
-                l.append(test_square_color(search_area, i, j, square_size))
+                checked_squares.append(test_square_color(search_area, i, j, square_size))
                 # ~ if k > 15:
-                # ~ print(l)
+                # ~ print(checked_squares)
                 # ~ color2debug((vpos + i, j), (vpos + i + square_size, j + square_size))
 
-            n = l.count(True)
+            n = checked_squares.count(True)
             if n == 0:
                 print("Warning: no student name !")
             elif n > 1:
                 print("Warning: several students names !")
-                for i, b in enumerate(l):
+                for i, b in enumerate(checked_squares):
                     if b:
                         print(" - ", students[n_students - i - 1])
             else:
-                student_number = n_students - l.index(True) - 1
+                student_number = n_students - checked_squares.index(True) - 1
                 student_name = students[student_number]
 
         # Read student id, then find name
@@ -885,9 +877,9 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     #                      READ ANSWERS
     # ------------------------------------------------------------------
 
-    answered = {}
-    positions = {}
-    displayed_questions_numbers = {}
+    answered: Dict[int, Set[int]] = {}
+    positions: Dict[Tuple[int, int], Tuple[int, int]] = {}
+    displayed_questions_numbers: Dict[int, int] = {}
     pic_data = {
         # ID of the test:
         "ID": test_ID,  # int
@@ -896,12 +888,12 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
         "name": student_name,  # str
         "student ID": student_ID,  # str
         # answers checked by the student for each question:
-        "answered": answered,  # dict[int, set[int]]
+        "answered": answered,
         # Position of each checkbox in the page:
-        "positions": positions,  # dict[tuple[int, int], tuple[int, int]]
+        "positions": positions,
         "cell_size": cell_size,  # int
         # Translation table ({question number before shuffling: after shuffling})
-        "questions_nums": displayed_questions_numbers,  # dict[int, int]
+        "questions_nums": displayed_questions_numbers,
         # Manual verification by the user ?
         "verified": None,  # bool|None
     }
@@ -1044,7 +1036,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     # ~ print(f'\nScore: {ANSI_REVERSE}{score:g}{ANSI_RESET}\n')
     if manual_verification is True:
         print(test_ID, page)
-        answered = edit_answers(m, boxes, answered, config, test_ID, xy2ij, cell_size)
+        edit_answers(m, boxes, answered, config, test_ID, xy2ij, cell_size)
     elif debug:
         color2debug(m)
     else:

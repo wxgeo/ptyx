@@ -325,6 +325,7 @@ def find_lonely_square(m, size, error=0.4, gray_level=0.4):
     # ~ raise LookupError("No lonely black square in the search area.")
 
 
+# noinspection PyDefaultArgument
 def color2debug(
     array=None,
     from_=None,
