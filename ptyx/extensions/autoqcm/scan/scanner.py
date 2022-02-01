@@ -61,6 +61,8 @@ from .tools import search_by_extension, print_framed_msg
 from ptyx.compilation import join_files, compile_latex
 
 
+
+
 def pic_names_iterator(data: dict) -> Iterator[Path]:
     """Iterate over all pics found in data (i.e. all the pictures already analysed)."""
     for d in data.values():
@@ -251,7 +253,7 @@ class MCQPictureParser:
             f"WARNING: Page {p} of test #{ID} seen twice " f'(in "{firstpic}" and "{lastpic}") !'
         )
         action = None
-        keys = ("name", "student ID", "answered")
+        keys = ("name", "student_ID", "answered")
         if all(pic_data[key] == self.data[ID]["pages"][p][key] for key in keys):
             # Same information found on the two pages, just keep one version.
             action = "f"
@@ -325,7 +327,7 @@ class MCQPictureParser:
             # Update all infos.
             self.name2sheetID[name0] = ID0
             self.data[ID0]["name"] = name0
-            self.data[ID0]["student ID"] = student_ID0
+            self.data[ID0]["student_ID"] = student_ID0
             # Ask for a new name for new test too.
             name = self._read_name_manually(doc_id, matrix, default=name)[0]
 
@@ -401,7 +403,7 @@ class MCQPictureParser:
         info = [
             (
                 d["name"],
-                d["student ID"],
+                d["student_ID"],
                 ID,
                 d["score"],
                 [d["pages"][p]["pic_path"] for p in d["pages"]],
@@ -715,7 +717,7 @@ class MCQPictureParser:
                 {
                     "pages": {},
                     "name": name,
-                    "student ID": student_ID,
+                    "student_ID": student_ID,
                     "answered": {},
                     "score": 0,
                     "score_per_question": {},
@@ -761,6 +763,10 @@ class MCQPictureParser:
         # ---------------------------------------------------
         self.generate_output()
 
+    def resolve_conflicts(self):
+        """Resolve conflicts manually: unknown student ID, ambiguous answer..."""
+        pass
+
 
 def scan(
     path: Path,
@@ -770,7 +776,7 @@ def scan(
 ) -> None:
     """Implement `autoqcm scan` command."""
     if verify == "always":
-        manual_verification = True
+        manual_verification: Optional[bool] = True
     elif verify == "never":
         manual_verification = False
     else:

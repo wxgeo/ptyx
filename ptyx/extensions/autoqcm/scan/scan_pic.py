@@ -1,6 +1,6 @@
 from functools import partial
 from math import degrees, atan, hypot
-from typing import Dict, Set, Tuple
+from typing import Dict, Set, Tuple, TypedDict, Optional
 
 from PIL import Image
 from numpy import array, flipud, fliplr, dot, amin, amax, zeros  # , percentile, clip
@@ -39,6 +39,34 @@ CORNER_NAMES = {"tl": "top-left", "tr": "top-right", "bl": "bottom-left", "br": 
 # TODO: calibrate grayscale too.
 # At the bottom of the page, display 5 squares:
 # Black - Gray - Light gray - White - Light gray - Gray - Black
+
+
+# class PicData(TypedDict):
+#     pages: dict
+#     name: str
+#     student_ID: str
+#     answered: dict
+#     score: int
+#     score_per_question: dict
+#     pic_path: str
+
+
+class PicData(TypedDict):
+    # ID of the document:
+    ID: int
+    # page number:
+    page: int
+    name: str
+    student_ID: str
+    # answers checked by the student for each question:
+    answered: Dict[int, Set[int]]
+    # Position of each checkbox in the page:
+    positions: Dict[Tuple[int, int], Tuple[int, int]]
+    cell_size: int
+    # Translation table ({question number before shuffling: after shuffling})
+    questions_nums: Dict[int, int]
+    # Manual verification by the user ?
+    verified: Optional[bool]
 
 
 class CalibrationError(RuntimeError):
@@ -601,7 +629,7 @@ def edit_answers(m, boxes, answered, config, doc_id, xy2ij, cell_size) -> None:
             process = color2debug(m, wait=False)
 
 
-def scan_picture(filename, config, manual_verification=None, debug=False):
+def scan_picture(filename, config, manual_verification=None, debug=False) -> Tuple[PicData, array]:
     """Scan picture and return page identifier and list of answers for each question.
 
     - `filename` is a path pointing to a PNG file.
@@ -619,7 +647,7 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
             {'ID': int,
             'page': int,
             'name': str, # student_name
-            'student ID': str,
+            'student_ID': str,
             # answers checked by the student for each question:
             'answered': dict[int, set[int]],
             # Position of each checkbox in the page:
@@ -880,13 +908,13 @@ def scan_picture(filename, config, manual_verification=None, debug=False):
     answered: Dict[int, Set[int]] = {}
     positions: Dict[Tuple[int, int], Tuple[int, int]] = {}
     displayed_questions_numbers: Dict[int, int] = {}
-    pic_data = {
+    pic_data: PicData = {
         # ID of the test:
         "ID": test_ID,  # int
         # page number:
         "page": page,  # int
         "name": student_name,  # str
-        "student ID": student_ID,  # str
+        "student_ID": student_ID,  # str
         # answers checked by the student for each question:
         "answered": answered,
         # Position of each checkbox in the page:
