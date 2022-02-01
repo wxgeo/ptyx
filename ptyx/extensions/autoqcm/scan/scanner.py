@@ -574,7 +574,7 @@ class MCQPictureParser:
         Return: {hash: pdf path}
         """
         hashes = dict()
-        for path in self.dirs["input"].glob("*.pdf"):
+        for path in self.dirs["input"].glob("**/*.pdf"):
             with open(path, "rb") as pdf_file:
                 hashes[blake2b(pdf_file.read(), digest_size=20).hexdigest()] = path
         return hashes
