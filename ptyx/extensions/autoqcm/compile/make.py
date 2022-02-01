@@ -1,6 +1,8 @@
 """
 Generate pdf file from raw autoqcm file.
 """
+import sys
+import traceback
 from pathlib import Path
 
 from ptyx.compilation import make_files, make_file
@@ -41,6 +43,16 @@ def generate_config_file(compiler):
 
 
 def make(path: Path, num: int = 1, quiet: bool = False) -> None:
+    """Wrapper for _make(), so that `argparse` module don't intercept exceptions. """
+    try:
+        _make(path, num, quiet)
+    except Exception:
+        traceback.print_exc()
+        print("ERROR: `autoqcm make` failed to compile document (see above fo details).")
+        sys.exit(1)
+
+
+def _make(path: Path, num: int = 1, quiet: bool = False) -> None:
     """Implement `autoqcm make` command.
     """
     assert isinstance(num, int)
