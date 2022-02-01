@@ -531,7 +531,7 @@ def edit_answers(m, boxes, answered, config, doc_id, xy2ij, cell_size) -> None:
         ans = input("Is this correct ? [(y)es/(N)o]")
         if ans.lower() in ("y", "yes"):
             process.terminate()
-            process.terminate()
+            break
 
         while True:
             ans = input("Write a question number, or 0 to escape:")
