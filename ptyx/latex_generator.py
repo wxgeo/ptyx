@@ -754,7 +754,7 @@ class Compiler:
 
     Usage:
 
-        >>> from ptyx.latexgenerator import Compiler
+        >>> from ptyx.latex_generator import Compiler
         >>> c = Compiler()
         >>> c.parse('#{a=S(1)/2} + #{b=2} = #{a+b}')
         '\frac{1}{2} + 2 = \frac{5}{2}'

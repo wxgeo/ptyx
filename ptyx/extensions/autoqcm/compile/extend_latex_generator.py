@@ -25,7 +25,7 @@
 
 from functools import partial
 from ptyx.printers import sympy2latex
-from ptyx.latexgenerator import LatexGenerator
+from ptyx.latex_generator import LatexGenerator
 from .header import (
     packages_and_macros,
     ID_band,

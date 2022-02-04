@@ -9,8 +9,8 @@ import re
 from pathlib import Path
 import atexit
 
-from ptyx.latexgenerator import Compiler, Node
-from ptyx.extensions.autoqcm.compile.ptyx2latex import SameAnswerError
+from ptyx.latex_generator import Compiler, Node
+from ptyx.extensions.autoqcm.compile.extend_latex_generator import SameAnswerError
 
 
 TEST_DIR = Path(__file__).parent.resolve()

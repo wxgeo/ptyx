@@ -67,6 +67,7 @@ class PicData(TypedDict):
     questions_nums: Dict[int, int]
     # Manual verification by the user ?
     verified: Optional[bool]
+    pic_path: str
 
 
 class CalibrationError(RuntimeError):

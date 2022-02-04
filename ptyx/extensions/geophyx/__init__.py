@@ -29,7 +29,6 @@ It adds the following commands to pTyX:
 """
 
 import random
-from functools import partial
 
 from wxgeometrie.modules.tablatex import tabval, tabvar, tabsign
 from wxgeometrie.mathlib.parsers import traduire_formule
@@ -37,7 +36,7 @@ from wxgeometrie.mathlib.interprete import Interprete
 from wxgeometrie.geolib import Feuille
 
 from ptyx.config import sympy
-from ptyx.latexgenerator import LatexGenerator
+from ptyx.latex_generator import LatexGenerator
 
 
 # ------------------

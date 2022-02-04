@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional, Dict, Iterable, List, Sequence, Tuple
 
 from ptyx.config import param
-from ptyx.latexgenerator import compiler
+from ptyx.latex_generator import compiler
 
 
 def append_suffix(path: Path, suffix):

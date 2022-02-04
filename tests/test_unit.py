@@ -4,7 +4,7 @@ from os.path import dirname
 import types
 
 import ptyx
-from ptyx.latexgenerator import SyntaxTreeGenerator, Compiler#, parse
+from ptyx.latex_generator import SyntaxTreeGenerator, Compiler#, parse
 from ptyx.utilities import find_closing_bracket, round
 from ptyx.printers import sympy2latex
 from ptyx.randfunc import randchoice, srandchoice, randfrac

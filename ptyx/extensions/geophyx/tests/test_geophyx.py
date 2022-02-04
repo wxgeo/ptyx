@@ -5,7 +5,7 @@ This extension offers a new syntaw to write tests and answers.
 """
 
 
-from ptyx.latexgenerator import Compiler
+from ptyx.latex_generator import Compiler
 
 
 def test_CALC():

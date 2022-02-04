@@ -32,7 +32,7 @@ from pathlib import Path
 from ptyx import __version__
 from ptyx.compilation import make_files
 from ptyx.config import param
-from ptyx.latexgenerator import compiler
+from ptyx.latex_generator import compiler
 from ptyx.utilities import pth
 
 if sys.version_info.major == 2:

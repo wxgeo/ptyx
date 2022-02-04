@@ -10,7 +10,7 @@ import subprocess
 from shutil import rmtree
 from os import listdir, mkdir, rename
 from os.path import join, basename
-from glob import glob
+
 
 PIC_EXTS = (".jpg", ".jpeg", ".png")
 

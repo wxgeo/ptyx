@@ -6,7 +6,7 @@ import traceback
 from pathlib import Path
 
 from ptyx.compilation import make_files, make_file
-from ptyx.latexgenerator import compiler
+from ptyx.latex_generator import compiler
 from ..tools.config_parser import dump
 
 
@@ -62,7 +62,7 @@ def _make(path: Path, num: int = 1, quiet: bool = False) -> None:
         raise FileNotFoundError(f"No .ptyx file found in '{path}'.")
     elif len(all_ptyx_files) > 1:
         raise FileNotFoundError(
-            f"Several .ptyx file found in '{path}', I don't know which to chose."
+            f"Several .ptyx file found in '{path}', I don't know which one to chose."
         )
     ptyx_filename = all_ptyx_files[0]
     # Read pTyX file.

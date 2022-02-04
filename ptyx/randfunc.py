@@ -110,8 +110,6 @@ def srandint(a=None, b=None, exclude=(), maximum=100000):
         val = (-1) ** random.randint(0, 1) * randint(a, b)
         if val not in exclude:
             return val
-    else:
-        raise RuntimeError("Can't satisfy constraints !")
 
 
 @sandboxed
@@ -295,11 +293,11 @@ def randmatrix(size=(3, 3), rank=None, unique=False, func=srandint, **kw):
         raise ValueError("Matrix rank can't exceed lines nor columns number.")
     else:
         while True:
-            matrix = [array([func(**kw) for j in range(size[1])]) for i in range(rank)]
+            matrix = [[func(**kw) for j in range(size[1])] for i in range(rank)]
             if Matrix(matrix).rank() == rank:
                 break
         while len(matrix) < size[0]:
-            matrix.append(sum(srandint() * line for line in matrix))
+            matrix.append(list(sum(srandint() * array(line) for line in matrix)))
     return Matrix(matrix)
 
 
