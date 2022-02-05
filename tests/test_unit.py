@@ -4,7 +4,7 @@ from os.path import dirname
 import types
 
 import ptyx
-from ptyx.latex_generator import SyntaxTreeGenerator, Compiler#, parse
+from ptyx.latex_generator import SyntaxTreeGenerator, Compiler  # , parse
 from ptyx.utilities import find_closing_bracket, round
 from ptyx.printers import sympy2latex
 from ptyx.randfunc import randchoice, srandchoice, randfrac
@@ -13,12 +13,13 @@ TEST_DIR = dirname(__file__)
 
 
 def test_find_closing_bracket():
-    text = '{hello{world} !} etc.'
+    text = "{hello{world} !} etc."
     assert find_closing_bracket(text, 1) == 15
     text = "{'}'}"
     assert find_closing_bracket(text, 1) == 4
     text = "{'}'}"
     assert find_closing_bracket(text, 1, detect_strings=False) == 2
+
 
 def test_round():
     assert round(1.775, 2) == 1.78
@@ -39,9 +40,10 @@ def test_round():
     assert round(-9.545, 3) == -9.545
     assert round(-9.545, 4) == -9.545
 
-    assert round(float('inf'), 4) == float('inf')
-    assert round(float('-inf'), 4) == float('-inf')
-    assert str(round(float('nan'), 4)) == 'nan'
+    assert round(float("inf"), 4) == float("inf")
+    assert round(float("-inf"), 4) == float("-inf")
+    assert str(round(float("nan"), 4)) == "nan"
+
 
 def test_sympy2latex():
     assert sympy2latex(0.0) == "0"
@@ -51,10 +53,9 @@ def test_sympy2latex():
 
 def test_syntax_tree():
     s = SyntaxTreeGenerator()
-    text = 'hello world !'
+    text = "hello world !"
     s.generate_tree(text)
-    tree = \
-"""
+    tree = """
 + Node ROOT
   - text: 'hello world !'
 """.strip()
@@ -62,8 +63,7 @@ def test_syntax_tree():
 
     text = "#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END"
     s.generate_tree(text)
-    tree = \
-"""
+    tree = """
 + Node ROOT
   + Node CONDITIONAL_BLOCK
     + Node IF
@@ -87,11 +87,9 @@ def test_syntax_tree():
 """.strip()
     assert s.syntax_tree.display(color=False) == tree
 
-
     text = "#PYTHON#some comment\nvariable = 2\n#END#ASSERT{variable == 2}"
     s.generate_tree(text)
-    tree = \
-"""
+    tree = """
 + Node ROOT
   + Node PYTHON
     - text: '#some comment\\nvariable  [...]'
@@ -106,7 +104,7 @@ def test_latex_code_generator():
     test = "#{variable=3;b=1;}#{a=2}#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END ok"
     c = Compiler()
     latex = c.parse(test)
-    assert latex == '2some text here ok'
+    assert latex == "2some text here ok"
 
 
 def test_SEED_SHUFFLE():
@@ -122,8 +120,7 @@ def test_SEED_SHUFFLE():
 \\end{enumerate}
 
 "The game is up."'''
-    result = \
-'''Who said "Having nothing, nothing can he lose" ?
+    result = '''Who said "Having nothing, nothing can he lose" ?
 
 \\begin{enumerate} \\item W. Shakespeare \\item R. Bradsbury \\item R. Wallace \\item C. Doyle
 \\end{enumerate}
@@ -132,12 +129,16 @@ def test_SEED_SHUFFLE():
     c = Compiler()
     latex = c.parse(test)
     assert latex == result
+
+
 # ADD A TEST :
 # "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> test that 'message 3' is printed.
 
+
 def test_SEED_SHUFFLE_2():
     tests = []
-    tests.append('''#SEED{153}%
+    tests.append(
+        """#SEED{153}%
 #SHUFFLE
 #ITEM
 a
@@ -145,8 +146,10 @@ a
 b
 #ITEM
 c
-#END''')
-    tests.append('''#SEED{153}%
+#END"""
+    )
+    tests.append(
+        """#SEED{153}%
 #SHUFFLE
 
 #ITEM
@@ -155,8 +158,10 @@ a
 b
 #ITEM
 c
-#END''')
-    tests.append('''#SEED{153}%
+#END"""
+    )
+    tests.append(
+        """#SEED{153}%
 #SHUFFLE
  #ITEM
 a
@@ -164,19 +169,19 @@ a
 b
 #ITEM
 c
-#END''')
+#END"""
+    )
     c = Compiler()
     results = []
     for test in tests:
         results.append(c.parse(test))
-    assert results[0] == '%\nc\na\nb'
-    assert results[1] == '%\n\nc\na\nb'
-    assert results[2] == '%\nc\na\nb'
-
+    assert results[0] == "%\nc\na\nb"
+    assert results[1] == "%\n\nc\na\nb"
+    assert results[2] == "%\nc\na\nb"
 
 
 def test_PICK():
-    test = '''
+    test = """
     And the winner is:
     #PICK
     #ITEM
@@ -187,22 +192,23 @@ def test_PICK():
     3
     #ITEM
     4
-    #END_PICK'''
+    #END_PICK"""
     c = Compiler()
     c.read_code(test)
     c.preparse()
     # Tweak seed.
-    c._state['seed'] = 1
+    c._state["seed"] = 1
     c.generate_syntax_tree()
     g = c.latex_generator
     assert g.NUM == 0
 
     # Tweak seed again.
-    c._state['seed'] = 5
+    c._state["seed"] = 5
     assert g.NUM == 0
     latex = c.get_latex()
-    latex = re.sub(r'\s+', ' ', latex).strip()
-    assert latex == 'And the winner is: 3'
+    latex = re.sub(r"\s+", " ", latex).strip()
+    assert latex == "And the winner is: 3"
+
 
 def test_CASE():
     test = "#CASE{0}first case#CASE{1}second case#CASE{2}third one#END#CASE{1} bonus#END this is something else."
@@ -211,6 +217,7 @@ def test_CASE():
     latex = c.parse(test, PTYX_NUM=1)
     assert latex == result
 
+
 def test_IF_ELIF_ELSE():
     test = r"#{a=1;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=0;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=2;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END."
     result = r"10{}2."
@@ -218,12 +225,14 @@ def test_IF_ELIF_ELSE():
     latex = c.parse(test)
     assert latex == result
 
+
 def test_MACRO():
     test = r"#MACRO{a0}#IF{a==0}$a=0$#ELSE$a\neq 0$#END#END_MACRO#{a=0;}Initially #CALL{a0}#{a=2;}, but now #CALL{a0}."
     result = r"Initially $a=0$, but now $a\neq 0$."
     c = Compiler()
     latex = c.parse(test)
     assert latex == result
+
 
 def test_randchoice():
     for i in range(1000):
@@ -240,33 +249,35 @@ def test_randfrac():
 
 def test_latex_newcommand():
     # \newcommand parameters #1, #2... are not tags.
-    test = r'''\newcommand{\rep}[1]{\ding{114}\,\,#1\hfill}'''
+    test = r"""\newcommand{\rep}[1]{\ding{114}\,\,#1\hfill}"""
     result = test
     c = Compiler()
     latex = c.parse(test)
     assert latex == result
 
+
 def test_TEST():
-    test = r'''#{hxA=2;}#{yA=3;}\fbox{#TEST{hxA==yA}{is in}{isn't in}}'''
-    result = r'''\fbox{isn't in}'''
+    test = r"""#{hxA=2;}#{yA=3;}\fbox{#TEST{hxA==yA}{is in}{isn't in}}"""
+    result = r"""\fbox{isn't in}"""
     c = Compiler()
     latex = c.parse(test)
     assert latex == result
 
+
 def test_MUL():
     # Test 1
-    test = r'''
+    test = r"""
 #PYTHON
 a=-8
 b=4
 c=5
 d=8
 #END
-$\dfrac{#a#*(#{c*x+d})#-#{a*x+b}#*#c}{(#{c*x+d})^2}$'''
-    result = r'''
-$\dfrac{-8\times (5 x + 8)-\left(- 8 x + 4\right)\times 5}{(5 x + 8)^2}$'''
-    alternative_result = r'''
-$\dfrac{-8\times (5 x + 8)-\left(4 - 8 x\right)\times 5}{(5 x + 8)^2}$'''
+$\dfrac{#a#*(#{c*x+d})#-#{a*x+b}#*#c}{(#{c*x+d})^2}$"""
+    result = r"""
+$\dfrac{-8\times (5 x + 8)-\left(- 8 x + 4\right)\times 5}{(5 x + 8)^2}$"""
+    alternative_result = r"""
+$\dfrac{-8\times (5 x + 8)-\left(4 - 8 x\right)\times 5}{(5 x + 8)^2}$"""
     c = Compiler()
     latex = c.parse(test)
     assert latex == result or latex == alternative_result
@@ -278,31 +289,44 @@ $\dfrac{-8\times (5 x + 8)-\left(4 - 8 x\right)\times 5}{(5 x + 8)^2}$'''
     latex = c.parse(test)
     assert latex == result
 
-def test_MUL_SUB_Add_expr():
-    test = r'''
+
+def test_MUL_SUB_ADD_expr():
+    test = r"""
 #PYTHON
 a = 6
 b = 6
 c = 5
+d = -4
 #END
 $#a#*#{b*x+c}$
-$#a#-#{b*x+c}$'''
-    result = r'''
+$#a#-#{b*x+c}$
+$#a#+#d$"""
+    result = r"""
 $6\times \left(6 x + 5\right)$
-$6-\left(6 x + 5\right)$'''
+$6-\left(6 x + 5\right)$
+$6-4$"""
     c = Compiler()
     latex = c.parse(test)
     assert latex == result
 
+
+def test_EVAL_abs():
+    test = r"$#{abs(-5)}$"
+    result = r"$5$"
+    c = Compiler()
+    latex = c.parse(test)
+    assert latex == result
+
+
 def test_ADD():
-    test = r'''
+    test = r"""
 #PYTHON
 a = 2
 b = 3
 #END
-$#a#+\dfrac{#b}{x}$'''
-    result = r'''
-$2+\dfrac{3}{x}$'''
+$#a#+\dfrac{#b}{x}$"""
+    result = r"""
+$2+\dfrac{3}{x}$"""
     c = Compiler()
     latex = c.parse(test)
     assert latex == result
@@ -311,8 +335,7 @@ $2+\dfrac{3}{x}$'''
 def test_INCLUDE():
     os.chdir(TEST_DIR)
     test = "#SEED{99}First, $a=#{a=7}$#INCLUDE{include_example.txt}Last, $a=#a$ still."
-    result = \
-"""First, $a=7$
+    result = """First, $a=7$
 This is an example of a file
 that can be included using INCLUDE tag.
 It may contain some pTyX code...
@@ -322,15 +345,14 @@ Last, $a=7$ still."""
     latex = c.parse(test)
     assert latex == result
 
+
 def test_INCLUDE_newline():
     os.chdir(TEST_DIR)
-    test = \
-"""#SEED{99}
+    test = """#SEED{99}
 First, $a=#{a=7}$
 #INCLUDE{include_example.txt}
 Last, $a=#a$ still."""
-    result = \
-"""
+    result = """
 First, $a=7$
 
 This is an example of a file
@@ -345,8 +367,7 @@ Last, $a=7$ still."""
 
 
 def test_comments():
-    test = \
-"""# Let's test comments.
+    test = """# Let's test comments.
 First, $a=#{a=7}$ # This is a comment
 # This is another comment
 # Comment are introduced using an hashtag followed by a space : # comment
@@ -356,8 +377,7 @@ Last, $a=#a$ still.
 # before parsing).
 ## is just displayed as a hash, it is not a comment.
 # # is comment though."""
-    result = \
-"""First, $a=7$
+    result = """First, $a=7$
 Last, $a=7$ still.
 7777
 # is just displayed as a hash, it is not a comment.
@@ -366,6 +386,7 @@ Last, $a=7$ still.
     latex = c.parse(test)
     assert latex == result
 
+
 def main():
     for varname, content in globals().items():
         if varname.startswith("test_") and type(content) == types.FunctionType:
@@ -373,5 +394,5 @@ def main():
             content()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

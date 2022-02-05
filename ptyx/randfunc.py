@@ -320,9 +320,21 @@ def many(n=2, func=srandint, unique=True, **kw):
 
 
 def distinct(*vals):
-    """Test that all values are distincts.
+    """Test that all values are distinct.
 
-    Values must be either immutables or convertible to tuples."""
+    Values must be either immutable or convertible to tuples::
+
+    >>> distinct(1, 2, 3)
+    True
+    >>> distinct(1, 1, 3)
+    False
+    >>> distinct(5, 4, 5.0)
+    False
+    >>> distinct((1, 2), {1, 3})
+    True
+    >>> distinct((1, 2), {1, 2})
+    False
+    """
     try:
         return len(set(vals)) == len(vals)
     except TypeError:

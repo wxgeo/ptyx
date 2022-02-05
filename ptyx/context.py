@@ -2,6 +2,7 @@ import random
 import math
 
 import numpy
+import builtins
 
 import ptyx.randfunc as randfunc
 from ptyx.printers import sympy2latex
@@ -9,6 +10,40 @@ from ptyx.config import sympy
 
 
 GLOBAL_CONTEXT = dict()
+
+for fname in [
+    "abs",
+    "all",
+    "any",
+    "ascii",
+    "bin",
+    "callable",
+    "chr",
+    "divmod",
+    "format",
+    "getattr",
+    "hasattr",
+    "hash",
+    "hex",
+    "id",
+    "isinstance",
+    "issubclass",
+    "iter",
+    "len",
+    "max",
+    "min",
+    "next",
+    "oct",
+    "ord",
+    "pow",
+    "print",
+    "repr",
+    "round",
+    "sorted",
+    "sum",
+]:
+    GLOBAL_CONTEXT[fname] = getattr(builtins, fname)
+
 
 if sympy is not None:
     GLOBAL_CONTEXT["sympy"] = sympy
@@ -53,6 +88,7 @@ for fname in (
     "_print_state",
 ):
     GLOBAL_CONTEXT[fname] = getattr(randfunc, fname)
+
 # If a document is compiled several times (to produce different versions of the same document),
 # PTYX_NUM is the compilation number (starting from 0).
 GLOBAL_CONTEXT["PTYX_NUM"] = 0
