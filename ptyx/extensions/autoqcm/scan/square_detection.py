@@ -21,7 +21,7 @@ COLORS = {
 
 
 def top_left_iterator(stop, step=1):
-    "Return an iterator for coordinates starting from top-left corner."
+    """Return an iterator for coordinates starting from top-left corner."""
     # Pixels are visited starting from top-left corner
     # in the following order:
     # 1  3  8  15
@@ -78,7 +78,7 @@ def find_black_rectangle(
     goal = per_line * height
     to_avoid = []
     # Find a black pixel, starting from top left corner,
-    # and scanning line by line (ie. from top to bottom).
+    # and scanning line by line (i.e. from top to bottom).
     if mode == "row":
         black_pixels = nonzero(m)
     elif mode == "column":
@@ -90,7 +90,7 @@ def find_black_rectangle(
     if debug:
         print(mode, black_pixels)
     for (i, j) in zip(*black_pixels):
-        # Avoid to detect an already found square.
+        # Avoid detecting an already found square.
         if debug:
             print("Black pixel found at %s, %s" % (i, j))
         # ~ color2debug(m.astype(float), (i, j), (i + width, j + height), color=(255,0,255))
@@ -111,16 +111,16 @@ def find_black_rectangle(
         if total >= goal:
             # ~ print("\nBlack square found at (%s,%s)." % (i, j))
             # Adjust detection if top left corner is a bit "damaged"
-            # (ie. if some pixels are missing there), or if this pixel is
+            # (i.e. if some pixels are missing there), or if this pixel is
             # only an artefact before the square.
             if debug:
                 color2debug(matrix, (i, j), (i + 2, j + 2), fill=True)
             i0 = i
             j0 = j
-            # Note: limit adjustement range (in case there are two consecutive squares)
+            # Note: limit adjustment range (in case there are two consecutive squares)
             for _i in range(50):
                 horizontal = vertical = False
-                # Horizontal adjustement:
+                # Horizontal adjustment:
                 try:
                     while abs(j - j0) < error * width and (
                         m[i : i + height, j + width + 1].sum()
@@ -149,7 +149,7 @@ def find_black_rectangle(
                             horizontal = True
                     except IndexError:
                         pass
-                # Vertical adjustement:
+                # Vertical adjustment:
                 try:
                     while (
                         abs(i - i0) < error * height
@@ -199,7 +199,7 @@ def find_black_rectangle(
             #      ←——————————→  ←———————————————————→
             #      ≃ error*size          size
 
-            # Avoid to detect an already found square.
+            # Avoid detecting an already found square.
             if any(
                 (li_min <= i <= li_max and co_min <= j <= co_max)
                 for (li_min, li_max, co_min, co_max) in to_avoid
@@ -337,10 +337,10 @@ def color2debug(
     _d={},
     wait=True,
 ):
-    """Display picture with a red (by default) rectangle for debuging.
+    """Display picture with a red (by default) rectangle for debugging.
 
     `array` is an array containing the image data (image must be gray mode,
-    each pixel represented by a float from 0 (black) to 1 (white).
+    each pixel represented by a float from 0 (black) to 1 (white)).
     `from_` represent one corner of the red rectangle.
     `to_` represent opposite corner of the red rectangle.
     `color` is given as a RGB tuple ([0-255], [0-255], [0-255]).
@@ -357,7 +357,7 @@ def color2debug(
     NOTA:
     - `feh` must be installed.
       On Ubuntu/Debian: sudo apt-get install feh
-    - Left-dragging the picture with mouse inside feh removes bluring/anti-aliasing,
+    - Left-dragging the picture with mouse inside feh removes blurring/anti-aliasing,
       making visual debugging a lot easier.
     """
     if array is None:
@@ -385,7 +385,7 @@ def color2debug(
         jmin, jmax = int(min(j1, j2)), int(max(j1, j2))
 
         def set_pix(i, j, color):
-            "Set safely pixel color (if `i` or `j` is incorrect, do nothing)."
+            """Set safely pixel color (if `i` or `j` is incorrect, do nothing)."""
             if 0 <= i < height and 0 <= j < width:
                 pix[j, i] = color
 
