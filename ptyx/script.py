@@ -71,8 +71,8 @@ class PtyxArgumentParser(argparse.ArgumentParser):
         self.add_argument(
             "-f",
             "--formats",
-            default=param["default_format"],
-            choices=["pdf", "tex", "pdf+tex", "tex+pdf"],
+            default=param["default_formats"],
+            choices=param["formats"],
             help="Output format. Default is %(default)s.\n" "Ex: ptyx -f tex my_file.ptyx",
         )
         self.add_argument(

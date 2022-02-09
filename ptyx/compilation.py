@@ -93,6 +93,14 @@ def make_files(
     _nums: Iterable[int] = None,
     **options,
 ) -> Tuple[Path, List[int]]:
+    """Generate the tex and pdf files.
+
+    - `correction`: if True, include the solutions of the exercises
+    - `fixed_number_of_pages`: if True, all pdf files must have the same number of pages
+    - `context`: parameters to be passed to the LaTeX generator.
+    - `quiet`: if True, turn off debugging information
+    - `remove`: if True, remove `.compile` folder after successful compilation.
+    """
 
     target = options.get("number_of_documents", param["total"])
     # `_nums` is used when generating the answers of the quiz.
@@ -104,7 +112,7 @@ def make_files(
         target = len(_nums)
     if context is None:
         context = {"PTYX_WITH_ANSWERS": correction}
-    formats = options.get("formats", param["formats"])
+    formats = options.get("formats", param["default_formats"].split("+"))
 
     # Create an empty `.compile/{input_name}` subfolder.
     compilation_dir = input_name.parent / ".compile" / input_name.stem
@@ -126,7 +134,7 @@ def make_files(
     # filenames: List[Path] = []
     pages_per_document: Dict[int, Dict[int, Path]] = {}
 
-    # Compilation number, used to initialize random numbers generator.
+    # Compilation number, used to initialize random numbers' generator.
     num = options.get("start", 1)
     assert target is not None
     while len(compilation_info) < target:
@@ -220,7 +228,7 @@ def make_file(
     # Raise an error if input_format and output_format are both set to tex.
     infos = {}
     if formats is None:
-        formats = param["formats"]
+        formats = param["default_formats"].split("+")
     if context is None:
         context = {}
 
@@ -283,8 +291,9 @@ def join_files(output_basename: Path, pdfnames: Sequence[Path], seed_file_name=N
         pdfnames = [str(filename) + ".pdf" for filename in pdfnames]
 
         files = " ".join(f'"{filename}"' for filename in pdfnames)
-        print("Pdftk output:")
-        print(execute(f'pdftk {files} output "{pdf_name}"'))
+        if len(pdfnames) > 1:
+            print("Pdftk output:")
+            print(execute(f'pdftk {files} output "{pdf_name}"'))
         if options.get("remove_all"):
             for name in pdfnames:
                 os.remove(name)
