@@ -42,17 +42,17 @@ def generate_config_file(compiler):
     dump(config_file, autoqcm_data)
 
 
-def make(path: Path, num: int = 1, quiet: bool = False) -> None:
+def make(path: Path, num: int = 1, start: int = 1, quiet: bool = False) -> None:
     """Wrapper for _make(), so that `argparse` module don't intercept exceptions. """
     try:
-        _make(path, num, quiet)
+        _make(path, num, start, quiet)
     except Exception:
         traceback.print_exc()
         print("ERROR: `autoqcm make` failed to compile document (see above fo details).")
         sys.exit(1)
 
 
-def _make(path: Path, num: int = 1, quiet: bool = False) -> None:
+def _make(path: Path, num: int = 1, start: int = 1, quiet: bool = False) -> None:
     """Implement `autoqcm make` command.
     """
     assert isinstance(num, int)
@@ -83,6 +83,7 @@ def _make(path: Path, num: int = 1, quiet: bool = False) -> None:
         number_of_documents=num,
         fixed_number_of_pages=True,
         quiet=quiet,
+        start=start,
     )
     generate_config_file(compiler)
 
@@ -96,9 +97,14 @@ def _make(path: Path, num: int = 1, quiet: bool = False) -> None:
     assert nums2 == nums, repr((nums, nums2))
 
     # Generate a document including the different versions of all the questions.
-    pdf_with_all_versions = (output_name.parent / output_name.stem).with_suffix(".all.pdf")
     make_file(
-        pdf_with_all_versions,
+        (output_name.parent / output_name.stem).with_suffix(".all.pdf"),
+        context={"AUTOQCM_KEEP_ALL_VERSIONS": True},
+        quiet=quiet,
+    )
+    # Generate a document including the different versions of all the questions with the correct answers checked.
+    make_file(
+        (output_name.parent / output_name.stem).with_suffix(".all-corr.pdf"),
         context={"AUTOQCM_KEEP_ALL_VERSIONS": True, "PTYX_WITH_ANSWERS": True},
         quiet=quiet,
     )

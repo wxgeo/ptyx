@@ -36,6 +36,14 @@ def main(args: Optional[list] = None) -> None:
         default=1,
         help="Specify how many versions of the document must be generated.",
     )
+    make_parser.add_argument(
+        "--start",
+        "-s",
+        metavar="START",
+        type=int,
+        default=1,
+        help="First document number (default=1).",
+    )
     make_parser.add_argument("--quiet", "-q", action="store_true", help="Hide pdflatex output.")
     make_parser.set_defaults(func=make)
 
