@@ -2,6 +2,7 @@ import random
 import functools
 from collections import namedtuple
 from math import gcd
+from typing import Callable
 
 from numpy import array
 
@@ -33,7 +34,7 @@ class Point(namedtuple("Point", ["x", "y"])):
 
 
 def _print_state():
-    "For debuging purpose."
+    """For debuging purpose."""
     print(29 * "*")
     print("randfunc._RANDOM_STATE value:")
     print(hash(_RANDOM_STATE))
@@ -144,7 +145,7 @@ def srandpoint(a=None, b=None, exclude=()):
 
 
 def is_mult_2_5(val):
-    "Test if integer val matches 2^n*5^m."
+    """Test if integer val matches 2^n*5^m."""
     if sympy:
         ints = (sympy.Integer, int)
     else:
@@ -254,13 +255,24 @@ def srandchoice(*items, **kw):
 
 
 @sandboxed
-def shuffle(l, _random=None):
-    random.shuffle(l, _random)
+def shuffle(items: list, _random: Callable[[], float] = None) -> None:
+    random.shuffle(items, _random)
+
+
+@sandboxed
+def randmaketrans(string, _random=None):
+    """Shuffle string letters and return a random translation table usable for str.translate()."""
+    letters = list(string)
+    if len(letters) != len(set(letters)):
+        raise ValueError(f"Same letter appears twice in {string!r}.")
+    random.shuffle(letters, _random)
+    shuffled_string = "".join(l)
+    return str.maketrans(string, shuffled_string)
 
 
 @sandboxed
 def randfloat(a, b, d=5, exclude=[]):
-    k = 10 ** d
+    k = 10**d
     exclude = {int(round(v * k)) for v in exclude}
     while True:
         n = randint(int(round(a * k)) + 1, int(round(b * k)) - 1)
@@ -307,7 +319,7 @@ def many(n=2, func=srandint, unique=True, **kw):
     By default, every number is unique.
     Note this can lead to infinite recursion if n is too large and
     `unique` is set to True (default value)."""
-    l = []
+    values = []
     kw.setdefault("exclude", [])
     # Make a copy of `exclude`, to not modify the given list.
     kw["exclude"] = list(kw["exclude"])
@@ -315,8 +327,8 @@ def many(n=2, func=srandint, unique=True, **kw):
         val = func(**kw)
         if unique:
             kw["exclude"].append(val)
-        l.append(val)
-    return l
+        values.append(val)
+    return values
 
 
 def distinct(*vals):

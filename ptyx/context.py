@@ -86,6 +86,7 @@ for fname in (
     "many",
     "distinct",
     "_print_state",
+    "randmaketrans",
 ):
     GLOBAL_CONTEXT[fname] = getattr(randfunc, fname)
 
