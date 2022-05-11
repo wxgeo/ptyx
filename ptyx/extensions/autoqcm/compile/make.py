@@ -4,6 +4,7 @@ Generate pdf file from raw autoqcm file.
 import sys
 import traceback
 from pathlib import Path
+from typing import List
 
 from ptyx.compilation import make_files, make_file
 from ptyx.latex_generator import compiler
@@ -46,9 +47,9 @@ def make(path: Path, num: int = 1, start: int = 1, quiet: bool = False) -> None:
     """Wrapper for _make(), so that `argparse` module don't intercept exceptions. """
     try:
         _make(path, num, start, quiet)
-    except Exception:
+    except Exception:  # noqa
         traceback.print_exc()
-        print("ERROR: `autoqcm make` failed to compile document (see above fo details).")
+        print("ERROR: `autoqcm make` failed to compile document (see above for details).")
         sys.exit(1)
 
 
@@ -57,7 +58,7 @@ def _make(path: Path, num: int = 1, start: int = 1, quiet: bool = False) -> None
     """
     assert isinstance(num, int)
     path = path.resolve()
-    all_ptyx_files = list(path.glob("*.ptyx")) if path.suffix != ".ptyx" else path
+    all_ptyx_files: List[Path] = list(path.glob("*.ptyx")) if path.suffix != ".ptyx" else [path]
     if len(all_ptyx_files) == 0:
         raise FileNotFoundError(f"No .ptyx file found in '{path}'.")
     elif len(all_ptyx_files) > 1:
