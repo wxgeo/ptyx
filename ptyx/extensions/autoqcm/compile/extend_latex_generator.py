@@ -372,10 +372,10 @@ class AutoQCMLatexGenerator(LatexGenerator):
     def _parse_ANSWERS_LIST_tag(self, node):
         """This tag generates answers from a python list.
 
-        Tag usage: #L_ANSWERS{list_of_answers}{list_of_correct_answers}
+        Tag usage: #ANSWERS_LIST{list_of_answers}{list_of_correct_answers}
 
         Example:
-        #L_ANSWERS{l}{[l[0]]} or #L_ANSWERS{l}{l[0],}
+        #ANSWERS_LIST{l}{[l[0]]} or #ANSWERS_LIST{l}{l[0],}
         When using the last syntax, the coma is mandatory.
 
         Note that if the elements of the lists are not strings, they will be

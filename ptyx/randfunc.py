@@ -266,12 +266,12 @@ def randmaketrans(string, _random=None):
     if len(letters) != len(set(letters)):
         raise ValueError(f"Same letter appears twice in {string!r}.")
     random.shuffle(letters, _random)
-    shuffled_string = "".join(l)
+    shuffled_string = "".join(letters)
     return str.maketrans(string, shuffled_string)
 
 
 @sandboxed
-def randfloat(a, b, d=5, exclude=[]):
+def randfloat(a, b, d=5, exclude=()):
     k = 10**d
     exclude = {int(round(v * k)) for v in exclude}
     while True:
@@ -281,7 +281,7 @@ def randfloat(a, b, d=5, exclude=[]):
 
 
 @sandboxed
-def srandfloat(a, b, d=5, exclude=[]):
+def srandfloat(a, b, d=5, exclude=()):
     return float(randsign()) * randfloat(a, b, d, exclude)
 
 

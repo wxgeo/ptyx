@@ -47,6 +47,7 @@ def make(path: Path, num: int = 1, start: int = 1, quiet: bool = False) -> None:
     """Wrapper for _make(), so that `argparse` module don't intercept exceptions. """
     try:
         _make(path, num, start, quiet)
+        print(f"Congratulations ! Document was successfully generated in {num} versions.")
     except Exception:  # noqa
         traceback.print_exc()
         print("ERROR: `autoqcm make` failed to compile document (see above for details).")
