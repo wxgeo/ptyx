@@ -61,6 +61,7 @@ One may include some PTYX code of course.
     """
 
 import re
+from pathlib import Path
 
 from ptyx.extensions import extended_python
 
@@ -131,6 +132,7 @@ def main(text, compiler):
         file_found = False
         pattern = match.group(1).strip()
         contents = []
+        path: Path
         for path in sorted(compiler.dir_path.glob(pattern)):
             if path.is_file():
                 file_found = True
@@ -147,7 +149,8 @@ def main(text, compiler):
                             or line.startswith("OR ")
                             or line.rstrip() in ("*", ">", "OR")
                         ):
-                            lines.append(f'#PRINT{{IMPORT DE "{path}"}}')
+                            prettified_path = path.parent / f"\u001b[36m{path.name}\u001b[0m"
+                            lines.append(f'#PRINT{{\u001b[36mIMPORTING\u001b[0m "{prettified_path}"}}')
                     contents.append("\n".join(lines))
         if not file_found:
             print(f"WARNING: no file corresponding to {pattern!r} !")

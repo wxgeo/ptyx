@@ -45,6 +45,9 @@ def main(args: Optional[list] = None) -> None:
         help="First document number (default=1).",
     )
     make_parser.add_argument("--quiet", "-q", action="store_true", help="Hide pdflatex output.")
+    make_parser.add_argument(
+        "--correction-only", "-co", action="store_true", help="Generate only correction for fast testing."
+    )
     make_parser.set_defaults(func=make)
 
     # create the parser for the "scan" command
@@ -83,8 +86,7 @@ def main(args: Optional[list] = None) -> None:
         "--ask-for-name",
         action="store_true",
         default=False,
-        help="For each first page, display a picture of "
-        "the top of the page and ask for the student name.",
+        help="For each first page, display a picture of " "the top of the page and ask for the student name.",
     )
 
     scan_parser.set_defaults(func=scan)

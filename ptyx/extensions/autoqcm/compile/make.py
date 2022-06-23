@@ -43,19 +43,26 @@ def generate_config_file(compiler):
     dump(config_file, autoqcm_data)
 
 
-def make(path: Path, num: int = 1, start: int = 1, quiet: bool = False) -> None:
+def make(path: Path, num: int = 1, start: int = 1, quiet: bool = False, correction_only: bool = False) -> None:
     """Wrapper for _make(), so that `argparse` module don't intercept exceptions. """
     try:
-        _make(path, num, start, quiet)
-        print(f"Congratulations ! Document was successfully generated in {num} versions.")
-    except Exception:  # noqa
-        traceback.print_exc()
-        print("ERROR: `autoqcm make` failed to compile document (see above for details).")
+        _make(path, num, start, quiet, correction_only)
+        print(f"\n\u001b[32;1mCongratulations ! Document was successfully generated in {num} version(s).\u001b[0m")
+    except Exception as e:  # noqa
+        if hasattr(e, "msg"):
+            traceback.print_tb(e.__traceback__)
+            print(e.msg)
+            print(f"\u001b[31m{e.__class__.__name__}:\u001b[0m {e}")
+        else:
+            traceback.print_exc()
+        print("\n\u001b[31;1mERROR: `autoqcm make` failed to compile document (see above for details).\u001b[0m")
         sys.exit(1)
 
 
-def _make(path: Path, num: int = 1, start: int = 1, quiet: bool = False) -> None:
+def _make(path: Path, num: int = 1, start: int = 1, quiet: bool = False, correction_only: bool = False) -> None:
     """Implement `autoqcm make` command.
+
+    If `only_correction` is `True`, only generate correction (useful for fast testing).
     """
     assert isinstance(num, int)
     path = path.resolve()
@@ -81,6 +88,7 @@ def _make(path: Path, num: int = 1, start: int = 1, quiet: bool = False) -> None
     # Compile and generate output files (tex or pdf)
     output_name, nums = make_files(
         ptyx_filename,
+        correction=correction_only,
         compress=True,
         number_of_documents=num,
         fixed_number_of_pages=True,
@@ -95,18 +103,19 @@ def _make(path: Path, num: int = 1, start: int = 1, quiet: bool = False) -> None
     with open(seed_file_name, "w") as seed_file:
         seed_file.write(str(seed_value))
 
-    _, nums2 = make_files(ptyx_filename, correction=True, _nums=nums, compress=True, quiet=quiet)
-    assert nums2 == nums, repr((nums, nums2))
+    if not correction_only:
+        _, nums2 = make_files(ptyx_filename, correction=True, _nums=nums, compress=True, quiet=quiet)
+        assert nums2 == nums, repr((nums, nums2))
 
-    # Generate a document including the different versions of all the questions.
-    make_file(
-        (output_name.parent / output_name.stem).with_suffix(".all.pdf"),
-        context={"AUTOQCM_KEEP_ALL_VERSIONS": True},
-        quiet=quiet,
-    )
-    # Generate a document including the different versions of all the questions with the correct answers checked.
-    make_file(
-        (output_name.parent / output_name.stem).with_suffix(".all-corr.pdf"),
-        context={"AUTOQCM_KEEP_ALL_VERSIONS": True, "PTYX_WITH_ANSWERS": True},
-        quiet=quiet,
-    )
+        # Generate a document including the different versions of all the questions.
+        make_file(
+            (output_name.parent / output_name.stem).with_suffix(".all.pdf"),
+            context={"AUTOQCM_KEEP_ALL_VERSIONS": True},
+            quiet=quiet,
+        )
+        # Generate a document including the different versions of all the questions with the correct answers checked.
+        make_file(
+            (output_name.parent / output_name.stem).with_suffix(".all-corr.pdf"),
+            context={"AUTOQCM_KEEP_ALL_VERSIONS": True, "PTYX_WITH_ANSWERS": True},
+            quiet=quiet,
+        )

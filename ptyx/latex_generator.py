@@ -1,4 +1,5 @@
 import re
+import sys
 from functools import partial
 from os.path import dirname, basename, join
 import random
@@ -302,11 +303,11 @@ class LatexGenerator:
         # INCLUDE tag is used to insert code in isolated mode **before** syntax tree is built.
         pass
 
-    def _parse_PYTHON_tag(self, node: Node):
-        assert len(node.children) == 1
-        python_code = node.children[0]
+    @staticmethod
+    def _format_python_code_snippet(python_code) -> List[str]:
+        """Return a list of prettified lines of python code, ready to be printed."""
         msg = ["", "%s %s Executing following python code:" % (chr(9474), chr(9998))]
-        lines = python_code.split("\n")
+        lines = [''] + python_code.split("\n") + ['']
         zfill = len(str(len(lines)))
         msg.extend(
             "%s %s %s %s" % (chr(9474), str(i).zfill(zfill), chr(9474), line)
@@ -316,8 +317,12 @@ class LatexGenerator:
         msg.insert(1, chr(9581) + n * chr(9472))
         msg.insert(3, chr(9500) + n * chr(9472))
         msg.append(chr(9584) + n * chr(9472))
-        print("\n".join(msg))
         assert isinstance(python_code, str)
+        return msg
+
+    def _parse_PYTHON_tag(self, node: Node):
+        assert len(node.children) == 1
+        python_code = node.children[0]
         self._exec_python_code(python_code, self.context)
 
     # Remove comments before generating tree ?
@@ -573,25 +578,30 @@ class LatexGenerator:
     def _exec(code, context):
         """exec is encapsulated in this function so as to avoid problems
         with free variables in nested functions."""
-        try:
-            exec(code, context)
-        except Exception:
-            print("** ERROR found in the following code: **")
-            print(code)
-            print("-----")
-            print(repr(code))
-            print("-----")
-            raise
+        exec(code, context)
+
 
     def _exec_python_code(self, code: str, context: dict):
         code = code.replace("\r", "")
         code = code.rstrip().lstrip("\n")
+        msg = self._format_python_code_snippet(code)
         # Indentation test
         initial_indent = len(code) - len(code.lstrip(" "))
         if initial_indent:
             # remove initial indentation
             code = "\n".join(line[initial_indent:] for line in code.split("\n"))
-        self._exec(code, context)
+        try:
+            self._exec(code, context)
+        except Exception as e:  # noqa
+            lineno = None
+            for tb in traceback.extract_tb(e.__traceback__):
+                if tb.name == "<module>":
+                    i = tb.lineno + 4
+                    msg[i] = f"\u001b[33m{msg[i]}\u001b[0m"
+                    break
+            e.msg = "\n".join(msg)
+            raise
+
         return code
 
     def _eval_python_expr(self, code: str):
@@ -951,13 +961,15 @@ class Compiler:
         randfunc.set_seed(seed)
         try:
             gen.parse_node(tree)
-        except Exception:
+        except Exception as e:
             print("\n*** Error occurred while generating code. ***")
             print("This is current compiler state for debugging purpose:")
             print(80 * "-")
             print("... " + "".join(gen.context["PTYX_LATEX"][-10:]))
             print(80 * "-")
             print("")
+            if hasattr(e, "msg"):
+                print(e.msg)
             raise
         latex = gen.read()
         if "API_VERSION" not in gen.context:
