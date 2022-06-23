@@ -105,7 +105,7 @@ def make_files(
     target = options.get("number_of_documents", param["total"])
     # `_nums` is used when generating the answers of the quiz.
     # In the first pass, when generating the quizzes, some numbers may
-    # have been skipped (because they don't satisfy the page number constraint).
+    # have been skipped (because they don't satisfy the pages number constraint).
     if _nums is not None:
         assert correction
         _nums = list(_nums)  # make a copy
@@ -139,7 +139,7 @@ def make_files(
     assert target is not None
     while len(compilation_info) < target:
         # 1. Generate context.
-        if correction:
+        if correction and _nums is not None:
             num = _nums.pop(0)
         context.update(PTYX_NUM=num)
         filename = append_suffix(output_basename, f"-{num}") if target > 1 else output_basename
