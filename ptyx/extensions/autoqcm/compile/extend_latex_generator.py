@@ -401,7 +401,7 @@ class AutoQCMLatexGenerator(LatexGenerator):
         for ans in correct_answers:
             if ans not in answers:
                 raise RuntimeError(
-                    "#ANSWERS_LIST: correct answer {ans} is not in proposed answers list {answers}!"
+                    f"#ANSWERS_LIST: correct answer {ans!r} is not in proposed answers list {answers!r}!"
                 )
 
         for ans in answers:
@@ -445,9 +445,12 @@ class AutoQCMLatexGenerator(LatexGenerator):
         ids=~/my_students_ids_and_names.csv
         names=~/my_students_names.csv
         id_format=8 digits
+        ---------------------------
+        # Custom lines to include at the end of the LaTeX preamble.
         ===========================
         """
         sty = ""
+        raw_latex = []
         #    if self.WITH_ANSWERS:
         #        self.context['format_ask'] = (lambda s: '')
         try:
@@ -473,14 +476,19 @@ class AutoQCMLatexGenerator(LatexGenerator):
             }
             # Read config
             config = {}
+            remaining_is_raw_latex = False
             for line in node.arg(0).split("\n"):
-                if "=" not in line:
-                    continue
-                key, val = line.split("=", maxsplit=1)
-                # Normalize key.
-                key = format_key(key)
-                key = alias.get(key, key)
-                config[key] = val.strip()
+                if not remaining_is_raw_latex:
+                    if "=" in line:
+                        key, val = line.split("=", maxsplit=1)
+                        # Normalize key.
+                        key = format_key(key)
+                        key = alias.get(key, key)
+                        config[key] = val.strip()
+                    if line.startswith("---"):
+                        remaining_is_raw_latex = True
+                else:
+                    raw_latex.append(line)
 
             if "scores" in config:
                 # Set how many points are won/lost for a correct/incorrect answer.
@@ -547,13 +555,10 @@ class AutoQCMLatexGenerator(LatexGenerator):
         try:
             header = self.autoqcm_cache["header"]
         except KeyError:
-            # TODO: Once using Python 3.6+ (string literals),
-            # make packages_and_macros() return a tuple
-            # (it's to painful for now because of.format()).
-            if sty:
-                sty = r"\usepackage{%s}" % sty
+            # TODO: make packages_and_macros() return a tuple.
+            sty = fr"\usepackage{{{sty}}}" if sty else ""
             header1, header2 = packages_and_macros()
-            header = "\n".join([header1, sty, header2, r"\begin{document}"])
+            header = "\n".join([header1, sty, header2, *raw_latex, r"\begin{document}"])
             self.autoqcm_cache["header"] = header
 
         # Generate barcode
