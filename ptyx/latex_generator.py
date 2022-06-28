@@ -1,20 +1,19 @@
-import re
-import sys
-from functools import partial
-from os.path import dirname, basename, join
 import random
-from importlib import import_module
+import re
 import traceback
+from functools import partial
+from importlib import import_module
+from os.path import dirname, basename, join
 from pathlib import Path
 from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List
 
-from ptyx.context import GLOBAL_CONTEXT
-from ptyx.config import param, sympy
 import ptyx.randfunc as randfunc
-from ptyx.printers import sympy2latex
-from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_can
-from ptyx.syntax_tree import Node, SyntaxTreeGenerator
 from ptyx import __version__, __api__
+from ptyx.config import param, sympy
+from ptyx.context import GLOBAL_CONTEXT
+from ptyx.printers import sympy2latex
+from ptyx.syntax_tree import Node, SyntaxTreeGenerator
+from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_can
 
 
 # =============================================================================
@@ -48,7 +47,7 @@ class LatexGenerator:
 
     convert_tags = {"+": "ADD", "-": "SUB", "*": "MUL", "=": "EQUAL", "?": "SIGN", "#": "SHARP"}
 
-    re_varname = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\[.+\])?$")
+    re_varname = re.compile(r"[A-Za-z_]\w*(\[.+\])?$")
 
     def __init__(self, compiler=None):
         self.clear()
@@ -254,9 +253,7 @@ class LatexGenerator:
 
     def _parse_ANSWER_tag(self, node: Node):
         if self.WITH_ANSWERS:
-            self._parse_children(
-                node.children[0].children, function=self.context.get("format_answer")
-            )
+            self._parse_children(node.children[0].children, function=self.context.get("format_answer"))
 
     def _parse_QUESTION_tag(self, node: Node):
         if not self.WITH_ANSWERS:
@@ -307,11 +304,10 @@ class LatexGenerator:
     def _format_python_code_snippet(python_code) -> List[str]:
         """Return a list of prettified lines of python code, ready to be printed."""
         msg = ["", "%s %s Executing following python code:" % (chr(9474), chr(9998))]
-        lines = [''] + python_code.split("\n") + ['']
+        lines = [""] + python_code.split("\n") + [""]
         zfill = len(str(len(lines)))
         msg.extend(
-            "%s %s %s %s" % (chr(9474), str(i).zfill(zfill), chr(9474), line)
-            for i, line in enumerate(lines)
+            "%s %s %s %s" % (chr(9474), str(i).zfill(zfill), chr(9474), line) for i, line in enumerate(lines)
         )
         n = max(len(s) for s in msg)
         msg.insert(1, chr(9581) + n * chr(9472))
@@ -580,7 +576,6 @@ class LatexGenerator:
         with free variables in nested functions."""
         exec(code, context)
 
-
     def _exec_python_code(self, code: str, context: dict):
         code = code.replace("\r", "")
         code = code.rstrip().lstrip("\n")
@@ -638,10 +633,7 @@ class LatexGenerator:
                 # sympy.sympify() can't parse attributes and methods inside
                 # code for now (AttributeError is raised then).
                 sympy_code = False
-                print(
-                    "Warning: sympy can't parse %s. "
-                    "Switching to standard evaluation mode." % repr(code)
-                )
+                print("Warning: sympy can't parse %s. " "Switching to standard evaluation mode." % repr(code))
             except Exception:
                 # print sorted(context.keys())
                 print("Uncatched error when evaluating %s" % repr(code))
@@ -748,9 +740,9 @@ class LatexGenerator:
                 print("-----")
                 raise
             if sympy and isinstance(result, sympy.Basic):
-                flags["result_is_exact"] = {
-                    _float_me_if_you_can(elt) for elt in result.atoms()
-                } == {_float_me_if_you_can(elt) for elt in round_result.atoms()}
+                flags["result_is_exact"] = {_float_me_if_you_can(elt) for elt in result.atoms()} == {
+                    _float_me_if_you_can(elt) for elt in round_result.atoms()
+                }
             else:
                 flags["result_is_exact"] = result == round_result
             result = round_result

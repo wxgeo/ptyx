@@ -1,4 +1,5 @@
-import os, sys
+import os
+import sys
 
 try:
     from ptyx.custom_config import param as custom_param

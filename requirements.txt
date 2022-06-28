@@ -1,5 +1,0 @@
-numpy>=1.18.4
-Pillow>=7.1.2
-sympy>=1.0
-pdf2image>=1.16.0
-setuptools>=57.0.0

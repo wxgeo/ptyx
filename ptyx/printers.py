@@ -150,14 +150,14 @@ class CustomLatexPrinter(LatexPrinter):
 
 
 def custom_latex(expr, **settings):
-    "Convert expression to LaTeX code."
+    """Convert expression to LaTeX code."""
     if sympy is None:
         return str(expr)
     return CustomLatexPrinter(settings).doprint(expr)
 
 
 def sympy2latex(expr, **flags):
-    "Convert a sympy expression to LaTeX code."
+    """Convert a sympy expression to LaTeX code."""
     if flags.get("str"):
         latex = str(expr)
     elif isinstance(expr, float) or (sympy and isinstance(expr, Float)) or flags.get("."):
