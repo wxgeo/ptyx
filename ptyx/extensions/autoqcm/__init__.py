@@ -68,7 +68,7 @@ from ptyx.extensions import extended_python
 from .compile.extend_latex_generator import AutoQCMLatexGenerator
 from .compile.generate_ptyx_code import generate_ptyx_code
 
-from .tools.config_parser import dump
+# from .tools.config_parser import dump
 
 
 # Note for closing tags:

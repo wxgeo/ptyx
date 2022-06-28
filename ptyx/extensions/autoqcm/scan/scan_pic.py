@@ -120,7 +120,7 @@ def find_black_cell(grid, ll: int, LL: int, detection_level: float):
             #                color2debug(m, (i0, j0), (i0 + half, j0 + half))
             if grid[i, j] < detection_level:
                 return i, j
-    raise LookupError(f"Corner square not found.")
+    raise LookupError("Corner square not found.")
 
 
 # noinspection PyArgumentList

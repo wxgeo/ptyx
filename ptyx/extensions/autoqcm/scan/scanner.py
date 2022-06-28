@@ -61,8 +61,6 @@ from .tools import search_by_extension, print_framed_msg
 from ptyx.compilation import join_files, compile_latex
 
 
-
-
 def pic_names_iterator(data: dict) -> Iterator[Path]:
     """Iterate over all pics found in data (i.e. all the pictures already analysed)."""
     for d in data.values():
@@ -249,9 +247,7 @@ class MCQPictureParser:
         assert isinstance(lastpic_path, str)
         assert isinstance(firstpic_path, str)
 
-        self._warn(
-            f"WARNING: Page {p} of test #{ID} seen twice " f'(in "{firstpic}" and "{lastpic}") !'
-        )
+        self._warn(f"WARNING: Page {p} of test #{ID} seen twice " f'(in "{firstpic}" and "{lastpic}") !')
         action = None
         keys = ("name", "student_ID", "answered")
         if all(pic_data[key] == self.data[ID]["pages"][p][key] for key in keys):
@@ -273,9 +269,7 @@ class MCQPictureParser:
                 with tempfile.TemporaryDirectory() as tmpdirname:
                     path = Path(tmpdirname) / "test.png"
                     # https://stackoverflow.com/questions/39141694/how-to-display-multiple-images-in-unix-command-line
-                    subprocess.run(
-                        ["convert", firstpic_path, lastpic_path, "-append", str(path)], check=True
-                    )
+                    subprocess.run(["convert", firstpic_path, lastpic_path, "-append", str(path)], check=True)
                     subprocess.run(["feh", "-F", str(path)], check=True)
                     input("-- pause --")
         # We must memorize which version should be skipped in case user
@@ -356,9 +350,7 @@ class MCQPictureParser:
                 elif mode == "some":
                     # Answer is valid if and only if :
                     # (proposed ≠ ∅ and proposed ⊆ correct) or (proposed = correct = ∅)
-                    ok = (answered and answered.issubset(correct_ones)) or (
-                        not answered and not correct_ones
-                    )
+                    ok = (answered and answered.issubset(correct_ones)) or (not answered and not correct_ones)
                 elif mode == "skip":
                     print(f"Question {q} skipped...")
                     continue
@@ -682,9 +674,7 @@ class MCQPictureParser:
                 # Warning: manual_verification can be None, so the order is important
                 # below : False and None -> False (but None and False -> None).
                 manual_verification = (pic_path not in self.verified) and manual_verification
-                pic_data, matrix = scan_picture(
-                    self.dirs["pic"] / pic_path, self.config, manual_verification
-                )
+                pic_data, matrix = scan_picture(self.dirs["pic"] / pic_path, self.config, manual_verification)
                 # `pic_data` FORMAT is specified in `scan_pic.py`.
                 # (Search for `pic_data =` in `scan_pic.py`).
                 pic_data["pic_path"] = str(pic_path)

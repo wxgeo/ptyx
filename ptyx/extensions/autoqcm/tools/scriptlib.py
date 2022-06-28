@@ -25,7 +25,11 @@
 #
 ######################################
 
-import sys, shutil, os, glob, subprocess
+import glob
+import os
+import shutil
+import subprocess
+import sys
 
 _path_7zip = r"C:\Program Files\7-Zip\7z.exe"
 
@@ -66,10 +70,12 @@ def rm(*paths, **kw):
             if os.path.isfile(pth):
                 os.remove(pth)
         if recursive:
+            # noinspection PyUnboundLocalVariable
             for pth in listcwd:
                 if os.path.isdir(pth):
                     cd(pth)
                     rm(*paths, **kw)
+                    # noinspection PyUnboundLocalVariable
                     cd(cwd)
 
 

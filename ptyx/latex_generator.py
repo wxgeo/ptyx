@@ -588,7 +588,6 @@ class LatexGenerator:
         try:
             self._exec(code, context)
         except Exception as e:  # noqa
-            lineno = None
             for tb in traceback.extract_tb(e.__traceback__):
                 if tb.name == "<module>":
                     i = tb.lineno + 4

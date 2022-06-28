@@ -43,11 +43,16 @@ def generate_config_file(compiler):
     dump(config_file, autoqcm_data)
 
 
-def make(path: Path, num: int = 1, start: int = 1, quiet: bool = False, correction_only: bool = False) -> None:
-    """Wrapper for _make(), so that `argparse` module don't intercept exceptions. """
+def make(
+    path: Path, num: int = 1, start: int = 1, quiet: bool = False, correction_only: bool = False
+) -> None:
+    """Wrapper for _make(), so that `argparse` module don't intercept exceptions."""
     try:
         _make(path, num, start, quiet, correction_only)
-        print(f"\n\u001b[32;1mCongratulations ! Document was successfully generated in {num} version(s).\u001b[0m")
+        print(
+            f"\n\u001b[32;1mCongratulations ! Document was successfully generated "
+            "in {num} version(s).\u001b[0m"
+        )
     except Exception as e:  # noqa
         if hasattr(e, "msg"):
             traceback.print_tb(e.__traceback__)
@@ -55,11 +60,15 @@ def make(path: Path, num: int = 1, start: int = 1, quiet: bool = False, correcti
             print(f"\u001b[31m{e.__class__.__name__}:\u001b[0m {e}")
         else:
             traceback.print_exc()
-        print("\n\u001b[31;1mERROR: `autoqcm make` failed to compile document (see above for details).\u001b[0m")
+        print(
+            "\n\u001b[31;1mERROR: `autoqcm make` failed to compile document (see above for details).\u001b[0m"
+        )
         sys.exit(1)
 
 
-def _make(path: Path, num: int = 1, start: int = 1, quiet: bool = False, correction_only: bool = False) -> None:
+def _make(
+    path: Path, num: int = 1, start: int = 1, quiet: bool = False, correction_only: bool = False
+) -> None:
     """Implement `autoqcm make` command.
 
     If `only_correction` is `True`, only generate correction (useful for fast testing).
@@ -70,9 +79,7 @@ def _make(path: Path, num: int = 1, start: int = 1, quiet: bool = False, correct
     if len(all_ptyx_files) == 0:
         raise FileNotFoundError(f"No .ptyx file found in '{path}'.")
     elif len(all_ptyx_files) > 1:
-        raise FileNotFoundError(
-            f"Several .ptyx file found in '{path}', I don't know which one to chose."
-        )
+        raise FileNotFoundError(f"Several .ptyx file found in '{path}', I don't know which one to chose.")
     ptyx_filename = all_ptyx_files[0]
     # Read pTyX file.
     print(f"Reading {ptyx_filename}...")
@@ -113,7 +120,8 @@ def _make(path: Path, num: int = 1, start: int = 1, quiet: bool = False, correct
             context={"AUTOQCM_KEEP_ALL_VERSIONS": True},
             quiet=quiet,
         )
-        # Generate a document including the different versions of all the questions with the correct answers checked.
+        # Generate a document including the different versions of all the questions
+        # with the correct answers checked.
         make_file(
             (output_name.parent / output_name.stem).with_suffix(".all-corr.pdf"),
             context={"AUTOQCM_KEEP_ALL_VERSIONS": True, "PTYX_WITH_ANSWERS": True},

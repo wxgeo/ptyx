@@ -17,7 +17,10 @@ def test_CALC():
 
 
 def test_TABVAR():
-    test = "$#{a=2;}\\alpha=#{alpha=3},\\beta=#{beta=5}\n\n#TABVAR[limites=False,derivee=False]f(x)=#a*(x-#alpha)^2+#beta#END_TABVAR$"
+    test = (
+        "$#{a=2;}\\alpha=#{alpha=3},\\beta=#{beta=5}\n\n"
+        "#TABVAR[limites=False,derivee=False]f(x)=#a*(x-#alpha)^2+#beta#END_TABVAR$"
+    )
     result = """$\\alpha=3,\\beta=5
 \\setlength{\\TVextraheight}{\\baselineskip}
 \\[\\begin{tabvar}{|C|CCCCC|}
