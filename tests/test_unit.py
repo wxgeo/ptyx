@@ -49,6 +49,8 @@ def test_sympy2latex():
     assert sympy2latex(0.0) == "0"
     assert sympy2latex(-2.0) == "-2"
     assert sympy2latex(-0.0) == "0"
+    # Issue with sympy 1.7+
+    assert sympy2latex("hello") == "hello"
 
 
 def test_syntax_tree():

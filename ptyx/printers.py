@@ -61,6 +61,9 @@ class CustomLatexPrinter(LatexPrinter):
             ):
                 return getattr(expr, self.printmethod)(self, *args, **kwargs)
 
+            # Avoid new (strange) behaviour of sympy 1.7+
+            if isinstance(expr, str):
+                return expr
             # Unknown object, fall back to the emptyPrinter.
             return self.emptyPrinter(expr)
         finally:
