@@ -2,7 +2,7 @@ import random
 import re
 import traceback
 from functools import partial
-from importlib import import_module
+from importlib import import_module, metadata
 from os.path import dirname, basename, join
 from pathlib import Path
 from types import ModuleType
@@ -853,8 +853,15 @@ class Compiler:
             try:
                 extensions[extension_name] = import_module(f"ptyx.extensions.{extension_name}")
             except ImportError:
-                traceback.print_exc()
-                raise ImportError(f"Extension {extension_name} not found.")
+                # Try to find a matching registered plugin.
+                # TODO: once python < 3.10 support is dropped, use `metadata.entry_points(group="ptyx.extensions")` instead.
+                for entry_point in metadata.entry_points().get("ptyx.extensions", ()):
+                    if entry_point.name == extension_name:
+                        extensions[extension_name] = import_module(entry_point.value)
+                        break
+                else:
+                    traceback.print_exc()
+                    raise ImportError(f"Extension {extension_name} not found.")
             # Test if extension defines new tags.
             ext_tags = getattr(extensions[extension_name], "__tags__", {})
             for tag, syntax in ext_tags.items():
