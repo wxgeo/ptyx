@@ -429,7 +429,10 @@ class SyntaxTreeGenerator:
                             # Detect inner strings for arguments containing code,
                             # but not for arguments containing raw text.
                             end = find_closing_bracket(
-                                text, position, brackets="{}", detect_strings=(i < code_args_number)
+                                text,
+                                position,
+                                brackets="{}",
+                                detect_strings=(i < code_args_number),
                             )
                             new_pos = end + 1
                         else:

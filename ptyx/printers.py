@@ -54,11 +54,7 @@ class CustomLatexPrinter(LatexPrinter):
             # If the printer defines a name for a printing method
             # (Printer.printmethod) and the object knows for itself how it
             # should be printed, use that method.
-            if (
-                self.printmethod
-                and hasattr(expr, self.printmethod)
-                and not isinstance(expr, BasicMeta)
-            ):
+            if self.printmethod and hasattr(expr, self.printmethod) and not isinstance(expr, BasicMeta):
                 return getattr(expr, self.printmethod)(self, *args, **kwargs)
 
             # Avoid new (strange) behaviour of sympy 1.7+

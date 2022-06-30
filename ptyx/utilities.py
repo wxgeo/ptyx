@@ -18,7 +18,7 @@ def round_away_from_zero(val, ndigits=0):
     val = float(val)
     if isnan(val) or isinf(val):
         return val
-    val *= 10 ** ndigits
+    val *= 10**ndigits
     if val >= 0.0:
         val = floor(val + 0.5)
     else:
@@ -101,9 +101,7 @@ def find_closing_bracket(text, start=0, brackets="{}", detect_strings=True):
     else:
         return start + index - 1  # last caracter is the searched bracket :-)
 
-    raise ValueError(
-        "ERROR: unbalanced brackets (%s) while scanning %s..." % (balance, repr(text_beginning))
-    )
+    raise ValueError("ERROR: unbalanced brackets (%s) while scanning %s..." % (balance, repr(text_beginning)))
 
 
 def advanced_split(string, separator, quotes="\"'", brackets=("()", "[]", "{}")):
@@ -193,9 +191,7 @@ def term_color(string, color, **kw):
     }
     styles = {"bold": 1, "dim": 2, "italic": 3, "underline": 4, "highlight": 7}
     if color not in colors:
-        raise KeyError(
-            "Color %s is unknown. Available colors: %s." % (repr(color), list(colors.keys()))
-        )
+        raise KeyError("Color %s is unknown. Available colors: %s." % (repr(color), list(colors.keys())))
     formatting = []
     for style, code in styles.items():
         appply_style = kw.get(style)

@@ -108,5 +108,8 @@ def main(text, compiler):
     # Python code
     # ............
     return sub(
-        "\n[ \t]*\\.{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\.{3,}[ \t]*\n", parse, text, flags=DOTALL
+        "\n[ \t]*\\.{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\.{3,}[ \t]*\n",
+        parse,
+        text,
+        flags=DOTALL,
     )

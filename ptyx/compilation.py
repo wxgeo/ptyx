@@ -70,9 +70,7 @@ class Logging(object):
 
 
 def execute(string, quiet=False):
-    out = subprocess.Popen(
-        string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-    ).stdout
+    out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
     encoding = locale.getpreferredencoding(False)
     output = out.read().decode(encoding, errors="replace")
     sys.stdout.write(output)
@@ -277,7 +275,12 @@ def compile_latex(
     return int(m.group(1)) if m is not None else None
 
 
-def join_files(output_basename: Path, pdfnames: Sequence[Union[Path, str]], seed_file_name=None, **options):
+def join_files(
+    output_basename: Path,
+    pdfnames: Sequence[Union[Path, str]],
+    seed_file_name=None,
+    **options,
+):
     """Join different versions in a single pdf, then compress it if asked to do so."""
     # TODO: use pathlib.Path instead
     pdf_name = str(output_basename) + ".pdf"
@@ -327,20 +330,14 @@ def join_files(output_basename: Path, pdfnames: Sequence[Union[Path, str]], seed
             if seed_file_name is not None:
                 temp_dir = tempfile.mkdtemp()
                 pdf_with_seed = os.path.join(temp_dir, "with_seed.pdf")
-                execute(
-                    f'pdftk "{pdf_name}" attach_files "{seed_file_name}" output "{pdf_with_seed}"'
-                )
+                execute(f'pdftk "{pdf_name}" attach_files "{seed_file_name}" output "{pdf_with_seed}"')
                 shutil.copyfile(pdf_with_seed, pdf_name)
         if number > 1:
             print(f"{len(pdfnames)} files merged.")
 
     if options.get("reorder_pages"):
         # Use pdftk to detect how many pages has the pdf document.
-        n = int(
-            execute(f"pdftk {pdf_name} dump_data output | grep -i NumberOfPages:")
-            .strip()
-            .split()[-1]
-        )
+        n = int(execute(f"pdftk {pdf_name} dump_data output | grep -i NumberOfPages:").strip().split()[-1])
         mode = options.get("reorder_pages")
         if mode == "brochure":
             if n % 4:

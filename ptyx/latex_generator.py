@@ -46,7 +46,14 @@ from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_c
 class LatexGenerator:
     """Convert text containing ptyx tags to plain LaTeX."""
 
-    convert_tags = {"+": "ADD", "-": "SUB", "*": "MUL", "=": "EQUAL", "?": "SIGN", "#": "SHARP"}
+    convert_tags = {
+        "+": "ADD",
+        "-": "SUB",
+        "*": "MUL",
+        "=": "EQUAL",
+        "?": "SIGN",
+        "#": "SHARP",
+    }
 
     # noinspection RegExpRedundantEscape
     re_varname = re.compile(r"[A-Za-z_]\w*(\[.+\])?$")
@@ -854,7 +861,8 @@ class Compiler:
                 extensions[extension_name] = import_module(f"ptyx.extensions.{extension_name}")
             except ImportError:
                 # Try to find a matching registered plugin.
-                # TODO: once python < 3.10 support is dropped, use `metadata.entry_points(group="ptyx.extensions")` instead.
+                # TODO: once python < 3.10 support is dropped,
+                #       use `metadata.entry_points(group="ptyx.extensions")` instead.
                 for entry_point in metadata.entry_points().get("ptyx.extensions", ()):
                     if entry_point.name == extension_name:
                         extensions[extension_name] = import_module(entry_point.value)

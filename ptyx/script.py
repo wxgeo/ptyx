@@ -83,7 +83,10 @@ class PtyxArgumentParser(argparse.ArgumentParser):
         )
         self.add_argument("-b", "--debug", action="store_true", help="Debug mode.")
         self.add_argument(
-            "-q", "--quiet", action="store_true", help="Suppress most of latex processor output."
+            "-q",
+            "--quiet",
+            action="store_true",
+            help="Suppress most of latex processor output.",
         )
         self.add_argument(
             "-s",
@@ -163,9 +166,7 @@ class PtyxArgumentParser(argparse.ArgumentParser):
         if options.compress or options.cat:
             # pdftk and ghostscript must be installed.
             if "pdf" not in options.formats:
-                raise RuntimeError(
-                    "--cat or --compress option invalid unless pdf output is selected."
-                )
+                raise RuntimeError("--cat or --compress option invalid unless pdf output is selected.")
         if options.debug:
             param["debug"] = True
         if options.names:

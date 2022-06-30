@@ -53,9 +53,7 @@ class GeophyxLatexGenerator(LatexGenerator):
         name = args[0] if args else "RESULT"
 
         fonctions = [
-            key
-            for key, val in self.context.items()
-            if isinstance(val, (type(sympy.sqrt), type(sympy.cos)))
+            key for key, val in self.context.items() if isinstance(val, (type(sympy.sqrt), type(sympy.cos)))
         ]
 
         def eval_and_store(txt, name):
