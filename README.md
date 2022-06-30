@@ -12,37 +12,33 @@ Since it uses sympy library, pTyX has symbolic calculus abilities too.
 
 Installation
 ------------
+pTyX is only tested on GNU/Linux (Ubuntu), but should work on MacOs X too.
+
 Obviously, pTyX needs a working Python installation.
-Python version 3.6 (at least) is required for pTyX to run.
+Python version 3.8 (at least) is required for pTyX to run.
 
 pTyX also needs a working LaTeX installation. Command *pdflatex* must be available in your terminal.
 
-Though not required, the following python libraries are recommanded :
-* sympy : http://sympy.org/en/index.html
-* geophar : https://github.com/wxgeo/geophar/archive/master.zip
+The easiest way to install it is using pip.
 
-Note that geophar come with its own sympy version embedded, so *you won't need to install sympy yourself*.
+    $ pip install ptyx
 
-You may unzip geophar wherever you like, but you need to edit the *config.py* script to indicate geophar path.
-Search for the following lines, and edit them according to your own path :
+You may also download and install the latest version from Github:
 
-    # <personnal_configuration>
-    param['sympy_path'] = '~/Dropbox/Programmation/geophar/wxgeometrie'
-    param['wxgeometrie_path'] = '~/Dropbox/Programmation/geophar'
-    # </personnal_configuration>
-
-Nota: *wxgeometrie* is geophar previous name.
+    $ git clone https://github.com/wxgeo/ptyx.git
+    $ cd ptyx
+    $ pip install -e .
 
 Usage
 -----
 
 To compile a pTyX file (see below), open a terminal, go to pTyX directory, and write:
 
-    $ python ptyx.py my_file.ptyx
+    $ ptyx my_file.ptyx
 
 For more options:
 
-    $ python ptyx.py --help
+    $ ptyx --help
 
 
 pTyX file specification
@@ -50,7 +46,7 @@ pTyX file specification
 A pTyX file is essentially a LaTeX file, with a .ptyx extension, (optionally) some custom commands, and embedded python code.
 
 To include python code in a pTyX file, use the #PYTHON and #END balise.
-A special *write()* command is avalaible, to generate on the flow latex code from python.
+A special *write()* command is available, to generate latex code on the flow from python.
 
     This a simple \emph{addition}:\quad
     #PYTHON
@@ -64,7 +60,7 @@ A special *write()* command is avalaible, to generate on the flow latex code fro
     write('%s - %s = %s\\' % (a, b, a - b))
     #END
 
-To access any python variable outside python code scope, simply add an hashtag before the variable name.
+To access any python variable outside python code scope, simply add a hashtag before the variable name.
 
 Any valid python expression can also be evaluated this way, using syntax #{python_expr}.
 
