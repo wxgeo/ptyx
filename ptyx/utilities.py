@@ -8,7 +8,7 @@ if sympy is not None:
     from sympy import preorder_traversal, Symbol
 
 
-def round(val, ndigits=0):
+def round_away_from_zero(val, ndigits=0):
     """Round using round-away-from-zero strategy for halfway cases.
 
     Python 3+ implements round-half-even, and Python 2.7 has a random behaviour
@@ -32,7 +32,7 @@ def find_closing_bracket(text, start=0, brackets="{}", detect_strings=True):
 
     Note that start have to be a position *after* the opening bracket.
 
-    >>> from ptyx import find_closing_bracket
+    >>> from ptyx.utilities import find_closing_bracket
     >>> find_closing_bracket('{{hello} world !}', start=1)
     16
 
@@ -146,7 +146,8 @@ def advanced_split(string, separator, quotes="\"'", brackets=("()", "[]", "{}"))
 
 
 def _float_me_if_you_can(expr):
-    "Convert expr to float if possible, else left it untouched."
+    """Convert expr to float if possible, else left it untouched."""
+    # noinspection PyBroadException
     try:
         return float(expr)
     except Exception:
@@ -159,7 +160,7 @@ def numbers_to_floats(expr, integers=False, ndigits=None):
         if isinstance(expr, int) and not integers:
             return expr
         elif ndigits is not None:
-            return round(expr, ndigits)
+            return round_away_from_zero(expr, ndigits)
         else:
             return float(expr)
     for sub in preorder_traversal(expr):
@@ -167,7 +168,7 @@ def numbers_to_floats(expr, integers=False, ndigits=None):
         if not sub.has(Symbol) and (integers or not sub.is_Integer):
             new = sub.evalf()
             if ndigits is not None:
-                new = round(new, ndigits)
+                new = round_away_from_zero(new, ndigits)
             expr = expr.subs(sub, new)
     return expr
 

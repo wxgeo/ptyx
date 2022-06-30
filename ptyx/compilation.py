@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional, Dict, Iterable, List, Sequence, Tuple
+from typing import Optional, Dict, Iterable, List, Sequence, Tuple, Union
 
 from ptyx.config import param
 from ptyx.latex_generator import compiler
@@ -112,7 +112,7 @@ def make_files(
         target = len(_nums)
     if context is None:
         context = {"PTYX_WITH_ANSWERS": correction}
-    formats = options.get("formats", param["default_formats"].split("+"))
+    formats = options.get("formats", param["default_formats"].split("+"))  # type: ignore
 
     # Create an empty `.compile/{input_name}` subfolder.
     compilation_dir = input_name.parent / ".compile" / input_name.stem
@@ -184,7 +184,7 @@ def make_files(
         with open(bat_file_name, "w") as bat_file:
             bat_file.write(
                 param["win_print_command"]
-                + " ".join('"%s.pdf"' % os.path.basename(f) for f in filenames)
+                + " ".join('"%s.pdf"' % os.path.basename(f) for f in filenames)  # type: ignore
             )
 
     # Copy tex/pdf file to parent directory.
@@ -228,7 +228,7 @@ def make_file(
     # Raise an error if input_format and output_format are both set to tex.
     infos = {}
     if formats is None:
-        formats = param["default_formats"].split("+")
+        formats = param["default_formats"].split("+")  # type: ignore
     if context is None:
         context = {}
 
@@ -247,7 +247,7 @@ def make_file(
 
 
 def compile_latex(
-    filename: Path, dest: Optional[Path] = None, quiet: bool = False
+    filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False
 ) -> Optional[int]:
     """Compile the latex file and return the number of pages of the pdf
     (or None if not found)."""
@@ -257,7 +257,7 @@ def compile_latex(
     if dest is None:
         dest = filename.parent
 
-    command = param["quiet_tex_command"] if quiet else param["tex_command"]
+    command: str = param["quiet_tex_command"] if quiet else param["tex_command"]  # type: ignore
     command += f' -output-directory "{dest}" "{filename}"'
     # ~ input('- run -')
     log = execute(command)
@@ -277,7 +277,7 @@ def compile_latex(
     return int(m.group(1)) if m is not None else None
 
 
-def join_files(output_basename: Path, pdfnames: Sequence[Path], seed_file_name=None, **options):
+def join_files(output_basename: Path, pdfnames: Sequence[Union[Path, str]], seed_file_name=None, **options):
     """Join different versions in a single pdf, then compress it if asked to do so."""
     # TODO: use pathlib.Path instead
     pdf_name = str(output_basename) + ".pdf"

@@ -17,7 +17,7 @@ pdf2image = "^1.16.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7"
-mypy = "^0.960"
+mypy = "^0.961"
 flake8 = "^4.0.1"
 black = "^22.1.0"
 tox = "^3.24.5"
@@ -34,6 +34,9 @@ autoqcm = 'ptyx.extensions.autoqcm.cli:main'
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.mypy]
+ignore_missing_imports = true
+
 [tool.tox]
 legacy_tox_ini = """
 [tox]
@@ -46,5 +49,6 @@ whitelist_externals = poetry
 commands =
     poetry install -v
     poetry run pytest tests
+    poetry run mypy ptyx tests
     poetry run flake8 ptyx --max-line-length 110 --ignore=E203,W503,W391
 """

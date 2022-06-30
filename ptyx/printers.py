@@ -12,7 +12,7 @@ try:
     from sympy.printing.latex import LatexPrinter
 except ImportError:
     print("Warning: `sympy` library not found !")
-    sympy = None
+    sympy = None  # type: ignore
 
 from ptyx.config import param
 

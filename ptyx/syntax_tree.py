@@ -7,8 +7,12 @@ Created on Sat Oct 23 15:09:44 2021
 """
 
 import re
+from typing import Tuple, Optional, List, Dict, FrozenSet
 
 from ptyx.utilities import find_closing_bracket, term_color
+
+Tag = str
+TagSyntax = Tuple[int, int, Optional[List[str]]]
 
 
 class Node:
@@ -46,9 +50,7 @@ class Node:
             raise ValueError(f"Incorrect argument number for node {child!r}.")
         children_number = len(child.children)
         if children_number > 1:
-            raise ValueError(
-                "Don't use pTyX code inside %s argument number %s." % (self.name, i + 1)
-            )
+            raise ValueError("Don't use pTyX code inside %s argument number %s." % (self.name, i + 1))
         if children_number == 0:
             if self.name == "EVAL":
                 # EVAL isn't a real tag name: if a variable `#myvar` is found
@@ -121,7 +123,7 @@ class SyntaxTreeGenerator:
     # By contrast, in code arguments, inner strings should be detected:
     # in {val=='}'}, the bracket closing the tag is the second }, not the first one !
 
-    tags = {
+    tags: Dict[Tag, TagSyntax] = {
         "ANS": (0, 0, ["@END"]),
         "ANSWER": (0, 1, None),
         "APART": (0, 0, ["END", "END_APART"]),
@@ -178,7 +180,7 @@ class SyntaxTreeGenerator:
     # (Should this be a syntax feature ?
     # It sounds nice, but how should we deal with the `@` then ?).
 
-    _found_tags = frozenset()
+    _found_tags: FrozenSet[Tag] = frozenset()
 
     def __init__(self):
         # Add ability to update the set of closing tags for instances of

@@ -5,6 +5,7 @@ from functools import partial
 from importlib import import_module
 from os.path import dirname, basename, join
 from pathlib import Path
+from types import ModuleType
 from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List
 
 import ptyx.randfunc as randfunc
@@ -12,7 +13,7 @@ from ptyx import __version__, __api__
 from ptyx.config import param, sympy
 from ptyx.context import GLOBAL_CONTEXT
 from ptyx.printers import sympy2latex
-from ptyx.syntax_tree import Node, SyntaxTreeGenerator
+from ptyx.syntax_tree import Node, SyntaxTreeGenerator, Tag, TagSyntax
 from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_can
 
 
@@ -41,12 +42,13 @@ from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_c
 # =============================================================================
 
 
-# noinspection PyPep8Naming
+# noinspection PyPep8Naming,PyMethodMayBeStatic
 class LatexGenerator:
     """Convert text containing ptyx tags to plain LaTeX."""
 
     convert_tags = {"+": "ADD", "-": "SUB", "*": "MUL", "=": "EQUAL", "?": "SIGN", "#": "SHARP"}
 
+    # noinspection RegExpRedundantEscape
     re_varname = re.compile(r"[A-Za-z_]\w*(\[.+\])?$")
 
     def __init__(self, compiler=None):
@@ -459,7 +461,7 @@ class LatexGenerator:
         # what seems to be a very strange behaviour of the compiler !)
         pass
 
-    def _pick_and_parse_children(self, node: Node, children=None, target="ITEM", **kw):
+    def _pick_and_parse_children(self, node: Node, children: List = None, target: str = "ITEM", **kw):
         # Choose only one between all the #ITEM sections inside a #PICK block.
         # Note that they may be some text or nodes before first #ITEM,
         # if so they should be left unmodified at their original position.
@@ -484,20 +486,20 @@ class LatexGenerator:
         # print('state hash is %s' % hash(random.getstate()))
         # print('------------\n')
 
-    def _parse_PICK_tag(self, node: Node):
+    def _parse_PICK_tag(self, node: Node) -> None:
         self._pick_and_parse_children(node)
 
     # TODO: Refactor _parse_PICK_tag/_parse_SHUFFLE_tag
 
-    def _parse_ROOT_tag(self, node: Node):
+    def _parse_ROOT_tag(self, node: Node) -> None:
         self._parse_children(node.children)
 
-    def _parse_FREEZE_RANDOM_STATE_tag(self, node: Node):
+    def _parse_FREEZE_RANDOM_STATE_tag(self, node: Node) -> None:
         state = random.getstate()
         self._parse_children(node.children)
         random.setstate(state)
 
-    def _parse_TEST_tag(self, node: Node):
+    def _parse_TEST_tag(self, node: Node) -> None:
         try:
             if eval(node.arg(0), self.context):
                 self._parse_children(node.children[1].children)
@@ -507,27 +509,27 @@ class LatexGenerator:
             print(node.display(color=False))
             raise
 
-    def _parse_SHARP_tag(self, node: Node):
+    def _parse_SHARP_tag(self, node: Node) -> None:
         # 2 sharps ## -> 1 sharp #
         self.write("#")
 
-    def _parse_ADD_tag(self, node: Node):
+    def _parse_ADD_tag(self, node: Node) -> None:
         # a '+' will be displayed at the beginning of the next result if positive ;
         # if the result is negative, nothing will be done, and if null,
         # no result at all will be displayed.
         self.flags["+"] = True
 
-    def _parse_SUB_tag(self, node: Node):
+    def _parse_SUB_tag(self, node: Node) -> None:
         # a '-' will be displayed at the beginning of the next result, and the result
         # will be embedded in parentheses if negative.
         self.flags["-"] = True
 
-    def _parse_MUL_tag(self, node: Node):
+    def _parse_MUL_tag(self, node: Node) -> None:
         # a '\times' will be displayed at the beginning of the next result, and the result
         # will be embedded in parentheses if negative.
         self.flags["*"] = True
 
-    def _parse_EQUAL_tag(self, node: Node):
+    def _parse_EQUAL_tag(self, node: Node) -> None:
         # Display '=' or '\approx' when a rounded result is requested :
         # if rounded is equal to exact one, '=' is displayed.
         # Else, '\approx' is displayed instead.
@@ -537,7 +539,7 @@ class LatexGenerator:
         # So, `#=` is used as a temporary marker, and will be replaced by '=' or '\approx' later.
         self.write("#=")
 
-    def _parse_SIGN_tag(self, node: Node):
+    def _parse_SIGN_tag(self, node: Node) -> None:
         # '>0' or '<0' will be displayed after the next result, depending on it's sign.
         # (If result is zero, this won't do anything.)
         last_value = self.context["_"]
@@ -546,10 +548,10 @@ class LatexGenerator:
         elif last_value < 0:
             self.write("<0")
 
-    def _parse_SYMPY_tag(self, node: Node):
+    def _parse_SYMPY_tag(self, node: Node) -> None:
         raise NotImplementedError
 
-    def _parse_DEBUG_tag(self, node: Optional[Node]):
+    def _parse_DEBUG_tag(self, node: Optional[Node]) -> None:
         while True:
             msg = "Debug point. Enter command, or quit (q! + ENTER):"
             sep = len(msg) * "="
@@ -567,7 +569,7 @@ class LatexGenerator:
                     print("*** ERROR ***")
                     print(e)
 
-    def _parse_PRINT_tag(self, node: Node):
+    def _parse_PRINT_tag(self, node: Node) -> None:
         print(node.arg(0))
 
     @staticmethod
@@ -589,11 +591,11 @@ class LatexGenerator:
             self._exec(code, context)
         except Exception as e:  # noqa
             for tb in traceback.extract_tb(e.__traceback__):
-                if tb.name == "<module>":
+                if tb.name == "<module>" and isinstance(tb.lineno, int):
                     i = tb.lineno + 4
                     msg[i] = f"\u001b[33m{msg[i]}\u001b[0m"
                     break
-            e.msg = "\n".join(msg)
+            e.msg = "\n".join(msg)  # type: ignore
             raise
 
         return code
@@ -825,6 +827,7 @@ class Compiler:
             with open(path) as file:
                 return f"\n#APART\n{file.read()}#END_APART\n"
 
+        # noinspection RegExpRedundantEscape
         return re.sub(r"#INCLUDE\{([^}]+)\}", include, code)
 
     def _call_extensions(self, code: str):
@@ -840,10 +843,11 @@ class Compiler:
             return ""
 
         # Use re.sub to find all extensions and remove #LOAD tags in one pass.
+        # noinspection RegExpRedundantEscape
         code = re.sub(r"#LOAD\{\s*(\w+)\s*\}", collect, code)
-        extensions = {}
-        tags_syntax = {}
-        tags_source = {}
+        extensions: Dict[Tag, ModuleType] = {}
+        tags_syntax: Dict[Tag, TagSyntax] = {}
+        tags_source: Dict[Tag, str] = {}
         latex_generator_extensions = []
         for extension_name in names:
             try:
@@ -872,7 +876,7 @@ class Compiler:
         # Update LatexGenerator.
         if latex_generator_extensions:
             # TODO: Test for conflicting methods ?
-            class CustomLatexGenerator(*reversed(latex_generator_extensions)):
+            class CustomLatexGenerator(*reversed(latex_generator_extensions)):  # type: ignore
                 pass
 
             self.latex_generator.__class__ = CustomLatexGenerator
@@ -893,6 +897,7 @@ class Compiler:
             counter += 1
             return ""
 
+        # noinspection RegExpRedundantEscape
         code = re.sub(r"#SEED\{\s*(\d+)\s*\}", seed, code)
         if counter == 0:
             path = self._state.get("path")

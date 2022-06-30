@@ -28,6 +28,8 @@ It adds the following commands to pTyX:
 
 """
 
+# mypy: ignore-errors
+
 import random
 
 from wxgeometrie.modules.tablatex import tabval, tabvar, tabsign
