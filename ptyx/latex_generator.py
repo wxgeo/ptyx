@@ -517,7 +517,7 @@ class LatexGenerator:
             raise
 
     def _parse_SHARP_tag(self, node: Node) -> None:
-        # 2 sharps ## -> 1 sharp #
+        """2 sharps (##) will be converted to 1 sharp (#)"""
         self.write("#")
 
     def _parse_ADD_tag(self, node: Node) -> None:
@@ -554,9 +554,6 @@ class LatexGenerator:
             self.write(">0")
         elif last_value < 0:
             self.write("<0")
-
-    def _parse_SYMPY_tag(self, node: Node) -> None:
-        raise NotImplementedError
 
     def _parse_DEBUG_tag(self, node: Optional[Node]) -> None:
         while True:
