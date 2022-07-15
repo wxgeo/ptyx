@@ -37,6 +37,9 @@ build-backend = "poetry.core.masonry.api"
 [tool.mypy]
 ignore_missing_imports = true
 
+[tool.black]
+line-length = 110
+
 [tool.tox]
 legacy_tox_ini = """
 [tox]
