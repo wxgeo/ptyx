@@ -7,29 +7,34 @@ Created on Sat Oct 23 15:09:44 2021
 """
 
 import re
-from typing import Tuple, Optional, List, Dict, FrozenSet
+from typing import Tuple, Optional, List, Dict, Union, TypeVar, Iterable, Set, Any
 
 from ptyx.utilities import find_closing_bracket, term_color
 
 Tag = str
 TagSyntax = Tuple[int, int, Optional[List[str]]]
+NodeChild = Union[str, "Node"]
+S = TypeVar("S")
+T = TypeVar("T", bound=NodeChild)
 
 
 class Node:
     """A node.
 
-    name is the tag name, or the argument number."""
+    `name` is either the tag name, if the node corresponds
+    to a tag's content, or the argument number, if the node corresponds
+    to a tag's argument."""
 
-    def __init__(self, name):
-        self.parent = None
+    def __init__(self, name: Union[str, int]):
+        self.parent: Optional[Node] = None
         self.name = name
-        self.options = None
-        self.children = []
+        self.options: Optional[str] = None
+        self.children: List[NodeChild] = []
 
     def __repr__(self):
         return f"<Node {self.name} at {hex(id(self))}>"
 
-    def add_child(self, child):
+    def add_child(self, child: T) -> Optional[T]:
         if not child:
             return None
         self.children.append(child)
@@ -43,11 +48,12 @@ class Node:
     #       raise ValueError, "Ambiguous: node has several subnodes."
     #   return self.children[0]
 
-    def arg(self, i):
-        "Return argument number i content."
+    def arg(self, i: int) -> Any:
+        """Return argument number i content, which may be a Node, or some text (str)."""
         child = self.children[i]
         if getattr(child, "name", None) != i:
             raise ValueError(f"Incorrect argument number for node {child!r}.")
+        assert isinstance(child, Node), repr(child)
         children_number = len(child.children)
         if children_number > 1:
             raise ValueError("Don't use pTyX code inside %s argument number %s." % (self.name, i + 1))
@@ -62,7 +68,7 @@ class Node:
 
         return child.children[0]
 
-    def display(self, color=True, indent=0, raw=False):
+    def display(self, color=True, indent=0, raw=False) -> str:
         texts = ["%s+ Node %s" % (indent * " ", self._format(self.name, color))]
         for child in self.children:
             if isinstance(child, Node):
@@ -78,10 +84,10 @@ class Node:
                 texts.append("%s  - text: %s" % (indent * " ", text))
         return "\n".join(texts)
 
-    def as_text(self, skip_childs=()):
+    def as_text(self, skipped_children: Iterable[int] = ()) -> str:
         content = []
         for i, child in enumerate(self.children):
-            if i in skip_childs:
+            if i in skipped_children:
                 continue
             if isinstance(child, Node):
                 content.append(child.as_text())
@@ -91,14 +97,14 @@ class Node:
         return "".join(content)
 
     @staticmethod
-    def _format(val, color):
+    def _format(val: object, color: bool) -> str:
         if not color:
             return str(val)
         if isinstance(val, str):
             return term_color(val, "yellow")
         if isinstance(val, int):
             return term_color(str(val), "blue")
-        return val
+        return str(val)
 
 
 class SyntaxTreeGenerator:
@@ -121,7 +127,7 @@ class SyntaxTreeGenerator:
     # in {$f'(x)$}, the ' must not be interpreted as an opening string, so closing
     # bracket is the one following the $.
     # By contrast, in code arguments, inner strings should be detected:
-    # in {val=='}'}, the bracket closing the tag is the second }, not the first one !
+    # in {val=="}"}, the bracket closing the tag is the second `}`, not the first one !
 
     tags: Dict[Tag, TagSyntax] = {
         "ANS": (0, 0, ["@END"]),
@@ -180,28 +186,27 @@ class SyntaxTreeGenerator:
     # (Should this be a syntax feature ?
     # It sounds nice, but how should we deal with the `@` then ?).
 
-    _found_tags: FrozenSet[Tag] = frozenset()
-
     def __init__(self):
         # Add ability to update the set of closing tags for instances of
         # SyntaxTreeGenerator.
         # It is used by extensions to define new closing tags,
         # by calling `Compiler.add_new_tag()`.
+        self._found_tags: Set[Tag] = set()
         self.reset()
 
     def reset(self):
-        "Full reset."
+        """Full reset."""
         self.tags = dict(self.tags)
         self.update_tags()
         self.syntax_tree = None
 
     @staticmethod
     def only_closing(tag):
-        "Return `True` if tag is only a closing tag, `False` else."
+        """Return `True` if tag is only a closing tag, `False` else."""
         return tag == "END" or tag.startswith("END_")
 
     def update_tags(self):
-        "Automatically add closing tags, then generate sorted list."
+        """Automatically add closing tags, then generate sorted list."""
         missing = set()
         for name, syntax in self.tags.items():
             closing_tags = syntax[2]
@@ -244,7 +249,7 @@ class SyntaxTreeGenerator:
         return self.syntax_tree
 
     def _generate_tree(self, node, text):
-        "Parse `text`, then add corresponding content to `node`."
+        """Parse `text`, then add corresponding content to `node`."""
         position = 0
         update_last_position = True
         node._closing_tags = []
@@ -270,11 +275,11 @@ class SyntaxTreeGenerator:
             for tag in self.sorted_tags:
                 if text[position:].startswith(tag):
                     # Mmm, this begins like a known tag...
-                    # In fact, it will really match a known tag if one of the following occures:
+                    # In fact, it will really match a known tag if one of the following occurs:
                     # - next character is not alphanumeric ('#IF{' for example).
                     # - tag is not alphanumeric ('#*' tag for example).
                     if not tag[-1].replace("_", "a").isalnum():
-                        # Tag is not alphanumeric, so no confusion with a variable name can occure.
+                        # Tag is not alphanumeric, so no confusion with a variable name can occur.
                         # -> yes, a known tag found !
                         position += len(tag)
                         break
@@ -352,7 +357,7 @@ class SyntaxTreeGenerator:
             # The rule is actually quite simple: a #CASE tag must open a new CONDITIONAL_BLOCK
             # only if previous opened node wasn't a #CASE node.
             #
-            # Note that for #IF blocks, there is no such subtility,
+            # Note that for #IF blocks, there is no such difficulty,
             # because an #IF tag always opens a new CONDITIONAL_BLOCK.
             if (tag == "CASE" and node.name != "CASE") or tag == "IF":
                 node = node.add_child(Node("CONDITIONAL_BLOCK"))
@@ -376,7 +381,7 @@ class SyntaxTreeGenerator:
                 node = node.add_child(Node(tag))
                 # Some specific parsing is done however:
                 # a line starting with `%` will be interpreted as a comment.
-                # This makes code a bit more readable, since `%` is already used
+                # This makes the code a bit more readable, since `%` is already used
                 # for comments in LateX code.
                 _text = text[position:end]
                 _text = re.sub(r"^\s*%", "#", _text, flags=re.MULTILINE)
@@ -386,7 +391,7 @@ class SyntaxTreeGenerator:
 
             # General case
             # ------------
-            # Exclude #END and all closing tags, since they(re not true tags.
+            # Exclude #END and all closing tags, since they're not true tags.
             # (Their only purpose is to close a block, #END doesn't correspond to any command).
             elif not self.only_closing(tag):
                 # Create and enter new node.
@@ -413,7 +418,7 @@ class SyntaxTreeGenerator:
 
                 # Detect command arguments.
                 # ~~~~~~~~~~~~~~~~~~~~~~~~~
-                # Each argument become a node with its number as name.
+                # Each argument becomes a node with its number as name.
                 try:
                     code_args_number, raw_args_number, closing_tags = self.tags[node.name]
                 except ValueError:

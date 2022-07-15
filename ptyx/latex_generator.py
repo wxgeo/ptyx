@@ -111,7 +111,9 @@ class LatexGenerator:
         In particular, when parsing an IF block, True will be returned if and
         only if the block condition was satisfied.
         """
-        tag = self.convert_tags.get(node.name, node.name)
+        name = node.name
+        assert isinstance(name, str), repr(node)
+        tag = self.convert_tags.get(name, name)
         try:
             method = getattr(self, f"_parse_{tag}_tag")
             return method(node)
@@ -233,10 +235,12 @@ class LatexGenerator:
         self.set_new_context(context_backup)
 
     def _parse_API_VERSION_tag(self, node: Node):
-        def version_tuple(version):
+        def version_tuple(version: str):
             return version.split(".")
 
-        version = version_tuple(node.children[0].children)
+        assert isinstance(node.children[0], Node), repr(node)
+        assert isinstance(node.children[0].children[0], str), repr(node)
+        version = version_tuple(node.children[0].children[0])
         if version_tuple(__version__) < version:
             print("Warning: pTyX engine is too old (v%s required)." % version)
         if version < version_tuple(__api__):
@@ -262,10 +266,12 @@ class LatexGenerator:
 
     def _parse_ANSWER_tag(self, node: Node):
         if self.WITH_ANSWERS:
+            assert isinstance(node.children[0], Node), repr(node)
             self._parse_children(node.children[0].children, function=self.context.get("format_answer"))
 
     def _parse_QUESTION_tag(self, node: Node):
         if not self.WITH_ANSWERS:
+            assert isinstance(node.children[0], Node), repr(node)
             self._parse_children(node.children[0].children)
 
     def _parse_IF_tag(self, node: Node):
@@ -290,6 +296,7 @@ class LatexGenerator:
 
     def _parse_IFNUM_tag(self, node: Node):
         if eval(node.arg(0), self.context) == self.NUM:
+            assert isinstance(node.children[1], Node), repr(node)
             self._parse_children(node.children[1].children)
 
     def _parse_CASE_tag(self, node: Node):
@@ -328,6 +335,7 @@ class LatexGenerator:
     def _parse_PYTHON_tag(self, node: Node):
         assert len(node.children) == 1
         python_code = node.children[0]
+        assert isinstance(python_code, str), repr(python_code)
         self._exec_python_code(python_code, self.context)
 
     # Remove comments before generating tree ?
@@ -509,8 +517,10 @@ class LatexGenerator:
     def _parse_TEST_tag(self, node: Node) -> None:
         try:
             if eval(node.arg(0), self.context):
+                assert isinstance(node.children[1], Node), repr(node)
                 self._parse_children(node.children[1].children)
             else:
+                assert isinstance(node.children[2], Node), repr(node)
                 self._parse_children(node.children[2].children)
         except Exception:
             print(node.display(color=False))

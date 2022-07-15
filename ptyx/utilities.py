@@ -1,6 +1,7 @@
 import re
 from math import ceil, floor, isnan, isinf
 from os.path import realpath, normpath, expanduser
+from typing import List, Sequence, Optional
 
 from ptyx.config import sympy
 
@@ -8,7 +9,7 @@ if sympy is not None:
     from sympy import preorder_traversal, Symbol
 
 
-def round_away_from_zero(val, ndigits=0):
+def round_away_from_zero(val, ndigits=0) -> float:
     """Round using round-away-from-zero strategy for halfway cases.
 
     Python 3+ implements round-half-even, and Python 2.7 has a random behaviour
@@ -27,7 +28,7 @@ def round_away_from_zero(val, ndigits=0):
     return val
 
 
-def find_closing_bracket(text, start=0, brackets="{}", detect_strings=True):
+def find_closing_bracket(text: str, start: int = 0, brackets: str = "{}", detect_strings=True) -> int:
     """Find the closing bracket, starting from position `start`.
 
     Note that start have to be a position *after* the opening bracket.
@@ -94,17 +95,19 @@ def find_closing_bracket(text, start=0, brackets="{}", detect_strings=True):
                     string_type = None
                     i += 2
 
-        i += 1  # counting the current caracter as already scanned text
+        i += 1  # counting the current character as already scanned text
         index += i
         text = text[i:]
 
     else:
-        return start + index - 1  # last caracter is the searched bracket :-)
+        return start + index - 1  # last character is the searched bracket :-)
 
     raise ValueError("ERROR: unbalanced brackets (%s) while scanning %s..." % (balance, repr(text_beginning)))
 
 
-def advanced_split(string, separator, quotes="\"'", brackets=("()", "[]", "{}")):
+def advanced_split(
+    string: str, separator: str, quotes: str = "\"'", brackets: Sequence[str] = ("()", "[]", "{}")
+) -> List[str]:
     """Split string "main_string" smartly, detecting brackets group and inner strings.
 
     Return a list of strings."""
@@ -115,7 +118,7 @@ def advanced_split(string, separator, quotes="\"'", brackets=("()", "[]", "{}"))
     # Little optimisation since `not in` is very fast.
     if separator not in string:
         return [string]
-    breaks = [-1]  # those are the points where the string will be cut
+    breaks: List[int] = [-1]  # those are the points where the string will be cut
     stack = ["."]  # ROOT
     for i, letter in enumerate(string):
         if letter in quotes:
@@ -129,7 +132,10 @@ def advanced_split(string, separator, quotes="\"'", brackets=("()", "[]", "{}"))
         elif letter == separator and len(stack) == 1:
             breaks.append(i)
         else:
-            for start, end in brackets:
+            start: str
+            end: str
+            # mypy bug: "Unpacking a string is disallowed"
+            for start, end in brackets:  # type: ignore
                 if letter == start:
                     stack.append(letter)
                 elif letter == end:
@@ -138,7 +144,7 @@ def advanced_split(string, separator, quotes="\"'", brackets=("()", "[]", "{}"))
                     stack.pop()
     if len(stack) != 1:
         raise ValueError("Unbalanced brackets in %s !" % repr(string))
-    breaks.append(None)
+    breaks.append(None)  # type: ignore
     # mystring[i:None] returns the end of the string.
     return [string[i + 1 : j] for i, j in zip(breaks[:-1], breaks[1:])]
 
