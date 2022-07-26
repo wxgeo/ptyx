@@ -13,7 +13,8 @@ from ptyx import __version__, __api__
 from ptyx.config import param, sympy
 from ptyx.context import GLOBAL_CONTEXT
 from ptyx.printers import sympy2latex
-from ptyx.syntax_tree import Node, SyntaxTreeGenerator, Tag, TagSyntax
+from ptyx.syntax_tree import SyntaxTreeGenerator, Tag, TagSyntax
+from ptyx.nodes import Node
 from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_can
 
 

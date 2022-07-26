@@ -143,6 +143,16 @@ class CustomLatexPrinter(LatexPrinter):
     def _print_function(self, expr):
         return r"\mathrm{Fonction}\, " + expr.__name__
 
+    def emptyPrinter(self, expr):
+        # Revert 30/07/2020 sympy printer modification
+        # https://github.com/sympy/sympy/pull/19611
+        # ---
+        # Checks what type of decimal separator to print.
+        expr = super().emptyPrinter(expr)
+        if self._settings["decimal_separator"] == "comma":
+            expr = expr.replace(".", "{,}")
+        return expr
+
     def doprint(self, expr):
         tex = LatexPrinter.doprint(self, expr)
         return tex.replace(r"\operatorname{", r"\mathrm{")
