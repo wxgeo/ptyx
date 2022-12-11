@@ -290,7 +290,7 @@ def randmatrix(size=(3, 3), rank=None, unique=False, func=srandint, **kw):
     """Return a matrix of dimensions `size` (number of lines, number of columns).
 
     `func` is used to build the random values, and **kw are passed to it.
-    Be carrefull with `rank`, as it may induce infinite recursion if
+    Be careful with `rank`, as it may induce infinite recursion if
     condition can't be satisfied.
 
     Set `unique` to True if each coefficient must be unique.
