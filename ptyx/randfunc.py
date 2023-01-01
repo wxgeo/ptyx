@@ -74,9 +74,12 @@ def randint(a: int = None, b: int = None, exclude: Iterable = ()) -> int:
 
     Forbidden values may be specified using `exclude` argument.
     """
+    if a is None and b is not None:
+        a, b = b, a
     if b is None:
         b = 9 if a is None else a
         a = 2
+    assert a is not None and b is not None
     while a in exclude:
         a += 1
         if a > b:
@@ -107,6 +110,7 @@ def srandint(a: int = None, b: int = None, exclude: Iterable = ()) -> int:
         a = 2
     elif b is None:
         a, b = 2, a
+    assert a is not None and b is not None
     # pylint: disable=invalid-unary-operand-type
     while a in exclude and -a in exclude:
         a += 1
@@ -159,10 +163,9 @@ def is_mult_2_5(val: int | Iterable[int]) -> bool:
     `val` may also be a list (or other iterable) of integers,
      in that case all values must match 2**n * 5**m.
     """
+    ints: tuple[type, ...] = (int, )
     if sympy:
-        ints = (sympy.Integer, int)
-    else:
-        ints = (int,)
+        ints += (sympy.Integer, )
     if hasattr(val, "__iter__"):
         return all(is_mult_2_5(v) for v in val)
     if val == 0 or not isinstance(val, ints):
@@ -320,6 +323,7 @@ def randmatrix(size=(3, 3), rank=None, unique=False, func=srandint, **kw):
         raise ValueError("Matrix rank can't exceed lines nor columns number.")
     else:
         while True:
+            # noinspection PyUnusedLocal
             matrix = [[func(**kw) for j in range(size[1])] for i in range(rank)]
             if Matrix(matrix).rank() == rank:
                 break

@@ -1,7 +1,7 @@
 import re
 from math import ceil, floor, isnan, isinf
 from os.path import realpath, normpath, expanduser
-from typing import List, Sequence, Optional
+from typing import List, Sequence
 
 from ptyx.config import sympy
 
