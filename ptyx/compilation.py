@@ -192,7 +192,7 @@ def make_files(
         name = output_basename.with_suffix(ext)
         if name.is_file():
             # There is only one file (only one document was generated,
-            # or they were several documents but they were joined into a single document).
+            # or they were several documents, but they were joined into a single document).
             shutil.copy(name, input_name.parent)
         elif options.get("names"):
             # Rename files according to the given names' list.

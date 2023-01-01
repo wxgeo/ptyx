@@ -2,7 +2,7 @@ import random
 import functools
 from collections import namedtuple
 from math import gcd
-from typing import Callable
+from typing import Callable, Iterable
 
 from numpy import array
 
@@ -69,7 +69,11 @@ def set_seed(value):
 
 
 @sandboxed
-def randint(a=None, b=None, exclude=(), maximum=100000):
+def randint(a: int = None, b: int = None, exclude: Iterable = ()) -> int:
+    """Generate a random integer between `a` and `b`.
+
+    Forbidden values may be specified using `exclude` argument.
+    """
     if b is None:
         b = 9 if a is None else a
         a = 2
@@ -91,7 +95,12 @@ def randint(a=None, b=None, exclude=(), maximum=100000):
 
 
 @sandboxed
-def srandint(a=None, b=None, exclude=(), maximum=100000):
+def srandint(a: int = None, b: int = None, exclude: Iterable = ()) -> int:
+    """Generate a random integer between `a` and `b` or between `-b` and `-a`.
+
+    `a` and `b` should be positive integers.
+    Forbidden values may be specified using `exclude` argument.
+    """
     if a is None and b is None:
         a, b = 2, 9
     elif a is None:
@@ -144,8 +153,12 @@ def srandpoint(a=None, b=None, exclude=()):
             return Point(x, y)
 
 
-def is_mult_2_5(val):
-    """Test if integer val matches 2^n*5^m."""
+def is_mult_2_5(val: int | Iterable[int]) -> bool:
+    """Test if integer `val` matches 2**n * 5**m.
+
+    `val` may also be a list (or other iterable) of integers,
+     in that case all values must match 2**n * 5**m.
+    """
     if sympy:
         ints = (sympy.Integer, int)
     else:
@@ -164,6 +177,8 @@ def is_mult_2_5(val):
 @sandboxed
 def randfrac(a=None, b=None, exclude=(), not_decimal=False, den=None):
     """Return a random positive fraction which is never an integer.
+
+    By default, numerator and denominators are random integers between `a` and `b`.
 
     Use `den` to specify denominator value; `den` must be an integer or
     a list of integers.
