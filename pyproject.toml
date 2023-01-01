@@ -9,20 +9,20 @@ readme = "README.md"
 keywords = ["python", "tikz", "latex", "pdf", "exam", "mcq", "student"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.10"
 numpy = "^1.23.0"
-Pillow = "^9.1.1"
+Pillow = "^9.2.0"
 sympy = "^1.10.1"
 pdf2image = "^1.16.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7"
-mypy = "^0.961"
-flake8 = "^4.0.1"
+mypy = "^0.991"
+flake8 = "^6"
 black = "^22.1.0"
-tox = "^3.24.5"
+tox = "^4.1.2"
 sphinx-autodoc-typehints = "^1.18.3"
-sphinx-rtd-theme = "^1.0.0"#
+sphinx-rtd-theme = "^1.0.0"
 myst-parser = "^0.18.0"
 
 [tool.poetry.scripts]
@@ -45,13 +45,13 @@ legacy_tox_ini = """
 [tox]
 skipsdist = true
 isolated_build = True
-envlist = py38
+envlist = py310
 
 [testenv]
-whitelist_externals = poetry
+allowlist_externals = poetry
 commands =
     poetry install -v
     poetry run pytest tests
-    poetry run mypy ptyx tests
+    poetry run mypy --implicit-optional ptyx tests
     poetry run flake8 ptyx --max-line-length 110 --ignore=E203,W503,W391
 """
