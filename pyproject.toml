@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ptyx"
-version = "22.3.1"
+version = "22.3.2"
 description = "pTyX is a python precompiler for LaTeX."
 authors = ["Nicolas Pourcelot <nicolas.pourcelot@gmail.com>"]
 repository = "https://github.com/wxgeo/ptyx"
@@ -11,9 +11,7 @@ keywords = ["python", "tikz", "latex", "pdf", "exam", "mcq", "student"]
 [tool.poetry.dependencies]
 python = "^3.10"
 numpy = "^1.23.0"
-Pillow = "^9.2.0"
 sympy = "^1.10.1"
-pdf2image = "^1.16.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7"
