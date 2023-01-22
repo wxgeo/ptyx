@@ -868,9 +868,7 @@ class Compiler:
                 extensions[extension_name] = import_module(f"ptyx.extensions.{extension_name}")
             except ImportError:
                 # Try to find a matching registered plugin.
-                # TODO: once python < 3.10 support is dropped,
-                #       use `metadata.entry_points(group="ptyx.extensions")` instead.
-                for entry_point in metadata.entry_points().get("ptyx.extensions", ()):
+                for entry_point in metadata.entry_points(group="ptyx.extensions"):
                     if entry_point.name == extension_name:
                         extensions[extension_name] = import_module(entry_point.value)
                         break
