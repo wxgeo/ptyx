@@ -156,12 +156,13 @@ def make_files(
                     # This is a bit subtle. We want all compiled documents to have
                     # the same pages number, yet we don't want to set it manually.
                     # So, we compile documents and memorize their size.
-                    # We'll sort compilation results by the length of the resulting document.
-                    # We'll keep one "bag" for each size of document.
-                    # However, at each loop, if the compiled document is of size n,
-                    # it's enough to put on the table the bag of all the n-sized and to
-                    # put the new document inside. Before beginning next loop, the bag size will be tested.
-                    # There's no need to have a look on the others, since they haven't change...
+                    # We'll group compilation results by the length of the resulting document.
+                    # We'll keep one dictionary {document number: Path}  for each size of document.
+                    # At each loop, if the compiled document is of size n,
+                    # we update the dictionary of all the n-sized documents with the document id and its path.
+                    # Before beginning the next loop, the dictionary size will be checked,
+                    # to see if it contains enough documents.
+                    # (There's no need to have a look on the others dicts, since they haven't change...)
                     compilation_info = pages_per_document.setdefault(pdf_pages_number, {})
                 elif pages != pdf_pages_number:
                     # Pages number is set manually, and don't match.
