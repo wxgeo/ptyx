@@ -168,7 +168,7 @@ def make_files(
         # -------------------------
         # Compile using parallelism
         # -------------------------
-        with Pool() as pool:
+        with Pool(max(os.cpu_count()//2, 1)) as pool:
             infos_list = pool.starmap(make_file, tasks)
 
         # ---------------
