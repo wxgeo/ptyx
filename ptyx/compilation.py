@@ -5,14 +5,21 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from multiprocessing import Pool
 from pathlib import Path
-from typing import Optional, Dict, Iterable, List, Sequence, Tuple, Union
+from typing import Optional, Dict, Iterable, List, Sequence, Tuple, Union, TypedDict
 
 from ptyx.config import param
 from ptyx.latex_generator import compiler
 
 
-def append_suffix(path: Path, suffix):
+class MakeInfo(TypedDict):
+    num: int | None
+    filename: Path
+    pages_number: int
+
+
+def append_suffix(path: Path, suffix) -> Path:
     """>>> append_suffix(Path("/home/user/file"), "-corr")
     Path("/home/user/file-corr")
     """
@@ -110,7 +117,7 @@ def make_files(
         target = len(_nums)
     if context is None:
         context = {"PTYX_WITH_ANSWERS": correction}
-    formats = options.get("formats", param["default_formats"].split("+"))  # type: ignore
+    formats: list[str] = options.get("formats", param["default_formats"].split("+"))  # type: ignore
 
     # Create an empty `.compile/{input_name}` subfolder.
     compilation_dir = input_name.parent / ".compile" / input_name.stem
@@ -133,44 +140,68 @@ def make_files(
     pages_per_document: Dict[int, Dict[int, Path]] = {}
 
     # Compilation number, used to initialize random numbers' generator.
-    num = options.get("start", 1)
+    num = options.get("start", 1) - 1
     assert target is not None
     while len(compilation_info) < target:
-        # 1. Generate context.
-        if correction and _nums is not None:
-            num = _nums.pop(0)
-        context.update(PTYX_NUM=num)
-        filename = append_suffix(output_basename, f"-{num}") if target > 1 else output_basename
-        # 2. Compile.
-        # Output is redirected to a `.log` file.
-        logfile = append_suffix(filename, "-python.log")
-        print("\nLog file:", logfile, "\n")
-        with Logging(logfile if not remove else ""):
-            infos = make_file(filename, formats, context=context, quiet=quiet)
-        pdf_pages_number = infos.get("pages_number")
+        # ------------------------------
+        # Generate the list of the tasks
+        # ------------------------------
+        # (Note that the actual number of tasks may be more than that, because by default we aim to have
+        # documents with the same number of pages.)
+        tasks: list[tuple[Path, tuple[str, ...], dict, bool | None, Path | str, int | None]] = []
+        for _ in range(target - len(compilation_info)):
+            # 1. Generate context.
+            num += 1
+            if correction and _nums is not None:
+                # Overwrite default numeration, since correction numeration must match first pass.
+                num = _nums.pop(0)
+            context.update(PTYX_NUM=num)
+            filename = append_suffix(output_basename, f"-{num}") if target > 1 else output_basename
+            # 2. Compile.
+            # Output is redirected to a `.log` file.
+            logfile = append_suffix(filename, "-python.log")
+            # Do NOT use the same dict instance, make a copy !
+            tasks.append(
+                (filename, tuple(formats), context.copy(), quiet, logfile if not remove else "", num)
+            )
 
-        if not correction:
-            # 3. Test if the new generated file satisfies all options constraints.
-            if fixed_number_of_pages:
-                if pages is None:
-                    # This is a bit subtle. We want all compiled documents to have
-                    # the same pages number, yet we don't want to set it manually.
-                    # So, we compile documents and memorize their size.
-                    # We'll group compilation results by the length of the resulting document.
-                    # We'll keep one dictionary {document number: Path}  for each size of document.
-                    # At each loop, if the compiled document is of size n,
-                    # we update the dictionary of all the n-sized documents with the document id and its path.
-                    # Before beginning the next loop, the dictionary size will be checked,
-                    # to see if it contains enough documents.
-                    # (There's no need to have a look on the others dicts, since they haven't change...)
-                    compilation_info = pages_per_document.setdefault(pdf_pages_number, {})
-                elif pages != pdf_pages_number:
-                    # Pages number is set manually, and don't match.
-                    print(f"Warning: skipping {filename} (incorrect page number) !")
-                    continue
+        # -------------------------
+        # Compile using parallelism
+        # -------------------------
+        with Pool() as pool:
+            infos_list = pool.starmap(make_file, tasks)
 
-        compilation_info[num] = filename
-        num += 1
+        # ---------------
+        # Analyze results
+        # ---------------
+        for infos in infos_list:
+            pdf_pages_number = infos["pages_number"]
+            num = infos["num"]
+            filename = infos["filename"]
+
+            if not correction:
+                # 3. Test if the new generated file satisfies all options constraints.
+                if fixed_number_of_pages:
+                    if pages is None:
+                        # This is a bit subtle. We want all compiled documents to have
+                        # the same pages number, yet we don't want to set it manually.
+                        # So, we compile documents and memorize their size.
+                        # We'll group compilation results by the length of the resulting document.
+                        # We'll keep one dictionary {document number: Path}  for each size of document.
+                        # At each loop, if the compiled document is of size n,
+                        # we update the dictionary of all the n-sized documents with the document ID
+                        # and its path.
+                        # Before beginning the next loop, the dictionary size will be checked,
+                        # to see if it contains enough documents.
+                        # (There's no need to have a look on the others dicts, since they haven't change...)
+                        compilation_info = pages_per_document.setdefault(pdf_pages_number, {})
+                    elif pages != pdf_pages_number:
+                        # Pages number is set manually, and don't match.
+                        print(f"Warning: skipping {filename} (incorrect page number) !")
+                        continue
+
+            compilation_info[num] = filename
+            num += 1
 
     assert len(compilation_info) == target
     filenames = list(compilation_info.values())
@@ -199,8 +230,8 @@ def make_files(
             # Rename files according to the given names' list.
             names = options["names"]
             assert len(names) == len(filenames)
-            for filename, name in zip(filenames, names):
-                new_name = filename.with_stem(name).name
+            for filename, stem in zip(filenames, names):
+                new_name = filename.with_stem(stem).name
                 shutil.copy(filename.with_suffix(ext), input_name.parent / new_name)
         else:
             # Copy files without changing names.
@@ -219,37 +250,39 @@ def make_file(
     formats: Optional[Iterable] = None,
     context: Optional[Dict] = None,
     quiet: Optional[bool] = None,
-):
+    logfile: Path | str = "",
+    num: int = None,
+) -> MakeInfo:
     """Generate latex and/or pdf file from ptyx source file."""
     # TODO: Current make_file() API is a bit strange.
     # Instead of using `formats` and `plain_latex`, use `input_format` (ptyx|tex)
     # and `output_format` (tex|pdf).
     # Raise an error if input_format and output_format are both set to tex.
-    infos = {}
-    if formats is None:
-        formats = param["default_formats"].split("+")  # type: ignore
-    if context is None:
-        context = {}
+    if logfile:
+        print("\nLog file:", logfile, "\n")
+    with Logging(logfile):
+        infos: MakeInfo = {"filename": output_name, "pages_number": -1, "num": num}
+        if formats is None:
+            formats = param["default_formats"].split("+")  # type: ignore
+        if context is None:
+            context = {}
 
-    # make_file() can be used to compile plain LaTeX too.
-    context.setdefault("PTYX_NUM", 1)
-    latex = compiler.get_latex(**context)
+        # make_file() can be used to compile plain LaTeX too.
+        context.setdefault("PTYX_NUM", 1)
+        latex = compiler.get_latex(**context)
 
-    texfile_name = output_name.with_suffix(".tex")
-    with open(texfile_name, "w") as texfile:
-        texfile.write(latex)
-        if "pdf" in formats:
-            texfile.flush()
-            pages_number = compile_latex(texfile_name, quiet=quiet)
-            infos["pages_number"] = pages_number
-    return infos
+        texfile_name = output_name.with_suffix(".tex")
+        with open(texfile_name, "w") as texfile:
+            texfile.write(latex)
+            if "pdf" in formats:
+                texfile.flush()
+                pages_number = compile_latex(texfile_name, quiet=quiet)
+                infos["pages_number"] = pages_number
+        return infos
 
 
-def compile_latex(
-    filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False
-) -> Optional[int]:
-    """Compile the latex file and return the number of pages of the pdf
-    (or None if not found)."""
+def compile_latex(filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False) -> int:
+    """Compile the latex file and return the number of pages of the pdf (or -1 if not found)."""
     # By default, pdflatex use current directory as destination folder.
     # However, much of the time, we want destination folder to be the one
     # where the tex file was found.
@@ -268,12 +301,12 @@ def compile_latex(
     # Return the number of pages of the pdf generated.
     i = log.find("Output written on ")
     if i == -1:
-        return None
+        return -1
     pattern = r"Output written on .+ \(([0-9]+) pages, [0-9]+ bytes\)\."
     # Line breaks may occur anywhere in the log after the file path,
     # so using re.DOTALL flag is not enough, we have to manually remove all `\n`.
     m = re.search(pattern, log[i:].replace("\n", ""))
-    return int(m.group(1)) if m is not None else None
+    return int(m.group(1)) if m is not None else -1
 
 
 def join_files(
