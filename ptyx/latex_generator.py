@@ -6,7 +6,7 @@ from importlib import import_module, metadata
 from os.path import dirname, basename, join
 from pathlib import Path
 from types import ModuleType
-from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List
+from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List, TypedDict
 
 import ptyx.randfunc as randfunc
 from ptyx import __version__, __api__
@@ -15,6 +15,16 @@ from ptyx.context import GLOBAL_CONTEXT
 from ptyx.printers import sympy2latex
 from ptyx.syntax_tree import Node, SyntaxTreeGenerator, Tag, TagSyntax
 from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_can
+
+
+class State(TypedDict, total=False):
+    syntax_tree: Node
+    seed: Optional[int]
+    input: str
+    path: Optional[Path]
+    loaded_extensions: dict[str, ModuleType]
+    plain_ptyx_code: str
+    after_include: Optional[str]
 
 
 # =============================================================================
@@ -802,8 +812,7 @@ class Compiler:
         self.reset()
 
     def reset(self) -> None:
-        self._state = {}
-        self._new_closing_tags = set()
+        self._state: State = {}
         # Make SyntaxTreeGenerator context free ?
         self.syntax_tree_generator.reset()
 
@@ -937,8 +946,10 @@ class Compiler:
         remove_comments = self.syntax_tree_generator.remove_comments
         # Remove comments first, so one can comment a file inclusion for example.
         code = remove_comments(code)
+        assert isinstance(code, str)
         code = remove_comments(self._include_subfiles(code))
         self._state["after_include"] = code
+        assert isinstance(code, str)
         code, extensions = self._call_extensions(code)
         code, seed = self._read_seed(code)
         self._state["plain_ptyx_code"] = code

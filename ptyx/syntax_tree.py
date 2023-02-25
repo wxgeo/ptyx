@@ -225,7 +225,7 @@ class SyntaxTreeGenerator:
         self.sorted_tags = sorted(self.tags, key=len, reverse=True)
 
     @staticmethod
-    def remove_comments(text):
+    def remove_comments(text: str) -> str:
         # If the comment is at the end of a line, don't remove the end of line.
         # However, if the full line is a comment, remove the end of line (\n).
         text = re.sub("( # .+)|(^# .+\n)", "", text, flags=re.MULTILINE)

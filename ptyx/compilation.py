@@ -8,41 +8,10 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional, Dict, Iterable, List, Sequence, Tuple, Union, TypedDict
-import asyncio
+from typing import Optional, Dict, Iterable, List, Sequence, Tuple, Union
 
 from ptyx.config import param, CPU_PHYSICAL_CORES
 from ptyx.latex_generator import compiler
-
-
-class MakeInfo(TypedDict):
-    num: int | None
-    filename: Path
-    pages_number: int
-
-
-Command = list[str]
-
-
-async def _run_command(command: Command) -> tuple[str, str]:
-    proc = await asyncio.create_subprocess_exec(
-        *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await proc.communicate()
-    return (stdout.decode().strip(), stderr.decode().strip())
-
-
-async def _gather(commands: list[Command]):
-    tasks = [asyncio.create_task(_run_command(command)) for command in commands]
-    results = await asyncio.gather(*tasks)
-    output_list = []
-    for result in results:
-        output_list.append(result[0])
-    return output_list
-
-
-def run_commands(commands: list[Command]) -> list[str]:
-    return asyncio.run(_gather(commands))
 
 
 def append_suffix(path: Path, suffix) -> Path:
@@ -85,7 +54,7 @@ class Logging(object):
     Note this logging occurs in addition to standard output, which is not suppressed.
     """
 
-    def __init__(self, logfile_name: Path | str = ""):
+    def __init__(self, logfile_name: Path | str | None = None):
         self.logfile = open(logfile_name, "a") if logfile_name else _DevNull()
 
     def __enter__(self):
@@ -104,10 +73,13 @@ class Logging(object):
 
 def execute(string: str, quiet=False) -> str:
     out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
-    encoding = locale.getpreferredencoding(False)
-    output = out.read().decode(encoding, errors="replace")
-    sys.stdout.write(output)
-    out.close()
+    if out is not None:
+        encoding = locale.getpreferredencoding(False)
+        output = out.read().decode(encoding, errors="replace")
+        sys.stdout.write(output)
+        out.close()
+    else:
+        output = ""
     if not quiet:
         print(f"Command '{string}' executed.")
     return output
@@ -284,10 +256,10 @@ def make_latex(
     """Generate latex from ptyx source file."""
     if log:
         # Output is redirected to a `.log` file.
-        logfile = append_suffix(output_name, "-python.log")
+        logfile: Optional[Path] = append_suffix(output_name, "-python.log")
         print("\nLog file:", logfile, "\n")
     else:
-        logfile = ""
+        logfile = None
 
     with Logging(logfile):
         if context is None:
@@ -304,38 +276,11 @@ def make_latex(
 
 def make_file(
     output_name: Path,
-    formats: Optional[Iterable] = None,
     context: Optional[Dict] = None,
     quiet: Optional[bool] = None,
-    logfile: Path | str = "",
-    num: int = None,
-) -> MakeInfo:
+) -> int:
     """Generate latex and/or pdf file from ptyx source file."""
-    # TODO: Current make_file() API is a bit strange.
-    # Instead of using `formats` and `plain_latex`, use `input_format` (ptyx|tex)
-    # and `output_format` (tex|pdf).
-    # Raise an error if input_format and output_format are both set to tex.
-    if logfile:
-        print("\nLog file:", logfile, "\n")
-    with Logging(logfile):
-        infos: MakeInfo = {"filename": output_name, "pages_number": -1, "num": num}
-        if formats is None:
-            formats = param["default_formats"].split("+")  # type: ignore
-        if context is None:
-            context = {}
-
-        # make_file() can be used to compile plain LaTeX too.
-        context.setdefault("PTYX_NUM", 1)
-        latex = compiler.get_latex(**context)
-
-        texfile_name = output_name.with_suffix(".tex")
-        with open(texfile_name, "w") as texfile:
-            texfile.write(latex)
-            if "pdf" in formats:
-                texfile.flush()
-                pages_number = compile_latex(texfile_name, quiet=quiet)
-                infos["pages_number"] = pages_number
-        return infos
+    return compile_latex(make_latex(output_name, context), quiet=quiet)
 
 
 def compile_latex(filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False) -> int:
