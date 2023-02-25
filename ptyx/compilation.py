@@ -1,13 +1,15 @@
+import itertools
 import locale
+import multiprocessing
 import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
-from multiprocessing import Pool
 from pathlib import Path
 from typing import Optional, Dict, Iterable, List, Sequence, Tuple, Union, TypedDict
+import asyncio
 
 from ptyx.config import param, CPU_PHYSICAL_CORES
 from ptyx.latex_generator import compiler
@@ -17,6 +19,30 @@ class MakeInfo(TypedDict):
     num: int | None
     filename: Path
     pages_number: int
+
+
+Command = list[str]
+
+
+async def _run_command(command: Command) -> tuple[str, str]:
+    proc = await asyncio.create_subprocess_exec(
+        *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await proc.communicate()
+    return (stdout.decode().strip(), stderr.decode().strip())
+
+
+async def _gather(commands: list[Command]):
+    tasks = [asyncio.create_task(_run_command(command)) for command in commands]
+    results = await asyncio.gather(*tasks)
+    output_list = []
+    for result in results:
+        output_list.append(result[0])
+    return output_list
+
+
+def run_commands(commands: list[Command]) -> list[str]:
+    return asyncio.run(_gather(commands))
 
 
 def append_suffix(path: Path, suffix) -> Path:
@@ -59,7 +85,7 @@ class Logging(object):
     Note this logging occurs in addition to standard output, which is not suppressed.
     """
 
-    def __init__(self, logfile_name=""):
+    def __init__(self, logfile_name: Path | str = ""):
         self.logfile = open(logfile_name, "a") if logfile_name else _DevNull()
 
     def __enter__(self):
@@ -76,7 +102,7 @@ class Logging(object):
         self.logfile.close()
 
 
-def execute(string, quiet=False):
+def execute(string: str, quiet=False) -> str:
     out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
     encoding = locale.getpreferredencoding(False)
     output = out.read().decode(encoding, errors="replace")
@@ -143,12 +169,14 @@ def make_files(
     num = options.get("start", 1) - 1
     assert target is not None
     while len(compilation_info) < target:
-        # ------------------------------
-        # Generate the list of the tasks
-        # ------------------------------
-        # (Note that the actual number of tasks may be more than that, because by default we aim to have
-        # documents with the same number of pages.)
-        tasks: list[tuple[Path, tuple[str, ...], dict, bool | None, Path | str, int | None]] = []
+        # ------------------------
+        # Generate the LaTeX files
+        # ------------------------
+        # (Note that the actual number of generated files may be more than that,
+        # because by default we aim to have documents with the same number of pages.)
+        latex_files: list[Path] = []
+        nums: list[int] = []
+        filenames: list[Path] = []
         for _ in range(target - len(compilation_info)):
             # 1. Generate context.
             num += 1
@@ -156,30 +184,32 @@ def make_files(
                 # Overwrite default numeration, since correction numeration must match first pass.
                 num = _nums.pop(0)
             context.update(PTYX_NUM=num)
+            nums.append(num)
             filename = append_suffix(output_basename, f"-{num}") if target > 1 else output_basename
-            # 2. Compile.
-            # Output is redirected to a `.log` file.
-            logfile = append_suffix(filename, "-python.log")
-            # Do NOT use the same dict instance, make a copy !
-            tasks.append(
-                (filename, tuple(formats), context.copy(), quiet, logfile if not remove else "", num)
-            )
+            filenames.append(filename)
+            # 2. Compile to LaTeX.
+            latex_files.append(make_latex(filename, context))
 
-        # -------------------------
-        # Compile using parallelism
-        # -------------------------
+        # --------------------------------
+        # Compile to pdf using parallelism
+        # --------------------------------
         # Use only the physical cores, not the virtual ones !
-        with Pool(CPU_PHYSICAL_CORES) as pool:
-            infos_list = pool.starmap(make_file, tasks)
+        # with Pool(CPU_PHYSICAL_CORES) as pool:
+        #     infos_list = pool.starmap(make_file, tasks)
+
+        cpu_cores_to_use = min(CPU_PHYSICAL_CORES, len(latex_files))
+        args = [(path, None, quiet) for path in latex_files]
+
+        if cpu_cores_to_use > 1:
+            with multiprocessing.Pool(cpu_cores_to_use) as pool:
+                pages_numbers: list[int] = pool.starmap(compile_latex, args)
+        else:
+            pages_numbers = list(itertools.starmap(compile_latex, args))
 
         # ---------------
         # Analyze results
         # ---------------
-        for infos in infos_list:
-            pdf_pages_number = infos["pages_number"]
-            num = infos["num"]
-            filename = infos["filename"]
-
+        for pdf_pages_number, num, filename in zip(pages_numbers, nums, filenames):
             if not correction:
                 # 3. Test if the new generated file satisfies all options constraints.
                 if fixed_number_of_pages:
@@ -244,6 +274,32 @@ def make_files(
         shutil.rmtree(compilation_dir)
 
     return output_basename, list(compilation_info.keys())
+
+
+def make_latex(
+    output_name: Path,
+    context: Optional[Dict] = None,
+    log=True,
+) -> Path:
+    """Generate latex from ptyx source file."""
+    if log:
+        # Output is redirected to a `.log` file.
+        logfile = append_suffix(output_name, "-python.log")
+        print("\nLog file:", logfile, "\n")
+    else:
+        logfile = ""
+
+    with Logging(logfile):
+        if context is None:
+            context = {}
+
+        context.setdefault("PTYX_NUM", 1)
+        latex = compiler.get_latex(**context)
+
+        texfile_path = output_name.with_suffix(".tex")
+        with open(texfile_path, "w") as texfile:
+            texfile.write(latex)
+        return texfile_path
 
 
 def make_file(
