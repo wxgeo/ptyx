@@ -174,7 +174,7 @@ def make_files(
         args = [(path, None, quiet) for path in latex_files]
 
         if cpu_cores_to_use > 1:
-            with multiprocessing.Pool(cpu_cores_to_use) as pool:
+            with multiprocessing.get_context("forkserver").Pool(cpu_cores_to_use) as pool:
                 pages_numbers: list[int] = pool.starmap(compile_latex, args)
         else:
             pages_numbers = list(itertools.starmap(compile_latex, args))
