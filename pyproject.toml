@@ -35,6 +35,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.mypy]
 ignore_missing_imports = true
+implicit_optional = true
 
 [tool.black]
 line-length = 110
@@ -51,6 +52,6 @@ allowlist_externals = poetry
 commands =
     poetry install -v
     poetry run pytest tests
-    poetry run mypy --implicit-optional ptyx tests
+    poetry run mypy ptyx tests
     poetry run flake8 ptyx --max-line-length 110 --ignore=E203,W503,W391
 """

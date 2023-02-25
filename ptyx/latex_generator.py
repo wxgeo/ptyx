@@ -906,8 +906,11 @@ class Compiler:
                 code = extensions[name].main(code, self)
         return code, extensions
 
-    def _read_seed(self, code: str):
-        """Extract seed value from code, searching for #SEED{num} tag."""
+    def _read_seed(self, code: str) -> Tuple[str, Optional[int]]:
+        """Extract seed value from code, searching for #SEED{num} tag.
+
+        Return the code without the #SEED{...} tag, and the seed value (if any, `None` else).
+        """
         counter = 0
         value = None
 
@@ -1018,11 +1021,11 @@ class Compiler:
         return self._state["syntax_tree"]
 
     @property
-    def seed(self):
+    def seed(self) -> Optional[int]:
         return self._state["seed"]
 
     @property
-    def file_path(self):
+    def file_path(self) -> Optional[Path]:
         return self._state["path"]
 
     @property
