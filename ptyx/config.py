@@ -3,6 +3,8 @@
 import os
 import sys
 
+import psutil
+
 try:
     from ptyx.custom_config import param as custom_param
 except ImportError:
@@ -47,3 +49,10 @@ try:
 except ImportError:
     print("WARNING: numpy not found.")
     numpy = None
+
+try:
+    CPU_PHYSICAL_CORES = psutil.cpu_count(logical=False)
+except ImportError:
+    CPU_PHYSICAL_CORES = (os.cpu_count() or 1) // 2
+if not CPU_PHYSICAL_CORES:
+    CPU_PHYSICAL_CORES = 1

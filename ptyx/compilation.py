@@ -9,7 +9,7 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Optional, Dict, Iterable, List, Sequence, Tuple, Union, TypedDict
 
-from ptyx.config import param
+from ptyx.config import param, CPU_PHYSICAL_CORES
 from ptyx.latex_generator import compiler
 
 
@@ -168,7 +168,8 @@ def make_files(
         # -------------------------
         # Compile using parallelism
         # -------------------------
-        with Pool(max(os.cpu_count()//2, 1)) as pool:
+        # Use only the physical cores, not the virtual ones !
+        with Pool(CPU_PHYSICAL_CORES) as pool:
             infos_list = pool.starmap(make_file, tasks)
 
         # ---------------
