@@ -152,6 +152,12 @@ class PtyxArgumentParser(argparse.ArgumentParser):
             help="Generate a batch file for printing all pdf files using SumatraPDF.",
         )
         self.add_argument(
+            "--cpu-cores",
+            type=int,
+            metavar="N_CORES",
+            help="Number of cpu cores to use when compiling. (Automatically detected by default).",
+        )
+        self.add_argument(
             "--context",
             default="",
             type=str,

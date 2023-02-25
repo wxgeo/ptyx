@@ -116,6 +116,7 @@ def make_files(
     if context is None:
         context = {"PTYX_WITH_ANSWERS": correction}
     formats: list[str] = options.get("formats", param["default_formats"].split("+"))  # type: ignore
+    cpu_cores: Optional[int] = options.get("cpu_cores")  # type: ignore
 
     # Create an empty `.compile/{input_name}` subfolder.
     compilation_dir = input_name.parent / ".compile" / input_name.stem
@@ -169,7 +170,7 @@ def make_files(
         # with Pool(CPU_PHYSICAL_CORES) as pool:
         #     infos_list = pool.starmap(make_file, tasks)
 
-        cpu_cores_to_use = min(CPU_PHYSICAL_CORES, len(latex_files))
+        cpu_cores_to_use = cpu_cores if cpu_cores else min(CPU_PHYSICAL_CORES, len(latex_files))
         args = [(path, None, quiet) for path in latex_files]
 
         if cpu_cores_to_use > 1:
@@ -285,6 +286,17 @@ def make_file(
 
 def compile_latex(filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False) -> int:
     """Compile the latex file and return the number of pages of the pdf (or -1 if not found)."""
+    command = _build_command(filename, dest, quiet)
+    log = execute(command)
+    # Run command twice if references were found.
+    if "Rerun to get cross-references right." in log or "There were undefined references." in log:
+        # ~ input('- run again -')
+        log = execute(command)
+    return _extract_page_number(log)
+
+
+def _build_command(filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False) -> str:
+    """Generate the command used to compile the LaTeX file."""
     # By default, pdflatex use current directory as destination folder.
     # However, much of the time, we want destination folder to be the one
     # where the tex file was found.
@@ -293,21 +305,18 @@ def compile_latex(filename: Path, dest: Optional[Path] = None, quiet: Optional[b
 
     command: str = param["quiet_tex_command"] if quiet else param["tex_command"]  # type: ignore
     command += f' -output-directory "{dest}" "{filename}"'
-    # ~ input('- run -')
-    log = execute(command)
-    # Run command twice if references were found.
-    if "Rerun to get cross-references right." in log or "There were undefined references." in log:
-        # ~ input('- run again -')
-        log = execute(command)
+    return command
 
-    # Return the number of pages of the pdf generated.
-    i = log.find("Output written on ")
+
+def _extract_page_number(pdflatex_log: str) -> int:
+    """Return the number of pages of the pdf generated, or -1 if it was not found."""
+    i = pdflatex_log.find("Output written on ")
     if i == -1:
         return -1
     pattern = r"Output written on .+ \(([0-9]+) pages, [0-9]+ bytes\)\."
     # Line breaks may occur anywhere in the log after the file path,
     # so using re.DOTALL flag is not enough, we have to manually remove all `\n`.
-    m = re.search(pattern, log[i:].replace("\n", ""))
+    m = re.search(pattern, pdflatex_log[i:].replace("\n", ""))
     return int(m.group(1)) if m is not None else -1
 
 
