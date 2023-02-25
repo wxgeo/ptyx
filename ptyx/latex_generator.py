@@ -801,18 +801,18 @@ class Compiler:
         self.latex_generator = LatexGenerator(self)
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         self._state = {}
         self._new_closing_tags = set()
         # Make SyntaxTreeGenerator context free ?
         self.syntax_tree_generator.reset()
 
-    def read_code(self, code: str):
+    def read_code(self, code: str) -> None:
         """Feed compiler with given code."""
         self._state["path"] = None
         self._state["input"] = code
 
-    def read_file(self, path: Union[Path, str]):
+    def read_file(self, path: Union[Path, str]) -> None:
         """Feed compiler with given file code."""
         self._state["path"] = Path(path).expanduser().resolve()
         with open(path, "r") as input_file:
@@ -833,8 +833,8 @@ class Compiler:
             path = self.dir_path / path
         return path
 
-    def _include_subfiles(self, code: str):
-        """Parse all #INCLUDE tags, then include subfiles content."""
+    def _include_subfiles(self, code: str) -> str:
+        """Parse all #INCLUDE tags, then include corresponding files content."""
 
         def include(match):
             path = self._resolve_path(match.group(1))
@@ -844,7 +844,7 @@ class Compiler:
         # noinspection RegExpRedundantEscape
         return re.sub(r"#INCLUDE\{([^}]+)\}", include, code)
 
-    def _call_extensions(self, code: str):
+    def _call_extensions(self, code: str) -> tuple[str, dict[str, ModuleType]]:
         """Search for extensions (#LOAD{name} tags), then call them."""
         # First, we search if some extensions must be load.
         # This must be done at the very beginning, since extensions may
@@ -930,7 +930,7 @@ class Compiler:
             print(f"Warning: multiple #SEED found, only last one will be used: {value}.")
         return code, value
 
-    def preparse(self):
+    def preparse(self) -> None:
         code = self._state.get("input")
         if code is None:
             raise RuntimeError("Compiler.read_code() or Compiler.read_file() must be run first.")
@@ -963,16 +963,20 @@ class Compiler:
                 with open(filename, "w") as f:
                     f.write(code)
 
-    def generate_syntax_tree(self):
+    def generate_syntax_tree(self) -> None:
         code = self._state.get("plain_ptyx_code")
         if code is None:
             raise RuntimeError("Compiler.preparse() must be run first.")
         self._state["syntax_tree"] = self.syntax_tree_generator.generate_tree(code)
 
-    def get_latex(self, **context):
+    def get_latex(self, **context) -> str:
+        """Compile pTyX code and return LaTeX code.
+
+        `Compiler.generate_syntax_tree()` must be run first.
+        """
         tree = self._state.get("syntax_tree")
         if tree is None:
-            raise RuntimeError("Compiler.generate_syntax_tree() must be run first.")
+            raise RuntimeError("`Compiler.generate_syntax_tree()` must be run first.")
         gen = self.latex_generator
         gen.clear()
         gen.context.update(context)
@@ -995,7 +999,7 @@ class Compiler:
             print("Warning: no API version specified. This may be an old pTyX file.")
         return latex
 
-    def add_new_tags(self, *tags: Tuple[str, Tuple]):
+    def add_new_tags(self, *tags: Tuple[str, Tuple]) -> None:
         """Add ability for extensions to extend syntax, adding new tags."""
         for name, syntax in tags:
             self.syntax_tree_generator.tags[name] = syntax
