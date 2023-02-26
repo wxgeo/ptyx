@@ -1,5 +1,4 @@
 import itertools
-import locale
 import multiprocessing
 import os
 import re
@@ -71,18 +70,26 @@ class Logging(object):
         self.logfile.close()
 
 
-def execute(string: str, quiet=False) -> str:
-    out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
-    if out is not None:
-        encoding = locale.getpreferredencoding(False)
-        output = out.read().decode(encoding, errors="replace")
-        sys.stdout.write(output)
-        out.close()
-    else:
-        output = ""
-    if not quiet:
-        print(f"Command '{string}' executed.")
-    return output
+# def execute(string: str, quiet=False) -> str:
+#     out = subprocess.Popen(string, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
+#     if out is not None:
+#         encoding = locale.getpreferredencoding(False)
+#         output = out.read().decode(encoding, errors="replace")
+#         sys.stdout.write(output)
+#         out.close()
+#     else:
+#         output = ""
+#     if not quiet:
+#         print(f"Command '{string}' executed.")
+#     return output
+
+
+def execute(command: str) -> str:
+    """Execute command in shell."""
+    out = subprocess.Popen(
+        command, shell=True, encoding="utf8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    ).stdout
+    return out.read() if out is not None else ""
 
 
 def make_files(
@@ -284,15 +291,31 @@ def make_file(
     return compile_latex(make_latex(output_name, context), quiet=quiet)
 
 
-def compile_latex(filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False) -> int:
+def _write_latex_log(out: str, filename: Path, log=True):
+    print(f"File {filename} compiled.")
+    for line in out.split():
+        if line.startswith("!"):
+            print(line)
+    if log:
+        logfile_path = append_suffix(filename, "-latex.log")
+        print(f"Logfile: {logfile_path}.")
+        with open(logfile_path, "a", encoding="utf8") as f:
+            f.write(out)
+
+
+def compile_latex(
+    filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False, log=True
+) -> int:
     """Compile the latex file and return the number of pages of the pdf (or -1 if not found)."""
     command = _build_command(filename, dest, quiet)
-    log = execute(command)
+    out = execute(command)
+    _write_latex_log(out, filename)
     # Run command twice if references were found.
-    if "Rerun to get cross-references right." in log or "There were undefined references." in log:
+    if "Rerun to get cross-references right." in out or "There were undefined references." in out:
         # ~ input('- run again -')
-        log = execute(command)
-    return _extract_page_number(log)
+        out = execute(command)
+        _write_latex_log(out, filename)
+    return _extract_page_number(out)
 
 
 def _build_command(filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False) -> str:
