@@ -168,7 +168,7 @@ def make_files(
             filename = append_suffix(output_basename, f"-{num}") if target > 1 else output_basename
             filenames.append(filename)
             # 2. Compile to LaTeX.
-            latex_files.append(make_latex(filename, context))
+            latex_files.append(generate_latex(filename, context))
 
         # --------------------------------
         # Compile to pdf using parallelism
@@ -256,7 +256,7 @@ def make_files(
     return output_basename, list(compilation_info.keys())
 
 
-def make_latex(
+def generate_latex(
     output_name: Path,
     context: Optional[Dict] = None,
     log=True,
@@ -288,33 +288,29 @@ def make_file(
     quiet: Optional[bool] = None,
 ) -> int:
     """Generate latex and/or pdf file from ptyx source file."""
-    return compile_latex(make_latex(output_name, context), quiet=quiet)
+    return compile_latex(generate_latex(output_name, context), quiet=quiet)
 
 
-def _write_latex_log(out: str, filename: Path, log=True):
+def _print_latex_errors(out: str, filename: Path):
     print(f"File {filename} compiled.")
     for line in out.split():
         if line.startswith("!"):
             print(line)
-    if log:
-        logfile_path = append_suffix(filename, "-latex.log")
-        print(f"Logfile: {logfile_path}.")
-        with open(logfile_path, "a", encoding="utf8") as f:
-            f.write(out)
+    print(f"Full log written on {filename.with_suffix('.log')}.")
 
 
 def compile_latex(
-    filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False, log=True
+    filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False
 ) -> int:
     """Compile the latex file and return the number of pages of the pdf (or -1 if not found)."""
     command = _build_command(filename, dest, quiet)
     out = execute(command)
-    _write_latex_log(out, filename)
+    _print_latex_errors(out, filename)
     # Run command twice if references were found.
     if "Rerun to get cross-references right." in out or "There were undefined references." in out:
         # ~ input('- run again -')
         out = execute(command)
-        _write_latex_log(out, filename)
+        _print_latex_errors(out, filename)
     return _extract_page_number(out)
 
 
