@@ -299,9 +299,7 @@ def _print_latex_errors(out: str, filename: Path):
     print(f"Full log written on {filename.with_suffix('.log')}.")
 
 
-def compile_latex(
-    filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False
-) -> int:
+def compile_latex(filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False) -> int:
     """Compile the latex file and return the number of pages of the pdf (or -1 if not found)."""
     command = _build_command(filename, dest, quiet)
     out = execute(command)

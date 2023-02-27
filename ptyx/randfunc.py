@@ -163,9 +163,9 @@ def is_mult_2_5(val: int | Iterable[int]) -> bool:
     `val` may also be a list (or other iterable) of integers,
      in that case all values must match 2**n * 5**m.
     """
-    ints: tuple[type, ...] = (int, )
+    ints: tuple[type, ...] = (int,)
     if sympy:
-        ints += (sympy.Integer, )
+        ints += (sympy.Integer,)
     if hasattr(val, "__iter__"):
         return all(is_mult_2_5(v) for v in val)
     if val == 0 or not isinstance(val, ints):
