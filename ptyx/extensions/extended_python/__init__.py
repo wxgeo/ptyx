@@ -28,7 +28,7 @@ from re import sub, DOTALL
 
 
 def parse_extended_python_code(code):
-    "Convert 'extend python' code to pure python code."
+    """Convert 'extend python' code to pure python code."""
     python_code = code.split("\n")
     for line_number, line in enumerate(python_code):
         if not line.lstrip().startswith("let "):
@@ -108,7 +108,7 @@ def main(text, compiler):
     # Python code
     # ............
     return sub(
-        "\n[ \t]*\\.{3,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\.{3,}[ \t]*\n",
+        "\n[ \t]*\\.{4,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\.{4,}[ \t]*\n",
         parse,
         text,
         flags=DOTALL,
