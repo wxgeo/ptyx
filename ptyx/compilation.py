@@ -293,7 +293,7 @@ def make_file(
 
 def _print_latex_errors(out: str, filename: Path):
     print(f"File {filename} compiled.")
-    for line in out.split():
+    for line in out.split("\n"):
         if line.startswith("!"):
             print(line)
     print(f"Full log written on {filename.with_suffix('.log')}.")
