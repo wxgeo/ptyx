@@ -37,7 +37,7 @@ from wxgeometrie.mathlib.parsers import traduire_formule
 from wxgeometrie.mathlib.interprete import Interprete
 from wxgeometrie.geolib import Feuille
 
-from ptyx.config import sympy
+import sympy
 from ptyx.latex_generator import LatexGenerator
 
 

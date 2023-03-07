@@ -2,6 +2,7 @@
 
 import os
 import sys
+import importlib.util
 
 import psutil
 
@@ -33,22 +34,16 @@ for path in param["import_paths"]:
     path = os.path.normpath(os.path.expanduser(path))
     sys.path.insert(0, path)
 
-# print("Loading sympy...")
-try:
-    import sympy
-except ImportError:
+
+SYMPY_AVAILABLE = importlib.util.find_spec("sympy") is not None
+NUMPY_AVAILABLE = importlib.util.find_spec("numpy") is not None
+
+if not SYMPY_AVAILABLE:
     print("** ERROR: sympy not found ! **")
-    sympy = None
     param["sympy_is_default"] = False
 
-
-# print("Loading numpy...")
-
-try:
-    import numpy
-except ImportError:
+if not NUMPY_AVAILABLE:
     print("WARNING: numpy not found.")
-    numpy = None
 
 try:
     CPU_PHYSICAL_CORES = psutil.cpu_count(logical=False)

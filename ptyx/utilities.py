@@ -3,11 +3,6 @@ from math import ceil, floor, isnan, isinf
 from os.path import realpath, normpath, expanduser
 from typing import List, Sequence
 
-from ptyx.config import sympy
-
-if sympy is not None:
-    from sympy import preorder_traversal, Symbol
-
 
 def round_away_from_zero(val, ndigits=0) -> float:
     """Round using round-away-from-zero strategy for halfway cases.
@@ -160,16 +155,18 @@ def _float_me_if_you_can(expr):
 
 def numbers_to_floats(expr, integers=False, ndigits=None):
     """Convert all numbers (except integers) to floats inside a sympy expression."""
-    if not sympy or not isinstance(expr, sympy.Basic):
+    import sympy
+
+    if not isinstance(expr, sympy.Basic):
         if isinstance(expr, int) and not integers:
             return expr
         elif ndigits is not None:
             return round_away_from_zero(expr, ndigits)
         else:
             return float(expr)
-    for sub in preorder_traversal(expr):
+    for sub in sympy.preorder_traversal(expr):
         sub = sympy.sympify(sub)
-        if not sub.has(Symbol) and (integers or not sub.is_Integer):
+        if not sub.has(sympy.Symbol) and (integers or not sub.is_Integer):
             new = sub.evalf()
             if ndigits is not None:
                 new = round_away_from_zero(new, ndigits)

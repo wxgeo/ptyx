@@ -6,10 +6,21 @@ from typing import Callable, Iterable
 
 from numpy import array
 
-from ptyx.config import param, sympy
+from ptyx.config import param, SYMPY_AVAILABLE
 
-if sympy is not None:
-    from sympy import S, Matrix
+
+if SYMPY_AVAILABLE:
+    S: Callable
+    from sympy import S, Integer
+
+    INTEGERS_TYPES: tuple[type, ...] = (int, Integer)
+else:
+
+    def S(val):
+        return val
+
+    INTEGERS_TYPES = (int,)
+
 
 # Important note: all the following functions are sandboxed.
 # By this, I mean that any external call to random won't affect random state for
@@ -163,12 +174,9 @@ def is_mult_2_5(val: int | Iterable[int]) -> bool:
     `val` may also be a list (or other iterable) of integers,
      in that case all values must match 2**n * 5**m.
     """
-    ints: tuple[type, ...] = (int,)
-    if sympy:
-        ints += (sympy.Integer,)
     if hasattr(val, "__iter__"):
         return all(is_mult_2_5(v) for v in val)
-    if val == 0 or not isinstance(val, ints):
+    if val == 0 or not isinstance(val, INTEGERS_TYPES):
         return False
     while val % 5 == 0:
         val = val // 5
@@ -314,6 +322,8 @@ def randmatrix(size=(3, 3), rank=None, unique=False, func=srandint, **kw):
     Set `unique` to True if each coefficient must be unique.
     Note that you can't specify rank then.
     """
+    from sympy import Matrix
+
     if rank is None:
         m, n = size
         return Matrix(m, n, many(m * n, func=func, unique=unique, **kw))

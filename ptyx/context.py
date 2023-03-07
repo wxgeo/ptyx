@@ -1,12 +1,11 @@
 import random
 import math
 
-import numpy
 import builtins
 
 import ptyx.randfunc as randfunc
 from ptyx.printers import sympy2latex
-from ptyx.config import sympy
+from ptyx.config import SYMPY_AVAILABLE, NUMPY_AVAILABLE
 
 
 GLOBAL_CONTEXT = dict()
@@ -45,7 +44,9 @@ for fname in [
     GLOBAL_CONTEXT[fname] = getattr(builtins, fname)
 
 
-if sympy is not None:
+if SYMPY_AVAILABLE:
+    import sympy
+
     GLOBAL_CONTEXT["sympy"] = sympy
     GLOBAL_CONTEXT["sympify"] = GLOBAL_CONTEXT["SY"] = sympy.sympify
     # ~ for name in math_list:
@@ -54,7 +55,9 @@ if sympy is not None:
     exec('var("x y")', GLOBAL_CONTEXT)
     # ~ global_context['x'] = sympy.Symbol('x')
 
-if numpy is not None:
+if NUMPY_AVAILABLE:
+    import numpy
+
     GLOBAL_CONTEXT["numpy"] = numpy
 
 GLOBAL_CONTEXT["sign"] = lambda x: ("+" if x > 0 else "-")

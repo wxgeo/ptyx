@@ -2,17 +2,22 @@
 A variant of sympy latex printer, based on wxgeometrie one.
 """
 
-# XXX: Clean-up unused wxgeometrie code !
-# This module needs lot's of cleaning and refactoring.
+# TODO: Clean-up unused wxgeometrie code !
+# TODO: This module needs lot's of cleaning and refactoring.
 
-try:
-    import sympy
-    from sympy import Basic, Symbol, Integer, Float, I, Mul
-    from sympy.core.core import BasicMeta
-    from sympy.printing.latex import LatexPrinter
-except ImportError:
-    print("Warning: `sympy` library not found !")
-    sympy = None  # type: ignore
+# try:
+#     import sympy
+#     from sympy import Basic, Symbol, Integer, Float, I, Mul
+#     from sympy.core.core import BasicMeta
+#     from sympy.printing.latex import LatexPrinter
+# except ImportError:
+#     print("Warning: `sympy` library not found !")
+#     sympy = None  # type: ignore
+
+import sympy
+from sympy import Basic, Symbol, Integer, Float, I, Mul
+from sympy.core.core import BasicMeta
+from sympy.printing.latex import LatexPrinter
 
 from ptyx.config import param
 

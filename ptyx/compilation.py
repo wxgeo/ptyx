@@ -107,6 +107,7 @@ def make_files(
 
     - `correction`: if True, include the solutions of the exercises
     - `fixed_number_of_pages`: if True, all pdf files must have the same number of pages
+    - `pages`: keep only pdf documents respecting this number of pages contraint
     - `context`: parameters to be passed to the LaTeX generator.
     - `quiet`: if True, turn off debugging information
     - `remove`: if True, remove `.compile` folder after successful compilation.
@@ -198,7 +199,7 @@ def make_files(
                         # the same pages number, yet we don't want to set it manually.
                         # So, we compile documents and memorize their size.
                         # We'll group compilation results by the length of the resulting document.
-                        # We'll keep one dictionary {document number: Path}  for each size of document.
+                        # We'll keep one dictionary {document id: Path}  for each size of document.
                         # At each loop, if the compiled document is of size n,
                         # we update the dictionary of all the n-sized documents with the document ID
                         # and its path.
