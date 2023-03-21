@@ -1,13 +1,14 @@
-import re
 import os
-from os.path import dirname
+import re
 import types
+from os.path import dirname
+from pathlib import Path
 
 import ptyx
 from ptyx.latex_generator import SyntaxTreeGenerator, Compiler  # , parse
-from ptyx.utilities import find_closing_bracket, round_away_from_zero
 from ptyx.printers import sympy2latex
 from ptyx.randfunc import randchoice, srandchoice, randfrac
+from ptyx.utilities import find_closing_bracket, round_away_from_zero
 
 TEST_DIR = dirname(__file__)
 
@@ -389,6 +390,33 @@ Last, $a=7$ still.
     c = Compiler()
     latex = c.parse(test)
     assert latex == result
+
+
+def test_hashtag_inside_python_block():
+    test = """
+    #PYTHON
+    s = "#" # This should not be a problem.
+    t = "#test" # Neither this.
+    #END
+    #s #t
+    """
+    c = Compiler()
+    latex = c.parse(test)
+    assert latex == "\n    # #test\n    "
+
+
+def test_write():
+    c = Compiler()
+    test = r"""
+#PYTHON
+a = 5
+write(r"$\#$ ")
+write("#a ")
+write("#a", parse=True)
+#END
+"""
+    latex = c.parse(test)
+    assert latex == "$\\#$ #a 5\n"
 
 
 def main():

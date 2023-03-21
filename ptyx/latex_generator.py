@@ -1,7 +1,6 @@
 import random
 import re
 import traceback
-from functools import partial
 from importlib import import_module, metadata
 from os.path import dirname, basename, join
 from pathlib import Path
@@ -12,7 +11,6 @@ import ptyx.randfunc as randfunc
 from ptyx import __version__, __api__
 from ptyx.config import param, SYMPY_AVAILABLE
 from ptyx.context import GLOBAL_CONTEXT
-
 # from ptyx.printers import sympy2latex
 from ptyx.syntax_tree import Node, SyntaxTreeGenerator, Tag, TagSyntax
 from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_can
@@ -90,7 +88,10 @@ class LatexGenerator:
         self.backups = []
         # When write() is called from inside a #PYTHON ... #END code block,
         # its argument may contain pTyX code needing parsing.
-        self.context["write"] = partial(self.write, parse=True)
+        # Write argument used to be parsed by default, but this was rarely needed
+        # and led to very surprising behaviour sometimes from user perspective.
+        # Now, one should use write(..., parse=True) if needed, which is much saner.
+        self.context["write"] = self.write
         # Internal flags
         self.flags = {}
 
