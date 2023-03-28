@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ptyx"
-version = "23.0"
+version = "23.1"
 description = "pTyX is a python precompiler for LaTeX."
 authors = ["Nicolas Pourcelot <nicolas.pourcelot@gmail.com>"]
 repository = "https://github.com/wxgeo/ptyx"

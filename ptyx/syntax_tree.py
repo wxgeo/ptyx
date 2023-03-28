@@ -56,7 +56,12 @@ class Node:
         assert isinstance(child, Node), repr(child)
         children_number = len(child.children)
         if children_number > 1:
-            raise ValueError("Don't use pTyX code inside %s argument number %s." % (self.name, i + 1))
+            raise ValueError(
+                f"Don't use pTyX code inside {self.name} argument number {i + 1}.\n"
+                "------------------\n"
+                f"{child.display()}\n"
+                "------------------\n"
+            )
         if children_number == 0:
             if self.name == "EVAL":
                 # EVAL isn't a real tag name: if a variable `#myvar` is found

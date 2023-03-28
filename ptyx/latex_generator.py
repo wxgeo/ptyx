@@ -11,6 +11,7 @@ import ptyx.randfunc as randfunc
 from ptyx import __version__, __api__
 from ptyx.config import param, SYMPY_AVAILABLE
 from ptyx.context import GLOBAL_CONTEXT
+
 # from ptyx.printers import sympy2latex
 from ptyx.syntax_tree import Node, SyntaxTreeGenerator, Tag, TagSyntax
 from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_can
@@ -1043,13 +1044,30 @@ class Compiler:
             self.syntax_tree_generator.update_tags()
             self.latex_generator.parser.update_tags()
 
-    def parse(self, code: str, **context) -> str:
+    # TODO: change the signature of parse, to force use of `code` as a keyword argument.
+    # Note that this will involve rewriting a lot of tests in both ptyx and ptyx-mcq projects.
+    #   parse(self, *, code: str = None, path: Union[Path, str] = None, **context)
+
+    def parse(self, code: str = None, *, path: Union[Path, str] = None, **context) -> str:
         """Convert ptyx code to plain LaTeX in one shot.
 
         This is mainly used for testing (in unit tests or in interactive mode).
+
+        One may provide either directly the pTyX code, or the path of a pTyX file to be read.
+
+        If both `code` and `path` are provided, the compiler acts as if `code` was the content
+        of the pTyX file located at `path`.
         """
         self.reset()
-        self.read_code(code)
+        if path is None and code is None:
+            raise ValueError(
+                "You must provide either the pTyX code or the path to a pTyX file:\n"
+                'compiler.parse(code="...") or compiler.parse(path="/path/to/file.ptyx")'
+            )
+        if path is not None:
+            self.read_file(path)
+        if code is not None:
+            self.read_code(code)
         self.preparse()
         self.generate_syntax_tree()
         latex = self.get_latex(**context)
@@ -1066,6 +1084,10 @@ class Compiler:
     @property
     def file_path(self) -> Optional[Path]:
         return self._state["path"]
+
+    @property
+    def plain_ptyx_code(self) -> Optional[str]:
+        return self._state["plain_ptyx_code"]
 
     @property
     def loaded_extensions(self) -> List[str]:
