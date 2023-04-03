@@ -33,7 +33,7 @@ from ptyx import __version__
 from ptyx.compilation import make_files
 from ptyx.config import param
 from ptyx.latex_generator import compiler
-from ptyx.utilities import pth
+
 
 if sys.version_info.major == 2:
     raise RuntimeError("Python version 3.8+ is needed !")
@@ -176,7 +176,7 @@ class PtyxArgumentParser(argparse.ArgumentParser):
         if options.debug:
             param["debug"] = True
         if options.names:
-            with open(pth(options.names)) as f:
+            with open(Path(options.names).expanduser().resolve()) as f:
                 options.names = [" ".join(line) for line in csv.reader(f)]
                 print("Names extracted from CSV file:")
                 print(options.names)

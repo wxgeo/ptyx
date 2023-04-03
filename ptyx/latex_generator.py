@@ -14,7 +14,7 @@ from ptyx.context import GLOBAL_CONTEXT
 
 # from ptyx.printers import sympy2latex
 from ptyx.syntax_tree import Node, SyntaxTreeGenerator, Tag, TagSyntax
-from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_can
+from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_can, latex_verbatim
 
 
 class State(TypedDict, total=False):
@@ -120,7 +120,30 @@ class LatexGenerator:
     def WITH_ANSWERS(self):
         return self.context.get("PTYX_WITH_ANSWERS")
 
-    def parse_node(self, node: Node):
+    def _open_temp_context(self):
+        # Store generated text in a temporary location, instead of self.context['LATEX'].
+        # Function `function` will then be applied to this text,
+        # before text is appended to self.context['LATEX'].
+        # Backups may need to be read when parsing #= special tag,
+        # so store them in `self.backups`.
+        self.backups.append(self.context["PTYX_LATEX"])
+        self.context["PTYX_LATEX"] = []
+
+    def _apply_func_and_close_temp_context(self, function, **options):
+        code = "".join(self.context["PTYX_LATEX"])
+        if callable(function):
+            function = [function]
+        for f in function:
+            code = f(code, **options)
+        self.context["PTYX_LATEX"] = self.backups.pop()
+        self.write(code)
+
+    def parse_node(
+        self,
+        node: Node,
+        function: Optional[Union[Callable, Iterable[Callable]]] = None,
+        **options,
+    ):
         """Parse a node in a pTyX syntax tree.
 
         Return True if block content was recursively parsed, and False else.
@@ -128,6 +151,8 @@ class LatexGenerator:
         In particular, when parsing an IF block, True will be returned if and
         only if the block condition was satisfied.
         """
+        if function is not None:
+            self._open_temp_context()
         name = node.name
         assert isinstance(name, str), repr(node)
         tag = self.convert_tags.get(name, name)
@@ -140,6 +165,9 @@ class LatexGenerator:
         except Exception:
             print(f"Error when calling method '_parse_{tag}_tag'.")
             raise
+        finally:
+            if function is not None:
+                self._apply_func_and_close_temp_context(function, **options)
 
     def _parse_children(
         self,
@@ -161,13 +189,7 @@ class LatexGenerator:
         """
 
         if function is not None:
-            # Store generated text in a temporary location, instead of self.context['LATEX'].
-            # Function `function` will then be applied to this text,
-            # before text is appended to self.context['LATEX'].
-            # Backups may need to be read when parsing #= special tag,
-            # so store them in `self.backups`.
-            self.backups.append(self.context["PTYX_LATEX"])
-            self.context["PTYX_LATEX"] = []
+            self._open_temp_context()
 
         for child in children:
             if isinstance(child, str):
@@ -186,13 +208,7 @@ class LatexGenerator:
                 self.parse_node(child)
 
         if function is not None:
-            code = "".join(self.context["PTYX_LATEX"])
-            if callable(function):
-                function = [function]
-            for f in function:
-                code = f(code, **options)
-            self.context["PTYX_LATEX"] = self.backups.pop()
-            self.write(code)
+            self._apply_func_and_close_temp_context(function, **options)
 
     @staticmethod
     def _parse_options(node: Node):
@@ -210,13 +226,15 @@ class LatexGenerator:
                     args.append(option.strip())
         return args, kw
 
-    def write(self, text: str, parse: bool = False):
+    def write(self, text: str, parse: bool = False, verbatim: bool = False):
         """Append a piece of LaTeX text to context['PTYX_LATEX'].
 
         :param text: a block of text, which may contain pTyX code.
         :type text: string
         :param parse: indicate text have to be parsed.
         :type parse: bool
+        :param verbatim: emulate LaTeX verbatim mode (escape LaTeX characters, keep indentation...)
+        :type verbatim: bool
 
         .. note:: Param `parse` defaults to False, since in most cases text is already
                   parsed at this state.
@@ -234,8 +252,10 @@ class LatexGenerator:
         if parse and "#" in text:
             if param["debug"]:
                 print("Parsing %s..." % repr(text))
-            self.parse_node(self.parser.generate_tree(text))
+            self.parse_node(self.parser.generate_tree(text), function=(latex_verbatim if verbatim else None))
         else:
+            if verbatim:
+                text = latex_verbatim(text)
             self.context["PTYX_LATEX"].append(text)
 
     def read(self):

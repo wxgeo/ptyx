@@ -6,7 +6,7 @@ import builtins
 import ptyx.randfunc as randfunc
 from ptyx.printers import sympy2latex
 from ptyx.config import SYMPY_AVAILABLE, NUMPY_AVAILABLE
-
+from ptyx.utilities import latex_verbatim
 
 GLOBAL_CONTEXT = dict()
 
@@ -97,3 +97,4 @@ for fname in (
 # PTYX_NUM is the compilation number (starting from 0).
 GLOBAL_CONTEXT["PTYX_NUM"] = 0
 GLOBAL_CONTEXT["latex"] = sympy2latex
+GLOBAL_CONTEXT["latex_verbatim"] = latex_verbatim

@@ -8,7 +8,7 @@ import ptyx
 from ptyx.latex_generator import SyntaxTreeGenerator, Compiler  # , parse
 from ptyx.printers import sympy2latex
 from ptyx.randfunc import randchoice, srandchoice, randfrac
-from ptyx.utilities import find_closing_bracket, round_away_from_zero
+from ptyx.utilities import find_closing_bracket, round_away_from_zero, latex_verbatim
 
 TEST_DIR = dirname(__file__)
 
@@ -417,6 +417,27 @@ write("#a", parse=True)
 """
     latex = c.parse(test)
     assert latex == "$\\#$ #a 5\n"
+
+
+def test_latex_verbatim():
+    s = latex_verbatim(r" \emph{$a^2 +  b_i$}" "\n" r"   x\ ")
+    assert s == (
+        r"\texttt{~\textbackslash{}emph\{\$a\textasciicircum{}2~+~~b\_i\$\}\linebreak"
+        r"\phantom{}~~~x\textbackslash{}~}"
+    )
+
+
+def test_write_verbatim():
+    c = Compiler()
+    test = r"""
+#PYTHON
+a = 27
+b = 5
+write("$b_i=#a$", parse=True, verbatim=True)
+#END
+"""
+    latex = c.parse(test)
+    assert latex == "\\texttt{\\$b\\_i=27\\$}\n"
 
 
 def main():

@@ -1,7 +1,6 @@
 import re
 from math import ceil, floor, isnan, isinf
-from os.path import realpath, normpath, expanduser
-from typing import List, Sequence
+from typing import Sequence, Any
 
 
 def round_away_from_zero(val, ndigits=0) -> float:
@@ -102,7 +101,7 @@ def find_closing_bracket(text: str, start: int = 0, brackets: str = "{}", detect
 
 def advanced_split(
     string: str, separator: str, quotes: str = "\"'", brackets: Sequence[str] = ("()", "[]", "{}")
-) -> List[str]:
+) -> list[str]:
     """Split string "main_string" smartly, detecting brackets group and inner strings.
 
     Return a list of strings."""
@@ -113,7 +112,7 @@ def advanced_split(
     # Little optimisation since `not in` is very fast.
     if separator not in string:
         return [string]
-    breaks: List[int] = [-1]  # those are the points where the string will be cut
+    breaks: list[int] = [-1]  # those are the points where the string will be cut
     stack = ["."]  # ROOT
     for i, letter in enumerate(string):
         if letter in quotes:
@@ -153,7 +152,7 @@ def _float_me_if_you_can(expr):
         return expr
 
 
-def numbers_to_floats(expr, integers=False, ndigits=None):
+def numbers_to_floats(expr: Any, integers: bool = False, ndigits: int = None) -> float:
     """Convert all numbers (except integers) to floats inside a sympy expression."""
     import sympy
 
@@ -179,7 +178,7 @@ def term_color(string, color, **kw):
 
     Available keywords: bold, dim, italic, underline and hightlight.
 
-    >>> color('hello world !', 'blue', bold=True, underline=True)
+    >>> term_color('hello world !', 'blue', bold=True, underline=True)
     '\x1b[4;1;34mhello world !\x1b[0m'
     """
     colors = {
@@ -204,5 +203,28 @@ def term_color(string, color, **kw):
     return "\033[%sm%s\033[0m" % (";".join(formatting), string)
 
 
-def pth(path):
-    return realpath(normpath(expanduser(path)))
+def latex_verbatim(s: str) -> str:
+    """Try to emulate verbatim (which is not allowed inside a macro argument in LaTeX).
+
+    LaTeX special characters are escaped, so that the string is displayed as it.
+    A fixed-width font is used too.
+
+        >>> latex_verbatim("\\emph{$a^2+b_i$}")
+        '\\texttt{\\textbackslash{}emph\\{\\$a\\textasciicircum{}2+b\\_i\\$\\}}'
+    """
+    # Strip the first \n, to avoid beginning with a \linebreak.
+    if s.startswith("\n"):
+        s = s[1:]
+    # Replace \ first !
+    s = s.replace("\\", r"\textbackslash<!ø5P3C14Lø?>")
+    s = s.replace("~", r"\textasciitilde<!ø5P3C14Lø?>")
+    s = s.replace("^", r"\textasciicircum<!ø5P3C14Lø?>")
+    s = s.replace("'", r"\textquotesingle<!ø5P3C14Lø?>")
+    for char in "#$%&_{}":
+        s = s.replace(char, rf"\{char}")
+    s = s.replace("<!ø5P3C14Lø?>", "{}")
+    # Use \phantom{} after \linebreak to preserve spaces at the beginning of the line.
+    s = s.replace("\n", "\\linebreak\\phantom{}")
+    s = s.replace("\t", 4 * " ")
+    s = s.replace(" ", "~")
+    return rf"\texttt{{{s}}}"
