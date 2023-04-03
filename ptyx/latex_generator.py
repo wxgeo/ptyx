@@ -434,6 +434,9 @@ class LatexGenerator:
         # This tag does nothing by itself, but is used by some extensions.
         self._parse_children(node.children)
 
+    def _parse_VERBATIM_tag(self, node: Node):
+        self._parse_children(node.children, function=latex_verbatim)
+
     @staticmethod
     def _child_index(children, name):
         """Return the index of the first child of name `name` in `children` list.

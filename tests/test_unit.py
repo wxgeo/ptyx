@@ -440,6 +440,20 @@ write("$b_i=#a$", parse=True, verbatim=True)
     assert latex == "\\texttt{\\$b\\_i=27\\$}\n"
 
 
+def test_VERBATIM_tag():
+    c = Compiler()
+    test = r"""
+#VERBATIM
+def pi2():
+    return "$\pi^2$"
+#END
+"""
+    latex = c.parse(test)
+    assert latex == (
+        r'\texttt{def~pi2():\linebreak\phantom{}~~~~return~"\$\textbackslash{}pi\textasciicircum{}2\$"}' "\n"
+    )
+
+
 def main():
     for varname, content in globals().items():
         if varname.startswith("test_") and type(content) == types.FunctionType:

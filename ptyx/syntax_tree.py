@@ -137,7 +137,7 @@ class SyntaxTreeGenerator:
     tags: Dict[Tag, TagSyntax] = {
         "ANS": (0, 0, ["@END"]),
         "ANSWER": (0, 1, None),
-        "APART": (0, 0, ["END", "END_APART"]),
+        "APART": (0, 0, ["@END", "@END_APART"]),
         "API_VERSION": (0, 1, None),
         "ASK": (0, 0, ["@END"]),
         "ASK_ONLY": (0, 0, ["@END"]),
@@ -179,6 +179,7 @@ class SyntaxTreeGenerator:
         "SIGN": (0, 0, None),
         "SYMPY": (0, 0, ["@END"]),
         "TEST": (1, 2, None),
+        "VERBATIM": (0, 0, ["@END", "@END_VERBATIM"]),
         "-": (0, 0, None),
         "+": (0, 0, None),
         "*": (0, 0, None),
