@@ -340,8 +340,7 @@ def _extract_page_number(pdflatex_log: str) -> int:
     return int(m.group(1)) if m is not None else -1
 
 
-def _join_pdf_files(output_basename: Path | str,
-    pdfnames: Sequence[Path | str]) -> None:
+def _join_pdf_files(output_basename: Path | str, pdfnames: Sequence[Path | str]) -> None:
     """Join all the generated pdf files into one file."""
     # pdf: Document
     if len(pdfnames) == 0:
@@ -353,6 +352,7 @@ def _join_pdf_files(output_basename: Path | str,
             with fitz.Document(pdfname) as f:
                 pdf.insert_pdf(f)
         pdf.save(output_basename)
+
 
 def join_files(
     filename: Path,
@@ -372,7 +372,6 @@ def join_files(
         # pdftk and ghostscript must be installed.
         pdfnames = [str(filename) + ".pdf" for filename in pdfnames]
 
-        files = " ".join(f'"{filename}"' for filename in pdfnames)
         if len(pdfnames) > 1:
             _join_pdf_files(f"{filename}.pdf", pdfnames)
         if options.get("remove_all"):
