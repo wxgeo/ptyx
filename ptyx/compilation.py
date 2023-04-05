@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Iterable, List, Sequence, Tuple, Union
 
+import fitz
+
 from ptyx.config import param, CPU_PHYSICAL_CORES
 from ptyx.latex_generator import compiler
 
@@ -338,15 +340,29 @@ def _extract_page_number(pdflatex_log: str) -> int:
     return int(m.group(1)) if m is not None else -1
 
 
+def _join_pdf_files(output_basename: Path | str,
+    pdfnames: Sequence[Path | str]) -> None:
+    """Join all the generated pdf files into one file."""
+    # pdf: Document
+    if len(pdfnames) == 0:
+        print("Warning: no PDF files to join.")
+        return
+    with fitz.Document() as pdf:
+        for pdfname in pdfnames:
+            # f: Document
+            with fitz.Document(pdfname) as f:
+                pdf.insert_pdf(f)
+        pdf.save(output_basename)
+
 def join_files(
-    output_basename: Path,
+    filename: Path,
     pdfnames: Sequence[Union[Path, str]],
     seed_file_name=None,
     **options,
 ):
     """Join different versions in a single pdf, then compress it if asked to do so."""
     # TODO: use pathlib.Path instead
-    pdf_name = str(output_basename) + ".pdf"
+    pdf_name = str(filename) + ".pdf"
     number = len(pdfnames)
 
     if options.get("compress") or options.get("cat"):
@@ -358,8 +374,7 @@ def join_files(
 
         files = " ".join(f'"{filename}"' for filename in pdfnames)
         if len(pdfnames) > 1:
-            print("Pdftk output:")
-            print(execute(f'pdftk {files} output "{pdf_name}"'))
+            _join_pdf_files(f"{filename}.pdf", pdfnames)
         if options.get("remove_all"):
             for name in pdfnames:
                 os.remove(name)
