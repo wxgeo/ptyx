@@ -100,14 +100,14 @@ class PtyxArgumentParser(argparse.ArgumentParser):
             "-c",
             "--cat",
             action="store_true",
-            help="Cat all generated pdf files inside a single one. \
-                       The pdftk command must be installed.",
+            help="Cat all generated pdf files inside a single one.",
         )
         self.add_argument(
             "-C",
             "--compress",
             action="store_true",
-            help="Like --cat, but compress final pdf file using pdf2ps and ps2pdf.",
+            help="Like --cat, but compress final pdf file using pdf2ps and ps2pdf. "
+                 "Ghostscript must be present (on Linux, it is probably already installed).",
         )
         self.add_argument(
             "--reorder-pages",
