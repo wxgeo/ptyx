@@ -16,7 +16,6 @@ A variant of sympy latex printer, based on wxgeometrie one.
 
 import sympy
 from sympy import Basic, Symbol, Integer, Float, I, Mul
-from sympy.core.core import BasicMeta
 from sympy.printing.latex import LatexPrinter
 
 from ptyx.config import param
@@ -59,7 +58,7 @@ class CustomLatexPrinter(LatexPrinter):
             # If the printer defines a name for a printing method
             # (Printer.printmethod) and the object knows for itself how it
             # should be printed, use that method.
-            if self.printmethod and hasattr(expr, self.printmethod) and not isinstance(expr, BasicMeta):
+            if self.printmethod and hasattr(expr, self.printmethod):
                 return getattr(expr, self.printmethod)(self, *args, **kwargs)
 
             # Avoid new (strange) behaviour of sympy 1.7+
@@ -74,7 +73,7 @@ class CustomLatexPrinter(LatexPrinter):
         tex = r"\mathrm{e}^{%s}" % self._print(expr.args[0])
         return self._do_exponent(tex, exp)
 
-    def _print_Exp1(self, expr):
+    def _print_Exp1(self, expr, exp=None):
         return r"\mathrm{e}"
 
     def _print_Abs(self, *args, **kw):
