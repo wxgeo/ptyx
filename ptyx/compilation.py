@@ -240,9 +240,9 @@ def make_files(
             # There is only one file (only one document was generated,
             # or they were several documents, but they were joined into a single document).
             shutil.copy(name, input_name.parent)
-        elif options.get("names"):
+        elif options.get("names_list"):
             # Rename files according to the given names' list.
-            names = options["names"]
+            names = options["names_list"]
             assert len(names) == len(filenames)
             for filename, stem in zip(filenames, names):
                 new_name = filename.with_stem(stem).name

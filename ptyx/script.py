@@ -24,19 +24,17 @@
 
 
 import argparse
-import csv
 import sys
+import csv
 from ast import literal_eval
 from pathlib import Path
 
 from ptyx import __version__
-from ptyx.compilation import make_files
 from ptyx.config import param
-from ptyx.latex_generator import compiler
 
 
 if sys.version_info.major == 2:
-    raise RuntimeError("Python version 3.8+ is needed !")
+    raise RuntimeError("Python version 3.10+ is needed !")
 
 
 class PtyxArgumentParser(argparse.ArgumentParser):
@@ -60,6 +58,7 @@ class PtyxArgumentParser(argparse.ArgumentParser):
         )
         group.add_argument(
             "--names",
+            type=str,
             metavar="CSV_FILE",
             help="Name of a CSV file containing a column of names \
                                (and optionally a second column with forenames). \n \
@@ -177,12 +176,12 @@ class PtyxArgumentParser(argparse.ArgumentParser):
             param["debug"] = True
         if options.names:
             with open(Path(options.names).expanduser().resolve()) as f:
-                options.names = [" ".join(line) for line in csv.reader(f)]
+                options.names_list = [" ".join(line) for line in csv.reader(f)]
                 print("Names extracted from CSV file:")
-                print(options.names)
+                print(options.names_list)
             options.number_of_documents = len(options.names)
         else:
-            options.names = []
+            options.names_list = []
         if options.number_of_documents is None:
             options.number_of_documents = param["total"]
         return options
@@ -190,9 +189,17 @@ class PtyxArgumentParser(argparse.ArgumentParser):
 
 def ptyx(parser=PtyxArgumentParser()):
     """Main pTyX procedure."""
+
     # First, parse all arguments (filenames, options...)
     # --------------------------------------------------
     options = parser.parse_args()
+
+    if not options.filenames:
+        # Exit quickly before main imports, so that `ptyx --help` is fast.
+        exit(0)
+
+    from ptyx.compilation import make_files
+    from ptyx.latex_generator import compiler
 
     # TODO: remove kwargs and explicitly pass arguments, to verify types.
     kwargs = vars(options)
