@@ -32,6 +32,7 @@ It adds the following commands to pTyX:
 
 import random
 
+from ptyx.extensions import CompilerExtension
 from wxgeometrie.modules.tablatex import tabval, tabvar, tabsign
 from wxgeometrie.mathlib.parsers import traduire_formule
 from wxgeometrie.mathlib.interprete import Interprete
@@ -119,15 +120,17 @@ class GeophyxLatexGenerator(LatexGenerator):
         random.setstate(state)
 
 
-__latex_generator_extension__ = GeophyxLatexGenerator
-__tags__ = {
-    "CALC": (1, 0, None),
-    "GCALC": (0, 0, ["@END_GCALC", "@END"]),
-    "GEO": (0, 0, ["@END_GEO", "@END"]),
-    "TABSIGN": (0, 0, ["@END_TABSIGN", "@END"]),
-    "TABVAL": (0, 0, ["@END_TABVAL", "@END"]),
-    "TABVAR": (0, 0, ["@END_TABVAR", "@END"]),
-}
+def extend_compiler() -> CompilerExtension:
+    """Function called by the compiler when loading this extension, to add ability to parse new tags."""
+    tags = {
+        "CALC": (1, 0, None),
+        "GCALC": (0, 0, ["@END_GCALC", "@END"]),
+        "GEO": (0, 0, ["@END_GEO", "@END"]),
+        "TABSIGN": (0, 0, ["@END_TABSIGN", "@END"]),
+        "TABVAL": (0, 0, ["@END_TABVAL", "@END"]),
+        "TABVAR": (0, 0, ["@END_TABVAR", "@END"]),
+    }
+    return {"latex_generator": GeophyxLatexGenerator, "tags": tags}
 
 
 def main(code, compiler):

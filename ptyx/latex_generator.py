@@ -7,6 +7,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List, TypedDict
 
+from ptyx.extensions import CompilerExtension
+
 import ptyx.randfunc as randfunc
 from ptyx import __version__, __api__
 from ptyx.config import param, SYMPY_AVAILABLE
@@ -922,22 +924,26 @@ class Compiler:
                 else:
                     traceback.print_exc()
                     raise ImportError(f"Extension {extension_name} not found.")
-            # Test if extension defines new tags.
-            ext_tags = getattr(extensions[extension_name], "__tags__", {})
-            for tag, syntax in ext_tags.items():
-                # Test for conflict between extensions.
-                if tag in tags_source:
-                    raise NameError(
-                        f"Extension {extension_name} tries to define tag {tag}, "
-                        f"which was already defined by extension {tags_source[tag]}."
-                    )
-                # Tag not already declared, everything seems OK.
-                tags_source[tag] = extension_name
-                tags_syntax[tag] = syntax
-            # Extension may subclass LatexGenerator class, notably to handle new tags.
-            subclass = getattr(extensions[extension_name], "__latex_generator_extension__", None)
-            if subclass is not None:
-                latex_generator_extensions.append(subclass)
+            try:
+                # This extension may define a function `extend_compiler()` to customize the compiler.
+                extensions_dict: CompilerExtension = getattr(extensions[extension_name], "extend_compiler")()
+                # This extension may subclass LatexGenerator class, notably to handle new tags.
+                if "latex_generator" in extensions_dict:
+                    latex_generator_extensions.append(extensions_dict["latex_generator"])
+                # Test if this extension defines new tags.
+                ext_tags = extensions_dict.get("tags", {})
+                for tag, syntax in ext_tags.items():
+                    # Test for conflict between extensions.
+                    if tag in tags_source:
+                        raise NameError(
+                            f"Extension {extension_name} tries to define tag {tag}, "
+                            f"which was already defined by extension {tags_source[tag]}."
+                        )
+                    # Tag not already declared, everything seems OK.
+                    tags_source[tag] = extension_name
+                    tags_syntax[tag] = syntax
+            except AttributeError:
+                pass
         # Load new tags.
         self.add_new_tags(*tags_syntax.items())
         # Update LatexGenerator.
