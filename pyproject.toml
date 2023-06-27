@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ptyx"
-version = "23.3"
+version = "24.0.0"
 description = "pTyX is a python precompiler for LaTeX."
 authors = ["Nicolas Pourcelot <nicolas.pourcelot@gmail.com>"]
 repository = "https://github.com/wxgeo/ptyx"
@@ -24,14 +24,12 @@ tox = "^4.3.5"
 sphinx-autodoc-typehints = "^1.19.5"
 sphinx-rtd-theme = "^1.0.0"
 myst-parser = "^0.18.0"
-python-semantic-release = "^7.34.6"
+python-semantic-release = "7.28.1"
 
 [tool.poetry.scripts]
 ptyx = 'ptyx.script:ptyx'
 scan = 'ptyx.extensions.autoqcm.cli:scan'
 autoqcm = 'ptyx.extensions.autoqcm.cli:main'
-
-
 
 [tool.semantic_release]
 version_variable = "pyproject.toml:version"
