@@ -11,3 +11,9 @@ tox:
 
 version:
 	poetry run semantic-release version
+
+build:
+	poetry build
+
+publish:
+	poetry publish --build
