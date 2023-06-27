@@ -138,7 +138,6 @@ class SyntaxTreeGenerator:
         "ANS": (0, 0, ["@END"]),
         "ANSWER": (0, 1, None),
         "APART": (0, 0, ["@END", "@END_APART"]),
-        "API_VERSION": (0, 1, None),
         "ASK": (0, 0, ["@END"]),
         "ASK_ONLY": (0, 0, ["@END"]),
         "ASSERT": (1, 0, None),
@@ -168,6 +167,7 @@ class SyntaxTreeGenerator:
         "MACRO": (0, 1, ["@END", "@END_MACRO"]),
         "PICK": (0, 0, ["@END", "@END_PICK"]),
         "PRINT": (1, 0, None),
+        "PTYX_VERSION": (0, 1, None),
         "PYTHON": (0, 0, ["@END"]),
         "QUESTION": (0, 1, None),
         # ROOT isn't a real tag, and is never closed.

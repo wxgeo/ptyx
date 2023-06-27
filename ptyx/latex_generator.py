@@ -10,7 +10,7 @@ from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List, Typed
 from ptyx.extensions import CompilerExtension
 
 import ptyx.randfunc as randfunc
-from ptyx import __version__, __api__
+from ptyx import __version__
 from ptyx.config import param, SYMPY_AVAILABLE
 from ptyx.context import GLOBAL_CONTEXT
 
@@ -273,22 +273,16 @@ class LatexGenerator:
         # Restore local variables and update generated LaTeX code.
         self.set_new_context(context_backup)
 
-    def _parse_API_VERSION_tag(self, node: Node):
-        def version_tuple(version: str):
-            return version.split(".")
+    def _parse_PTYX_VERSION_tag(self, node: Node):
+        def version_tuple(version_: str):
+            return version_.split(".")
 
         assert isinstance(node.children[0], Node), repr(node)
         assert isinstance(node.children[0].children[0], str), repr(node)
         version = version_tuple(node.children[0].children[0])
         if version_tuple(__version__) < version:
             print("Warning: pTyX engine is too old (v%s required)." % version)
-        if version < version_tuple(__api__):
-            print(
-                "Warning: pTyX file uses an old API. You may have to update "
-                "your pTyX file code before compiling it."
-            )
-        # TODO: display a short list of API changes which broke compatibility.
-        self.context["API_VERSION"] = version
+        self.context["PTYX_VERSION"] = version
 
     def _parse_ASK_tag(self, node: Node):
         self._parse_children(node.children, function=self.context.get("format_ask"))
