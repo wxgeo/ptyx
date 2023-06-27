@@ -106,7 +106,7 @@ class PtyxArgumentParser(argparse.ArgumentParser):
             "--compress",
             action="store_true",
             help="Like --cat, but compress final pdf file using pdf2ps and ps2pdf. "
-                 "Ghostscript must be present (on Linux, it is probably already installed).",
+            "Ghostscript must be present (on Linux, it is probably already installed).",
         )
         self.add_argument(
             "--reorder-pages",
