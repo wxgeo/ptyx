@@ -24,12 +24,11 @@ tox = "^4.3.5"
 sphinx-autodoc-typehints = "^1.19.5"
 sphinx-rtd-theme = "^1.0.0"
 myst-parser = "^0.18.0"
+# Version 7.29+ are buggy !
 python-semantic-release = "7.28.1"
 
 [tool.poetry.scripts]
 ptyx = 'ptyx.script:ptyx'
-scan = 'ptyx.extensions.autoqcm.cli:scan'
-autoqcm = 'ptyx.extensions.autoqcm.cli:main'
 
 [tool.semantic_release]
 version_variable = "pyproject.toml:version"
