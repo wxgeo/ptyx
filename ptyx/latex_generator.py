@@ -1,6 +1,7 @@
 import random
 import re
 import traceback
+import zlib
 from importlib import import_module, metadata
 from os.path import dirname, basename, join
 from pathlib import Path
@@ -967,8 +968,8 @@ class Compiler:
         code = re.sub(r"#SEED\{\s*(\d+)\s*\}", seed, code)
         if counter == 0:
             path = self._state.get("path")
-            print(f"Warning: #SEED not found, using hash of ptyx file path ({path!r}) as seed.")
-            value = hash(path)
+            value = zlib.adler32(str(path).encode("utf8"))
+            print(f"Warning: #SEED not found, using ptyx file path '{path}' to generate seed: {value}.")
         elif counter > 1:
             print(f"Warning: multiple #SEED found, only last one will be used: {value}.")
         return code, value
