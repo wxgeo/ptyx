@@ -1051,8 +1051,8 @@ class Compiler:
                 print(e.msg)
             raise
         latex = gen.read()
-        if "API_VERSION" not in gen.context:
-            print("Warning: no API version specified. This may be an old pTyX file.")
+        # if "API_VERSION" not in gen.context:
+        #     print("Warning: no API version specified. This may be an old pTyX file.")
         return latex
 
     def add_new_tags(self, *tags: Tuple[str, Tuple]) -> None:
