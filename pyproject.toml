@@ -26,6 +26,7 @@ sphinx-rtd-theme = "^1.0.0"
 myst-parser = "^0.18.0"
 # Version 7.29+ are buggy !
 python-semantic-release = "7.28.1"
+ruff = "^0.0.275"
 
 [tool.poetry.scripts]
 ptyx = 'ptyx.script:ptyx'
@@ -44,12 +45,15 @@ implicit_optional = true
 [tool.black]
 line-length = 110
 
+[tool.ruff]
+line-length = 110
+
 [tool.tox]
 legacy_tox_ini = """
 [tox]
 skipsdist = true
 isolated_build = True
-envlist = py310
+envlist = py311
 
 [testenv]
 allowlist_externals = poetry

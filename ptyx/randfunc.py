@@ -281,8 +281,8 @@ def srandchoice(*items, **kw):
 
 
 @sandboxed
-def shuffle(items: list, _random: Callable[[], float] = None) -> None:
-    random.shuffle(items, _random)
+def shuffle(items: list) -> None:
+    random.shuffle(items)
 
 
 @sandboxed

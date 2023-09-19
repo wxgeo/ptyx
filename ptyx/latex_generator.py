@@ -904,6 +904,7 @@ class Compiler:
         tags_source: Dict[Tag, str] = {}
         latex_generator_extensions = []
         for extension_name in extensions_list:
+            print(f"Loading extension '{extension_name}'...")
             try:
                 extensions[extension_name] = import_module(f"ptyx.extensions.{extension_name}")
             except ImportError:
