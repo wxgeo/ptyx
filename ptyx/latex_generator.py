@@ -942,9 +942,9 @@ class Compiler:
         if latex_generator_extensions:
             # TODO: Test for conflicting methods ?
             class CustomLatexGenerator(*reversed(latex_generator_extensions)):  # type: ignore
-                pass
+                """Custom Latex Generator dynamically generated using loaded extensions."""
 
-            self.latex_generator.__class__ = CustomLatexGenerator
+            self.latex_generator = CustomLatexGenerator(self)
         for name in extensions_list:
             # execute `main()` function of extension.
             if hasattr(extensions[name], "main"):
