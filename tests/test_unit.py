@@ -453,6 +453,38 @@ def pi2():
         r'\texttt{def~pi2():\linebreak\phantom{}~~~~return~"\$\textbackslash{}pi\textasciicircum{}2\$"}' "\n"
     )
 
+def test_PYTHON_tag():
+    c = Compiler()
+    test = r"""
+#PYTHON
+a = 2 # test for comment support
+#END
+#a
+"""
+    latex = c.parse(test)
+    assert latex == "\n2\n"
+
+def test_PRINT_tag(capfd):
+    c = Compiler()
+    test = r"""
+#SEED{0}
+#PRINT{Hello}
+"""
+    latex = c.parse(test)
+    out, err = capfd.readouterr()
+    assert out == "Hello\n"
+
+def test_PRINT_tag_with_inner_code(capfd):
+    c = Compiler()
+    test = r"""
+#SEED{0}
+#{a=7;}
+#PRINT{Hello #a ##}
+"""
+    latex = c.parse(test)
+    out, err = capfd.readouterr()
+    assert out == "Hello 7 #\n"
+
 
 def main():
     for varname, content in globals().items():

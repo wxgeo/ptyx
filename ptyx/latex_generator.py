@@ -621,7 +621,17 @@ class LatexGenerator:
                     print(e)
 
     def _parse_PRINT_tag(self, node: Node) -> None:
-        print(node.arg(0))
+        # print(node.arg(0))
+        assert isinstance(node.children[0], Node), repr(node)
+        # Backup local variables and reset context.
+        context_backup = self.context
+        self.set_new_context(self.context)
+        self.context["PTYX_LATEX"] = []  # Do not use list.clear(), make a new list instead!
+        # Interprete code
+        self._parse_children(node.children[0].children)
+        print("".join(self.context["PTYX_LATEX"]))
+        # Restore local variables and print generated LaTeX code.
+        self.set_new_context(context_backup)
 
     @staticmethod
     def _exec(code, context):
@@ -936,8 +946,6 @@ class Compiler:
                     tags_syntax[tag] = syntax
             except AttributeError:
                 pass
-        # Load new tags.
-        self.add_new_tags(*tags_syntax.items())
         # Update LatexGenerator.
         if latex_generator_extensions:
             # TODO: Test for conflicting methods ?
@@ -945,6 +953,9 @@ class Compiler:
                 """Custom Latex Generator dynamically generated using loaded extensions."""
 
             self.latex_generator = CustomLatexGenerator(self)
+        # Load new tags. This must be done *AFTER* the redefinition of self.latex_generator,
+        # so as to update the parser of the *new* latex generator, and not the old one.
+        self.add_new_tags(*tags_syntax.items())
         for name in extensions_list:
             # execute `main()` function of extension.
             if hasattr(extensions[name], "main"):
