@@ -185,7 +185,7 @@ class SyntaxTreeGenerator:
         "*": (0, 0, None),
         "=": (0, 0, None),
         "?": (0, 0, None),
-        "#": (0, 0, None),
+        # "#": (0, 0, None),
     }
 
     # NOTE: Should all tags starting with END_TAG automatically close TAG ?
@@ -302,7 +302,12 @@ class SyntaxTreeGenerator:
                         break
                     # -> sorry, try again.
             else:
-                if position >= len(text) or text[position].isdigit() or text[position] == " ":
+                if (
+                    position >= len(text)
+                    or text[position].isdigit()
+                    or text[position] == " "
+                    or text[position] == "#"
+                ):
                     # This not a tag: LaTeX uses #1, #2, #3 as \newcommand{} parameters.
                     # This may also be a simple \# .
                     # Pretend nothing happened.
@@ -340,11 +345,11 @@ class SyntaxTreeGenerator:
                 # would automatically result in two paragraphs else.
                 i = max(text.rfind("\n", None, tag_position), 0)
                 if text[i:tag_position].isspace():
-                    node.add_child(text[last_position:i])
+                    node.add_child(text[last_position:i].replace("##", "#"))
                 else:
-                    node.add_child(text[last_position:tag_position])
+                    node.add_child(text[last_position:tag_position].replace("##", "#"))
             else:
-                node.add_child(text[last_position:tag_position])
+                node.add_child(text[last_position:tag_position].replace("##", "#"))
 
             # Enclose "CASE ... CASE ... ELSE ... END" or "IF ... ELIF ... ELSE ... END"
             # inside a CONDITIONAL_BLOCK node.
@@ -488,4 +493,4 @@ class SyntaxTreeGenerator:
                     # Store node closing tags for fast access later.
                     node._closing_tags = closing_tags
 
-        node.add_child(text[last_position:])
+        node.add_child(text[last_position:].replace("##", "#"))
