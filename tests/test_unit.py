@@ -2,7 +2,8 @@ import os
 import re
 import types
 from os.path import dirname
-from pathlib import Path
+
+import pytest
 
 import ptyx
 from ptyx.latex_generator import SyntaxTreeGenerator, Compiler  # , parse
@@ -104,7 +105,13 @@ def test_syntax_tree():
 
 
 def test_latex_code_generator():
-    test = "#{variable=3;b=1;}#{a=2}#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END ok"
+    test = (
+        "#{variable=3;b=1;}#{a=2}"
+        "#IF{a>0}some text here"
+        "#ELIF{b>0}some more text"
+        "#ELSE variable value is #variable not #{variable+1} !"
+        "#END ok"
+    )
     c = Compiler()
     latex = c.parse(test)
     assert latex == "2some text here ok"
@@ -224,7 +231,10 @@ def test_CASE():
 
 
 def test_IF_ELIF_ELSE():
-    test = r"#{a=1;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=0;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=2;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END."
+    test = (
+        "#{a=1;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END"
+        "#{a=0;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=2;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END."
+    )
     result = r"10{}2."
     c = Compiler()
     latex = c.parse(test)
@@ -477,12 +487,25 @@ def test_PRINT_tag(capfd):
     assert out == "Hello\n"
 
 
-def test_PRINT_tag_with_inner_code(capfd):
+@pytest.mark.xfail
+def test_PRINT_tag_bis(capfd):
     c = Compiler()
     test = r"""
 #SEED{0}
 #{a=7;}
 #PRINT{Hello #a ##}
+"""
+    latex = c.parse(test)
+    out, err = capfd.readouterr()
+    assert out == "Hello #a #\n"
+
+
+def test_PRINT_EVAL_tag(capfd):
+    c = Compiler()
+    test = r"""
+#SEED{0}
+#{a=7;}
+#PRINT_EVAL{Hello #a ##}
 """
     latex = c.parse(test)
     out, err = capfd.readouterr()

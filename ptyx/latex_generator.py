@@ -65,7 +65,7 @@ class LatexGenerator:
         "*": "MUL",
         "=": "EQUAL",
         "?": "SIGN",
-        "#": "SHARP",
+        # "#": "SHARP",
     }
 
     # noinspection RegExpRedundantEscape
@@ -563,9 +563,9 @@ class LatexGenerator:
             print(node.display(color=False))
             raise
 
-    def _parse_SHARP_tag(self, node: Node) -> None:
-        """2 sharps (##) will be converted to 1 sharp (#)"""
-        self.write("#")
+    # def _parse_SHARP_tag(self, node: Node) -> None:
+    #     """2 sharps (##) will be converted to 1 sharp (#)"""
+    #     self.write("#")
 
     def _parse_ADD_tag(self, node: Node) -> None:
         # a '+' will be displayed at the beginning of the next result if positive ;
@@ -620,7 +620,7 @@ class LatexGenerator:
                     print("*** ERROR ***")
                     print(e)
 
-    def _parse_PRINT_tag(self, node: Node) -> None:
+    def _parse_PRINT_EVAL_tag(self, node: Node) -> None:
         # print(node.arg(0))
         assert isinstance(node.children[0], Node), repr(node)
         # Backup local variables and reset context.
@@ -632,6 +632,9 @@ class LatexGenerator:
         print("".join(self.context["PTYX_LATEX"]))
         # Restore local variables and print generated LaTeX code.
         self.set_new_context(context_backup)
+
+    def _parse_PRINT_tag(self, node: Node) -> None:
+        print(node.arg(0))
 
     @staticmethod
     def _exec(code, context):
