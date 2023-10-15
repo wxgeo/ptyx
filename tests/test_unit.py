@@ -146,8 +146,7 @@ def test_SEED_SHUFFLE():
 
 
 def test_SEED_SHUFFLE_2():
-    tests = []
-    tests.append(
+    tests = [
         """#SEED{153}%
 #SHUFFLE
 #ITEM
@@ -156,9 +155,7 @@ a
 b
 #ITEM
 c
-#END"""
-    )
-    tests.append(
+#END""",
         """#SEED{153}%
 #SHUFFLE
 
@@ -168,9 +165,7 @@ a
 b
 #ITEM
 c
-#END"""
-    )
-    tests.append(
+#END""",
         """#SEED{153}%
 #SHUFFLE
  #ITEM
@@ -179,8 +174,8 @@ a
 b
 #ITEM
 c
-#END"""
-    )
+#END""",
+    ]
     c = Compiler()
     results = []
     for test in tests:
@@ -487,13 +482,25 @@ def test_PRINT_tag(capfd):
     assert out == "Hello\n"
 
 
-@pytest.mark.xfail
-def test_PRINT_tag_bis(capfd):
+def test_PRINT_hash_symbol(capfd):
     c = Compiler()
     test = r"""
 #SEED{0}
 #{a=7;}
-#PRINT{Hello #a ##}
+#PRINT{Hello ## ##}
+"""
+    latex = c.parse(test)
+    out, err = capfd.readouterr()
+    assert out == "Hello # #\n"
+
+
+@pytest.mark.xfail
+def test_PRINT_hash_symbol2(capfd):
+    c = Compiler()
+    test = r"""
+#SEED{0}
+#{a=7;}
+#PRINT{Hello ##a ##}
 """
     latex = c.parse(test)
     out, err = capfd.readouterr()
@@ -514,7 +521,7 @@ def test_PRINT_EVAL_tag(capfd):
 
 def main():
     for varname, content in globals().items():
-        if varname.startswith("test_") and type(content) == types.FunctionType:
+        if varname.startswith("test_") and isinstance(content, types.FunctionType):
             os.chdir(os.path.join(dirname(ptyx.__file__), ".."))
             content()
 
