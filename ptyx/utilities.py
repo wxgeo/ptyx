@@ -50,12 +50,15 @@ def find_closing_bracket(text: str, start: int = 0, brackets: str = "{}", detect
 
     open_bracket = brackets[0]
     close_bracket = brackets[1]
+    escape_string_char = False
 
     # ', ", { and } are matched.
     # Note that if brackets == '[]', bracket ] must appear first in
     # regular expression ('[]"\'[]' is valid, but '[["\']]' is not).
-    reg_str = "[%s\"'%s]" if detect_strings else "[%s%s]"
-    reg = re.compile(reg_str % (close_bracket, open_bracket))
+    reg_str = (
+        f"[{open_bracket}\"'\\\\{close_bracket}]" if detect_strings else f"[{open_bracket}{close_bracket}]"
+    )
+    reg = re.compile(reg_str)
 
     if start:
         text = text[start:]
@@ -66,16 +69,17 @@ def find_closing_bracket(text: str, start: int = 0, brackets: str = "{}", detect
 
         result = m.group()
         i = m.start()
+
         if result == open_bracket:
             if string_type is None:
                 balance += 1
         elif result == close_bracket:
             if string_type is None:
                 balance -= 1
-
         # Brackets in string should not be recorded...
         # so, we have to detect if we're in a string at the present time.
-        elif result in ("'", '"'):
+        # (Note: we have to take care of the `\` escape character, see below).
+        elif result in ("'", '"') and not escape_string_char:
             if string_type is None:
                 if text[i:].startswith(3 * result):
                     string_type = 3 * result
@@ -89,6 +93,12 @@ def find_closing_bracket(text: str, start: int = 0, brackets: str = "{}", detect
                     string_type = None
                     i += 2
 
+        # `\` character is used to escape and `"` and `'` characters inside a python string.
+        # As an exception, two consecutive `\` don't escape following `'`, `"`.
+        if string_type is not None and result == "\\":
+            escape_string_char = not escape_string_char
+        else:
+            escape_string_char = False
         i += 1  # counting the current character as already scanned text
         index += i
         text = text[i:]

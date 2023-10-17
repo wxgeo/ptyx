@@ -114,7 +114,7 @@ class Node:
 
 class SyntaxTreeGenerator:
     # For each tag, indicate:
-    #   1. The number of interpreted arguments (arguments that contain code).
+    #   1. The number of interpreted arguments (arguments that contain python code).
     #      Those arguments will not be parsed.
     #      (This is used most of the time for python code).
     #   2. The number of raw arguments.
@@ -159,10 +159,10 @@ class SyntaxTreeGenerator:
         # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
         "ELSE": (0, 0, ["END", "END_IF"]),
         "IMPORT": (1, 0, None),
-        "LOAD": (1, 0, None),
+        "LOAD": (0, 1, None),
         "FREEZE_RANDOM_STATE": (0, 0, []),
         "IFNUM": (1, 1, None),
-        "INCLUDE": (1, 0, None),
+        "INCLUDE": (0, 1, None),
         "CALL": (0, 1, None),
         "MACRO": (0, 1, ["@END", "@END_MACRO"]),
         "PICK": (0, 0, ["@END", "@END_PICK"]),

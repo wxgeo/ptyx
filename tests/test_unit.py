@@ -15,12 +15,22 @@ TEST_DIR = dirname(__file__)
 
 
 def test_find_closing_bracket():
-    text = "{hello{world} !} etc."
-    assert find_closing_bracket(text, 1) == 15
-    text = "{'}'}"
-    assert find_closing_bracket(text, 1) == 4
-    text = "{'}'}"
-    assert find_closing_bracket(text, 1, detect_strings=False) == 2
+    assert find_closing_bracket("{hello{world} !} etc.", 1) == 15
+    assert find_closing_bracket("{'}'}", 1) == 4
+    assert find_closing_bracket("{'}'}", 1, detect_strings=False) == 2
+    # Unbalanced
+    with pytest.raises(ValueError, match="ERROR: unbalanced brackets"):
+        find_closing_bracket("{'}' '}")
+
+
+def test_find_closing_bracket_escape_char():
+    # Support \\ to escape ' or " character
+    assert find_closing_bracket("{'}\\''}", 1) == 6
+    assert find_closing_bracket('{"\'}\\""}', 1) == 7
+    # Unbalanced
+    with pytest.raises(ValueError, match="ERROR: unbalanced brackets"):
+        assert find_closing_bracket("{'}\\\\''}", 1) == 6
+    assert find_closing_bracket("{'}\\\\\\''}", 1) == 8
 
 
 def test_round():
