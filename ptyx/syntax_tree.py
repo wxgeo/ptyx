@@ -114,11 +114,10 @@ class Node:
 
 class SyntaxTreeGenerator:
     # For each tag, indicate:
-    #   1. The number of interpreted arguments (arguments that contain python code).
+    #   1. The number of arguments that contain python code.
     #      Those arguments will not be parsed.
-    #      (This is used most of the time for python code).
-    #   2. The number of raw arguments.
-    #      Those arguments contain raw text, which need parsing.
+    #   2. The number of parsed arguments.
+    #      Those arguments may contain inner pTyX code, which needs parsing.
     #   3. If the tag opens a block, a list of all the tags closing the block,
     #      else `None`.
     #
@@ -135,15 +134,15 @@ class SyntaxTreeGenerator:
     # in {val=="}"}, the bracket closing the tag is the second `}`, not the first one !
 
     tags: Dict[Tag, TagSyntax] = {
-        "ANS": (0, 0, ["@END"]),
+        "ANS": (0, 0, ["@END", "@END_ANS"]),
         "ANSWER": (0, 1, None),
         "APART": (0, 0, ["@END", "@END_APART"]),
-        "ASK": (0, 0, ["@END"]),
-        "ASK_ONLY": (0, 0, ["@END"]),
+        "ASK": (0, 0, ["@END", "@END_ASK"]),
+        "ASK_ONLY": (0, 0, ["@END", "@END_ASK_ONLY"]),
         "ASSERT": (1, 0, None),
         # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
         "CASE": (1, 0, ["CASE", "ELSE", "END", "END_CASE"]),
-        "COMMENT": (0, 0, ["@END"]),
+        "COMMENT": (0, 0, ["@END", "@END_COMMENT"]),
         # CONDITIONAL_BLOCK isn't a real tag, but is used to enclose
         # a #CASE{...}...#CASE{...}...#END block, or an #IF{...}...#ELIF{...}...#END block.
         "CONDITIONAL_BLOCK": (0, 0, ["@END", "@END_IF"]),
@@ -151,7 +150,7 @@ class SyntaxTreeGenerator:
         "EVAL": (1, 0, None),
         # ENUM indicates the start of an enumeration.
         # It does nothing by itself, but is used by some extensions.
-        "ENUM": (0, 0, ["@END"]),
+        "ENUM": (0, 0, ["@END", "@END_ENUM"]),
         # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
         "IF": (1, 0, ["ELIF", "ELSE", "END", "END_IF"]),
         # Do *NOT* consume #END tag, which must be used to end #CONDITIONAL_BLOCK.
@@ -166,19 +165,18 @@ class SyntaxTreeGenerator:
         "CALL": (0, 1, None),
         "MACRO": (0, 1, ["@END", "@END_MACRO"]),
         "PICK": (0, 0, ["@END", "@END_PICK"]),
-        "PRINT": (1, 0, None),
+        "PRINT": (0, 1, None),
         "PRINT_EVAL": (0, 1, None),
         "PTYX_VERSION": (0, 1, None),
-        "PYTHON": (0, 0, ["@END"]),
+        "PYTHON": (0, 0, ["@END", "@END_PYTHON"]),
         "QUESTION": (0, 1, None),
         # ROOT isn't a real tag, and is never closed.
         "ROOT": (0, 0, []),
-        "SEED": (1, 0, None),
+        "SEED": (0, 1, None),
         "SHUFFLE": (0, 0, ["@END", "@END_SHUFFLE"]),
         # Do *NOT* consume #END tag, which must be used to end #SHUFFLE block.
         "ITEM": (0, 0, ["ITEM", "END", "END_SHUFFLE", "END_PICK"]),
         "SIGN": (0, 0, None),
-        "SYMPY": (0, 0, ["@END"]),
         "TEST": (1, 2, None),
         "VERBATIM": (0, 0, ["@END", "@END_VERBATIM"]),
         "-": (0, 0, None),
@@ -312,6 +310,7 @@ class SyntaxTreeGenerator:
                     # This not a tag: LaTeX uses #1, #2, #3 as \newcommand{} parameters.
                     # This may also be a simple \# .
                     # Pretend nothing happened.
+                    position += 1
                     update_last_position = False
                     continue
                 else:
@@ -435,7 +434,7 @@ class SyntaxTreeGenerator:
                     code_args_number, raw_args_number, closing_tags = self.tags[node.name]
                 except ValueError:
                     raise RuntimeError("Tag %s is not correctly defined." % node.name)
-                for i in range(code_args_number + raw_args_number):
+                for arg_num in range(code_args_number + raw_args_number):
                     try:
                         # - Tolerate spaces before bracket.
                         while text[position].isspace():
@@ -449,7 +448,7 @@ class SyntaxTreeGenerator:
                                 text,
                                 position,
                                 brackets="{}",
-                                detect_strings=(i < code_args_number),
+                                detect_strings=(arg_num < code_args_number),
                             )
                             new_pos = end + 1
                         else:
@@ -462,8 +461,14 @@ class SyntaxTreeGenerator:
                     # Each argument of a command is a node itself.
                     # Nodes corresponding to arguments have no name,
                     # but are numbered instead.
-                    arg = node.add_child(Node(i))
-                    self._generate_tree(arg, text[position:end])
+                    arg = node.add_child(Node(arg_num))
+                    if arg_num < code_args_number or tag == "PRINT":
+                        # Add raw text, do not parse it.
+                        arg.add_child(text[position:end].replace("##", "#"))
+                    else:
+                        # Parse argument as pTyX code.
+                        # Note: DON'T replace ## by #, since otherwise it would be done recursively!
+                        self._generate_tree(arg, text[position:end])
                     position = new_pos
 
                 # if remove_trailing_newline:

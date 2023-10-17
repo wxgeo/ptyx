@@ -127,6 +127,13 @@ def test_latex_code_generator():
     assert latex == "2some text here ok"
 
 
+def test_hash():
+    test = "#{a=5}###a####a"
+    c = Compiler()
+    latex = c.parse(test)
+    assert latex == "5#5##a"
+
+
 def test_SEED_SHUFFLE():
     test = '''#SEED{16}Who said "Having nothing, nothing can he lose" ?
 
@@ -496,15 +503,14 @@ def test_PRINT_hash_symbol(capfd):
     c = Compiler()
     test = r"""
 #SEED{0}
-#{a=7;}
 #PRINT{Hello ## ##}
 """
     latex = c.parse(test)
     out, err = capfd.readouterr()
     assert out == "Hello # #\n"
+    assert latex == "\n\n\n"
 
 
-@pytest.mark.xfail
 def test_PRINT_hash_symbol2(capfd):
     c = Compiler()
     test = r"""
@@ -515,18 +521,20 @@ def test_PRINT_hash_symbol2(capfd):
     latex = c.parse(test)
     out, err = capfd.readouterr()
     assert out == "Hello #a #\n"
+    assert latex == "\n\n\n\n"
 
 
 def test_PRINT_EVAL_tag(capfd):
     c = Compiler()
     test = r"""
 #SEED{0}
-#{a=7;}
+#{a=7;}Hi #a!
 #PRINT_EVAL{Hello #a ##}
 """
     latex = c.parse(test)
     out, err = capfd.readouterr()
     assert out == "Hello 7 #\n"
+    assert latex == "\n\nHi 7!\n\n"
 
 
 def main():

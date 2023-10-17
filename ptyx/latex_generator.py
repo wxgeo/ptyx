@@ -103,17 +103,19 @@ class LatexGenerator:
         """To overwrite."""
         self.clear()
 
-    def set_new_context(self, context: Optional[Dict] = None):
+    def set_new_context(self, base_context: Optional[Dict] = None) -> Dict:
         """Set a new context of evaluation for code, except for PTYX_LATEX value."""
-        if context is None:
-            context = GLOBAL_CONTEXT
+        old_context = self.context
+        if base_context is None:
+            base_context = GLOBAL_CONTEXT
         # Use deepcopy instead ?
-        context = context.copy()
+        new_context = base_context.copy()
         # Copy internal parameters to new context.
-        for key in self.context:
+        for key in old_context:
             if key.startswith("PTYX_"):
-                context[key] = self.context[key]
-        self.context = context
+                new_context[key] = old_context[key]
+        self.context = new_context
+        return old_context
 
     @property
     def NUM(self):
@@ -623,15 +625,15 @@ class LatexGenerator:
     def _parse_PRINT_EVAL_tag(self, node: Node) -> None:
         # print(node.arg(0))
         assert isinstance(node.children[0], Node), repr(node)
-        # Backup local variables and reset context.
-        context_backup = self.context
-        self.set_new_context(self.context)
+        # Backup PTYX_LATEX (i.e. already generated LaTeX code) and reset context.
+        assert isinstance(self.context["PTYX_LATEX"], list)
+        ptyx_latex_content = self.context["PTYX_LATEX"]
         self.context["PTYX_LATEX"] = []  # Do not use list.clear(), make a new list instead!
-        # Interprete code
+        # Interpret code
         self._parse_children(node.children[0].children)
         print("".join(self.context["PTYX_LATEX"]))
-        # Restore local variables and print generated LaTeX code.
-        self.set_new_context(context_backup)
+        # Restore PTYX_LATEX.
+        self.context["PTYX_LATEX"] = ptyx_latex_content
 
     def _parse_PRINT_tag(self, node: Node) -> None:
         print(node.arg(0))
