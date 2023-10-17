@@ -21,6 +21,7 @@ def test_find_closing_bracket():
     # Unbalanced
     with pytest.raises(ValueError, match="ERROR: unbalanced brackets"):
         find_closing_bracket("{'}' '}")
+    assert find_closing_bracket("[o[k]]", 1, brackets="[]") == 5
 
 
 def test_find_closing_bracket_escape_char():
@@ -340,6 +341,19 @@ $6-4$"""
 def test_EVAL_abs():
     test = r"$#{abs(-5)}$"
     result = r"$5$"
+    c = Compiler()
+    latex = c.parse(test)
+    assert latex == result
+
+
+def test_EVAL_rounding():
+    test = r"#[2]{2/3}"
+    result = r"0,67"
+    c = Compiler()
+    latex = c.parse(test)
+    assert latex == result
+    test = r"#[2,.]{2/3}"
+    result = r"0.67"
     c = Compiler()
     latex = c.parse(test)
     assert latex == result

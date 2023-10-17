@@ -55,8 +55,9 @@ def find_closing_bracket(text: str, start: int = 0, brackets: str = "{}", detect
     # ', ", { and } are matched.
     # Note that if brackets == '[]', bracket ] must appear first in
     # regular expression ('[]"\'[]' is valid, but '[["\']]' is not).
+    # So, close_bracket must appear at first in the reg.
     reg_str = (
-        f"[{open_bracket}\"'\\\\{close_bracket}]" if detect_strings else f"[{open_bracket}{close_bracket}]"
+        f"[{close_bracket}\"'\\\\{open_bracket}]" if detect_strings else f"[{close_bracket}{open_bracket}]"
     )
     reg = re.compile(reg_str)
 
