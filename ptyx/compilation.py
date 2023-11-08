@@ -88,10 +88,16 @@ class Logging(object):
 
 def execute(command: str) -> str:
     """Execute command in shell."""
-    out = subprocess.Popen(
-        command, shell=True, encoding="utf8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-    ).stdout
-    return out.read() if out is not None else ""
+    out = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout
+    out_bytes = out.read() if out is not None else b""
+    try:
+        out_str = out_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        out_str = out_bytes.decode("utf-8", errors="replace")
+        print(f"UnicodeDecodeError when reading command output!")
+        print(f"Command: {command!r}")
+        print(f"Output: {out_str if len(out_str) < 100 else out_str[:100] + '...'}")
+    return out_str
 
 
 def make_files(
