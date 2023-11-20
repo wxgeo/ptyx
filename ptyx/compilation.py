@@ -14,6 +14,10 @@ import fitz
 from ptyx.config import param, CPU_PHYSICAL_CORES
 from ptyx.latex_generator import compiler
 
+ANSI_RED = "\u001B[31m"
+ANSI_REVERSE_RED = "\u001B[41m"
+ANSI_RESET = "\u001B[0m"
+
 
 def append_suffix(path: Path, suffix) -> Path:
     """>>> append_suffix(Path("/home/user/file"), "-corr")
@@ -94,7 +98,7 @@ def execute(command: str) -> str:
         out_str = out_bytes.decode("utf-8")
     except UnicodeDecodeError:
         out_str = out_bytes.decode("utf-8", errors="replace")
-        print(f"UnicodeDecodeError when reading command output!")
+        print("UnicodeDecodeError when reading command output!")
         print(f"Command: {command!r}")
         print(f"Output: {out_str if len(out_str) < 100 else out_str[:100] + '...'}")
     return out_str
@@ -302,9 +306,29 @@ def make_file(
 
 def _print_latex_errors(out: str, filename: Path):
     print(f"File {filename} compiled.")
+    is_error_message = False
+    is_first_error_line = False
+    error_type = ""
     for line in out.split("\n"):
         if line.startswith("!"):
-            print(line)
+            print(f"{ANSI_RED}{line}{ANSI_RESET}")
+            is_error_message = True
+            is_first_error_line = True
+            error_type = line
+        elif is_error_message:
+            if is_first_error_line:
+                if error_type == "! Undefined control sequence.":
+                    # The undefined macro is the last displayed on this line.
+                    pos = line.rfind("\\")
+                    if pos == -1:
+                        print("Warning (pTyX): can't find any macro on previous line!")
+                    else:
+                        print("".join((line[:pos], ANSI_REVERSE_RED, line[pos:], ANSI_RESET)))
+                is_first_error_line = False
+            else:
+                print(line)
+            if line.startswith("l."):
+                is_error_message = False
     print(f"Full log written on {filename.with_suffix('.log')}.")
 
 
