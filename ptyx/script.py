@@ -236,11 +236,11 @@ def ptyx(parser=PtyxArgumentParser()):
         # print(compiler.state['syntax_tree'].display())
 
         # Compile and generate output files (tex or pdf)
-        output_basename, nums = make_files(input_name, **kwargs)
+        all_info = make_files(input_name, **kwargs)
 
         # Keep track of the seed used.
         seed_value = compiler.seed
-        seed_file_name = output_basename.parent / ".seed"
+        seed_file_name = all_info.directory / ".seed"
         with open(seed_file_name, "w") as seed_file:
             seed_file.write(str(seed_value))
 
@@ -255,7 +255,7 @@ def ptyx(parser=PtyxArgumentParser()):
 
             tags = compiler.syntax_tree.tags
             if any(tag in tags for tag in ANSWER_tags):
-                make_files(input_name, correction=True, _nums=nums, context=context, **kwargs)
+                make_files(input_name, correction=True, _nums=all_info.doc_ids, context=context, **kwargs)
 
 
 if __name__ == "__main__":

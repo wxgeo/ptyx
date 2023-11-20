@@ -6,8 +6,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Dict, Iterable, List, Sequence, Tuple, Union
+from typing import Optional, Iterable, Sequence, Union, NewType
 
 import fitz
 
@@ -19,11 +20,67 @@ ANSI_REVERSE_RED = "\u001B[41m"
 ANSI_RESET = "\u001B[0m"
 
 
+DocId = NewType("DocId", int)
+PageCount = NewType("PageCount", int)
+
+
 def append_suffix(path: Path, suffix) -> Path:
     """>>> append_suffix(Path("/home/user/file"), "-corr")
     Path("/home/user/file-corr")
     """
     return path.with_name(path.name + suffix)
+
+
+@dataclass
+class SingleFileCompilationInfo:
+    """Class returned when compiling a LaTeX file to PDF.
+
+    Attributes:
+        - page_count: int
+          The number of pages of the generated pdf document.
+        - errors: dict[str(<error-title>), str(<error-message>)]
+          Errors extracted from pdftex output.
+        - src: Path
+          The original LaTeX file.
+        - dest: Path
+          The generated Pdf file.
+    """
+
+    page_count: PageCount
+    errors: dict[str, str]
+    src: Path
+    dest: Path
+
+
+@dataclass
+class MultipleFilesCompilationInfo:
+    """Class returned when compiling a LaTeX file to PDF."""
+
+    basename: Path
+    info_dict: dict[DocId, SingleFileCompilationInfo] = field(default_factory=dict)
+
+    @property
+    def tex_paths(self) -> list[Path]:
+        return [info.src for info in self.info_dict.values()]
+
+    @property
+    def pdf_paths(self) -> list[Path]:
+        return [info.dest for info in self.info_dict.values()]
+
+    @property
+    def doc_ids(self) -> list[DocId]:
+        return list(self.info_dict)
+
+    @property
+    def errors(self) -> dict[DocId, dict[str, str]]:
+        return {doc_id: info.errors for (doc_id, info) in self.info_dict.items()}
+
+    @property
+    def directory(self) -> Path:
+        return self.basename.parent
+
+    def __len__(self):
+        return len(self.info_dict)
 
 
 class _LoggedStream(object):
@@ -114,7 +171,7 @@ def make_files(
     remove: Optional[bool] = None,
     _nums: Iterable[int] = None,
     **options,
-) -> Tuple[Path, List[int]]:
+) -> MultipleFilesCompilationInfo:
     """Generate the tex and pdf files.
 
     - `correction`: if True, include the solutions of the exercises
@@ -153,32 +210,35 @@ def make_files(
         output_basename = append_suffix(output_basename, "-corr")
 
     # Information to collect
-    compilation_info: Dict[int, Path] = {}
+    all_compilation_info = MultipleFilesCompilationInfo(output_basename)
+    # compilation_info: Dict[int, Path] = {}
     # nums: List[int] = []
     # filenames: List[Path] = []
-    pages_per_document: Dict[int, Dict[int, Path]] = {}
+    # pages_per_document: {<page count>: {<document number>: <document path>}}
+    pages_per_document: dict[PageCount, MultipleFilesCompilationInfo] = {}
 
     # Compilation number, used to initialize random numbers' generator.
-    num = options.get("start", 1) - 1
+    doc_id: DocId = DocId(options.get("start", 1) - 1)
     assert target is not None
-    while len(compilation_info) < target:
+    while len(all_compilation_info) < target:
         # ------------------------
         # Generate the LaTeX files
         # ------------------------
         # (Note that the actual number of generated files may be more than that,
         # because by default we aim to have documents with the same number of pages.)
         latex_files: list[Path] = []
-        nums: list[int] = []
+        doc_ids: list[DocId] = []
         filenames: list[Path] = []
-        for _ in range(target - len(compilation_info)):
+        for _ in range(target - len(all_compilation_info)):
             # 1. Generate context.
-            num += 1
+            # Restart from previous doc_id value (don't reset it!)
+            doc_id = DocId(doc_id + 1)
             if correction and _nums is not None:
                 # Overwrite default numeration, since correction numeration must match first pass.
-                num = _nums.pop(0)
-            context.update(PTYX_NUM=num)
-            nums.append(num)
-            filename = append_suffix(output_basename, f"-{num}") if target > 1 else output_basename
+                doc_id = DocId(_nums.pop(0))
+            context.update(PTYX_NUM=doc_id)
+            doc_ids.append(DocId(doc_id))
+            filename = append_suffix(output_basename, f"-{doc_id}") if target > 1 else output_basename
             filenames.append(filename)
             # 2. Compile to LaTeX.
             latex_files.append(generate_latex(filename, context))
@@ -195,16 +255,17 @@ def make_files(
 
         if cpu_cores_to_use > 1:
             with multiprocessing.get_context("forkserver").Pool(cpu_cores_to_use) as pool:
-                compile_info: list[tuple[int, dict[str, str]]] = pool.starmap(compile_latex, args)
+                compile_info_list: list[SingleFileCompilationInfo] = pool.starmap(compile_latex, args)
         else:
-            compile_info = list(itertools.starmap(compile_latex, args))
+            compile_info_list = list(itertools.starmap(compile_latex, args))
 
-        pages_numbers: list[int] = [page_count for (page_count, errors) in compile_info]
+        # pages_numbers: list[int] = [info.page_count for info in compile_info_list]
 
         # ---------------
         # Analyze results
         # ---------------
-        for pdf_pages_number, num, filename in zip(pages_numbers, nums, filenames):
+        info: SingleFileCompilationInfo
+        for doc_id, info in zip(doc_ids, compile_info_list):
             if not correction:
                 # 3. Test if the new generated file satisfies all options constraints.
                 if fixed_number_of_pages:
@@ -219,18 +280,20 @@ def make_files(
                         # and its path.
                         # Before beginning the next loop, the dictionary size will be checked,
                         # to see if it contains enough documents.
-                        # (There's no need to have a look on the others dicts, since they haven't change...)
-                        compilation_info = pages_per_document.setdefault(pdf_pages_number, {})
-                    elif pages != pdf_pages_number:
+                        # (There's no need to have a look on the others dicts, since they haven't changed...)
+                        all_compilation_info = pages_per_document.setdefault(
+                            info.page_count, MultipleFilesCompilationInfo(output_basename)
+                        )
+                    elif pages != info.page_count:
                         # Pages number is set manually, and don't match.
-                        print(f"Warning: skipping {filename} (incorrect page number) !")
+                        print(f"Warning: skipping {info.src} (incorrect page number) !")
                         continue
 
-            compilation_info[num] = filename
-            num += 1
+            all_compilation_info.info_dict[doc_id] = info
+            doc_id = DocId(doc_id + 1)
 
-    assert len(compilation_info) == target
-    filenames = list(compilation_info.values())
+    assert len(all_compilation_info) == target
+    filenames = all_compilation_info.pdf_paths
 
     # Join different versions in a single pdf, and compress if asked to do so.
     join_files(output_basename, filenames, **options)
@@ -268,12 +331,12 @@ def make_files(
     if remove:
         shutil.rmtree(compilation_dir)
 
-    return output_basename, list(compilation_info.keys())
+    return all_compilation_info
 
 
 def generate_latex(
     output_name: Path,
-    context: Optional[Dict] = None,
+    context: Optional[dict] = None,
     log=True,
 ) -> Path:
     """Generate latex from ptyx source file."""
@@ -300,9 +363,9 @@ def generate_latex(
 # TODO: is this still useful ?
 def make_file(
     output_name: Path,
-    context: Optional[Dict] = None,
+    context: Optional[dict] = None,
     quiet: Optional[bool] = None,
-) -> tuple[int, dict[str, str]]:
+) -> SingleFileCompilationInfo:
     """Generate latex and/or pdf file from ptyx source file.
 
     Return a 2-tuple:
@@ -358,13 +421,17 @@ def _print_latex_errors(out: str, filename: Path) -> dict[str, str]:
 
 def compile_latex(
     filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False
-) -> tuple[int, dict[str, str]]:
+) -> SingleFileCompilationInfo:
     """Compile the latex file.
 
-    Return a 2-tuple:
-       - the number of pages of the pdf (or -1 if not found),
-       - the dictionary of the LaTeX errors: {<error-title>: <error-message>}
+    Return a SingleFileCompilationInfo instance.
     """
+    # By default, pdflatex use current directory as destination folder.
+    # However, much of the time, we want destination folder to be the one
+    # where the tex file was found.
+    if dest is None:
+        dest = filename.parent
+
     command = _build_command(filename, dest, quiet)
     out = execute(command)
     errors: dict[str, str] = _print_latex_errors(out, filename)
@@ -373,32 +440,28 @@ def compile_latex(
         # ~ input('- run again -')
         out = execute(command)
         errors = _print_latex_errors(out, filename)
-    return _extract_page_number(out), errors
+    return SingleFileCompilationInfo(
+        page_count=_extract_page_number(out), errors=errors, src=filename, dest=dest
+    )
 
 
-def _build_command(filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False) -> str:
+def _build_command(filename: Path, dest: Path, quiet: Optional[bool] = False) -> str:
     """Generate the command used to compile the LaTeX file."""
-    # By default, pdflatex use current directory as destination folder.
-    # However, much of the time, we want destination folder to be the one
-    # where the tex file was found.
-    if dest is None:
-        dest = filename.parent
-
     command: str = param["quiet_tex_command"] if quiet else param["tex_command"]  # type: ignore
     command += f' -output-directory "{dest}" "{filename}"'
     return command
 
 
-def _extract_page_number(pdflatex_log: str) -> int:
+def _extract_page_number(pdflatex_log: str) -> PageCount:
     """Return the number of pages of the pdf generated, or -1 if it was not found."""
     i = pdflatex_log.find("Output written on ")
     if i == -1:
-        return -1
+        return PageCount(-1)
     pattern = r"Output written on .+ \(([0-9]+) pages, [0-9]+ bytes\)\."
     # Line breaks may occur anywhere in the log after the file path,
     # so using re.DOTALL flag is not enough, we have to manually remove all `\n`.
     m = re.search(pattern, pdflatex_log[i:].replace("\n", ""))
-    return int(m.group(1)) if m is not None else -1
+    return PageCount(int(m.group(1)) if m is not None else -1)
 
 
 def _join_pdf_files(output_basename: Path | str, pdfnames: Sequence[Path | str]) -> None:
