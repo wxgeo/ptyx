@@ -195,9 +195,11 @@ def make_files(
 
         if cpu_cores_to_use > 1:
             with multiprocessing.get_context("forkserver").Pool(cpu_cores_to_use) as pool:
-                pages_numbers: list[int] = pool.starmap(compile_latex, args)
+                compile_info: list[tuple[int, dict[str, str]]] = pool.starmap(compile_latex, args)
         else:
-            pages_numbers = list(itertools.starmap(compile_latex, args))
+            compile_info = list(itertools.starmap(compile_latex, args))
+
+        pages_numbers: list[int] = [page_count for (page_count, errors) in compile_info]
 
         # ---------------
         # Analyze results
@@ -295,27 +297,45 @@ def generate_latex(
         return texfile_path
 
 
+# TODO: is this still useful ?
 def make_file(
     output_name: Path,
     context: Optional[Dict] = None,
     quiet: Optional[bool] = None,
-) -> int:
-    """Generate latex and/or pdf file from ptyx source file."""
+) -> tuple[int, dict[str, str]]:
+    """Generate latex and/or pdf file from ptyx source file.
+
+    Return a 2-tuple:
+       - the number of pages of the pdf (or -1 if not found),
+       - the dictionary of the LaTeX errors: {<error-title>: <error-message>}
+    """
     return compile_latex(generate_latex(output_name, context), quiet=quiet)
 
 
-def _print_latex_errors(out: str, filename: Path):
+def _print_latex_errors(out: str, filename: Path) -> dict[str, str]:
+    """Filter pdftex output, and print only errors, highlighting import stuff.
+
+    Return a dictionary: {error_title: error_message}
+    """
     print(f"File {filename} compiled.")
     is_error_message = False
     is_first_error_line = False
     error_type = ""
+    errors: dict[str, str] = {}
+    error_title = ""
+    error_message: list[str] = []
     for line in out.split("\n"):
         if line.startswith("!"):
+            # New LaTeX error found!
             print(f"{ANSI_RED}{line}{ANSI_RESET}")
             is_error_message = True
             is_first_error_line = True
             error_type = line
+            error_title = line.lstrip("! ")
+            error_message = []
         elif is_error_message:
+            # This is the continuation of the same error.
+            error_message.append(line)
             if is_first_error_line:
                 if error_type == "! Undefined control sequence.":
                     # The undefined macro is the last displayed on this line.
@@ -328,21 +348,32 @@ def _print_latex_errors(out: str, filename: Path):
             else:
                 print(line)
             if line.startswith("l."):
+                # The error ends here, with error line number.
                 is_error_message = False
+                errors[error_title] = "\n".join(error_message)
+
     print(f"Full log written on {filename.with_suffix('.log')}.")
+    return errors
 
 
-def compile_latex(filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False) -> int:
-    """Compile the latex file and return the number of pages of the pdf (or -1 if not found)."""
+def compile_latex(
+    filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False
+) -> tuple[int, dict[str, str]]:
+    """Compile the latex file.
+
+    Return a 2-tuple:
+       - the number of pages of the pdf (or -1 if not found),
+       - the dictionary of the LaTeX errors: {<error-title>: <error-message>}
+    """
     command = _build_command(filename, dest, quiet)
     out = execute(command)
-    _print_latex_errors(out, filename)
+    errors: dict[str, str] = _print_latex_errors(out, filename)
     # Run command twice if references were found.
     if "Rerun to get cross-references right." in out or "There were undefined references." in out:
         # ~ input('- run again -')
         out = execute(command)
-        _print_latex_errors(out, filename)
-    return _extract_page_number(out)
+        errors = _print_latex_errors(out, filename)
+    return _extract_page_number(out), errors
 
 
 def _build_command(filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False) -> str:
