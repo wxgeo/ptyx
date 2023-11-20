@@ -178,10 +178,10 @@ def is_mult_2_5(val: int | Iterable[int]) -> bool:
         return all(is_mult_2_5(v) for v in val)
     if val == 0 or not isinstance(val, INTEGERS_TYPES):
         return False
-    while val % 5 == 0:
-        val = val // 5
-    while val % 2 == 0:
-        val = val // 2
+    while val % 5 == 0:  # type: ignore
+        val = val // 5  # type: ignore
+    while val % 2 == 0:  # type: ignore
+        val = val // 2  # type: ignore
     return val in (1, -1)
 
 

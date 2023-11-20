@@ -441,7 +441,7 @@ def compile_latex(
         out = execute(command)
         errors = _print_latex_errors(out, filename)
     return SingleFileCompilationInfo(
-        page_count=_extract_page_number(out), errors=errors, src=filename, dest=dest
+        page_count=_extract_page_number(out), errors=errors, src=filename, dest=filename.with_suffix(".pdf")
     )
 
 
@@ -484,7 +484,10 @@ def join_files(
     seed_file_name=None,
     **options,
 ):
-    """Join different versions in a single pdf, then compress it if asked to do so."""
+    """Join different versions in a single pdf, then compress it if asked to do so.
+
+    For compression, ghostscript must be installed.
+    """
     # TODO: use pathlib.Path instead
     pdf_name = str(filename) + ".pdf"
     number = len(pdfnames)
@@ -493,8 +496,7 @@ def join_files(
         # Nota: don't exclude the case `number == 1`,
         # since the following actions rename file,
         # so excluding the case `number == 1` would break autoqcm scan for example.
-        # pdftk and ghostscript must be installed.
-        pdfnames = [str(filename) + ".pdf" for filename in pdfnames]
+        # For compression, ghostscript must be installed.
 
         if len(pdfnames) > 1:
             _join_pdf_files(f"{filename}.pdf", pdfnames)
