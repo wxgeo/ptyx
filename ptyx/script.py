@@ -24,17 +24,16 @@
 
 
 import argparse
-import sys
 import csv
-from ast import literal_eval
+import sys
 from pathlib import Path
 
 from ptyx import __version__
+from ptyx.compilation_options import CompilationOptions
 from ptyx.config import param
 
-
 if sys.version_info.major == 2:
-    raise RuntimeError("Python version 3.10+ is needed !")
+    raise RuntimeError("Python 2 not supported, please update to latest python 3 version!")
 
 
 class PtyxArgumentParser(argparse.ArgumentParser):
@@ -52,9 +51,9 @@ class PtyxArgumentParser(argparse.ArgumentParser):
             "-n",
             "--number-of-documents",
             type=int,
-            help="Number of pdf files to generate. Default is %s.\n \
-                       Ex: ptyx -n 5 my_file.ptyx"
-            % param["total"],
+            default=1,
+            help="Number of pdf files to generate (1 by default).\n \
+                       Ex: ptyx -n 5 my_file.ptyx",
         )
         group.add_argument(
             "--names",
@@ -66,13 +65,6 @@ class PtyxArgumentParser(argparse.ArgumentParser):
                                replacement value.\n \
                                Additionally, if `-n` option is not specified, \
                                default value will be the number of names in the CSV file.",
-        )
-        self.add_argument(
-            "-f",
-            "--formats",
-            default=param["default_formats"],
-            choices=param["formats"],
-            help="Output format. Default is %(default)s.\n" "Ex: ptyx -f tex my_file.ptyx",
         )
         self.add_argument(
             "-r",
@@ -110,7 +102,8 @@ class PtyxArgumentParser(argparse.ArgumentParser):
         )
         self.add_argument(
             "--reorder-pages",
-            choices=["brochure", "brochure-reversed"],
+            choices=["brochure", "brochure-reversed", ""],
+            default="",
             help="Reorder pages for printing.\n\
                 Currently, only 'brochure' and 'brochure-reversed' mode are supported.\
                 The `pdftk` command must be installed.\n\
@@ -118,24 +111,27 @@ class PtyxArgumentParser(argparse.ArgumentParser):
         )
         group2 = self.add_mutually_exclusive_group()
         group2.add_argument(
-            "-p",
-            "--fixed_number_of_pages",
+            "--set-number-of-pages",
             metavar="N",
-            nargs="?",
             type=int,
-            default=argparse.SUPPRESS,
-            help="Keep only pdf files whose pages number match N. \
-                This may be useful for printing pdf later. \
-                Note that the number of documents may not be respected then, so \
-                you may have to adjust the number of documents manually.",
+            default=0,
+            help=(
+                "Keep only pdf files whose pages number match N."
+                " This may be useful for printing pdf later."
+                " Note that the number of documents may not be respected then, so"
+                " you may have to adjust the number of documents manually."
+                " (Use 0 to disable (default))."
+                " Using option `--same-number-of-pages` is usually a better choice."
+            ),
         )
         group2.add_argument(
-            "-P",
-            "--auto-fixed_number_of_pages",
+            "-sn",
+            "--same-number-of-pages",
             action="store_true",
             help=(
                 "Ensure that all documents have the same number of pages. "
-                "The number of documents is respected."
+                "Since the number of pages is automatically set, the requested"
+                " number of documents is always respected, contrary to `--set-number-of-pages` option."
             ),
         )
         self.add_argument(
@@ -143,6 +139,11 @@ class PtyxArgumentParser(argparse.ArgumentParser):
             "--no-correction",
             action="store_true",
             help="Don't generate a correction of the test.",
+        )
+        self.add_argument(
+            "--no-pdf",
+            action="store_true",
+            help="Don't generate Pdf files, only LaTeX ones.",
         )
         self.add_argument(
             "-g",
@@ -153,8 +154,9 @@ class PtyxArgumentParser(argparse.ArgumentParser):
         self.add_argument(
             "--cpu-cores",
             type=int,
+            default=0,
             metavar="N_CORES",
-            help="Number of cpu cores to use when compiling. (Automatically detected by default).",
+            help="Number of cpu cores to use when compiling. (Use 0 for automatic detection (default)).",
         )
         self.add_argument(
             "--context",
@@ -167,11 +169,9 @@ class PtyxArgumentParser(argparse.ArgumentParser):
 
     def parse_args(self, **kwargs):
         options = super().parse_args(**kwargs)
-        options.formats = options.formats.split("+")
-        if options.compress or options.cat:
-            # pdftk and ghostscript must be installed.
-            if "pdf" not in options.formats:
-                raise RuntimeError("--cat or --compress option invalid unless pdf output is selected.")
+        if (options.compress or options.cat) and options.no_pdf:
+            # (Note that Ghostscript must be installed for compress option.)
+            raise RuntimeError("--cat or --compress option incompatible with --no-pdf option.")
         if options.debug:
             param["debug"] = True
         if options.names:
@@ -179,11 +179,11 @@ class PtyxArgumentParser(argparse.ArgumentParser):
                 options.names_list = [" ".join(line) for line in csv.reader(f)]
                 print("Names extracted from CSV file:")
                 print(options.names_list)
-            options.number_of_documents = len(options.names)
+            options.number_of_documents = len(options.names_list)
         else:
             options.names_list = []
-        if options.number_of_documents is None:
-            options.number_of_documents = param["total"]
+
+        del options.names
         return options
 
 
@@ -192,7 +192,8 @@ def ptyx(parser=PtyxArgumentParser()):
 
     # First, parse all arguments (filenames, options...)
     # --------------------------------------------------
-    options = parser.parse_args()
+
+    options = CompilationOptions.load(parser.parse_args())
 
     if not options.filenames:
         # Exit quickly before main imports, so that `ptyx --help` is fast.
@@ -200,23 +201,6 @@ def ptyx(parser=PtyxArgumentParser()):
 
     from ptyx.compilation import make_files
     from ptyx.latex_generator import compiler
-
-    # TODO: remove kwargs and explicitly pass arguments, to verify types.
-    kwargs = vars(options)
-    if "fixed_number_of_pages" in kwargs:
-        kwargs["pages"] = kwargs["fixed_number_of_pages"]
-        kwargs["fixed_number_of_pages"] = True
-    else:
-        kwargs["fixed_number_of_pages"] = False
-
-    context = {}
-    for keyval in kwargs.pop("context", "").split(";"):
-        if keyval.strip():
-            key, val = keyval.split("=", 1)
-            key = key.strip()
-            if not str.isidentifier(key):
-                raise NameError(f"{key} is not a valid variable name.")
-            context[key] = literal_eval(val)
 
     # Time to act ! Let's compile all ptyx files...
     # ---------------------------------------------
@@ -236,7 +220,7 @@ def ptyx(parser=PtyxArgumentParser()):
         # print(compiler.state['syntax_tree'].display())
 
         # Compile and generate output files (tex or pdf)
-        all_info = make_files(input_name, **kwargs)
+        all_info = make_files(input_name, options=options)
 
         # Keep track of the seed used.
         seed_value = compiler.seed
@@ -244,18 +228,18 @@ def ptyx(parser=PtyxArgumentParser()):
         with open(seed_file_name, "w") as seed_file:
             seed_file.write(str(seed_value))
 
-        # If any of the so-called `ANSWER_tags` is present, compile a second
+        # If any of the so-called `answer_tags` is present, compile a second
         # version of the documents with answers.
         # TODO: make an API to choose if the version with answers must be generated or not:
         # - there should be 3 modes, True, False and Auto (current mode).
         # - each mode should be accessible from the command line (add an option)
         # - it should be easy to modify mode for extensions.
         if not options.no_correction:
-            ANSWER_tags = ("ANS", "ANSWER", "ASK", "ASK_ONLY")
+            answer_tags = ("ANS", "ANSWER", "ASK", "ASK_ONLY")
 
             tags = compiler.syntax_tree.tags
-            if any(tag in tags for tag in ANSWER_tags):
-                make_files(input_name, correction=True, _nums=all_info.doc_ids, context=context, **kwargs)
+            if any(tag in tags for tag in answer_tags):
+                make_files(input_name, correction=True, _nums=all_info.doc_ids, options=options)
 
 
 if __name__ == "__main__":

@@ -13,9 +13,6 @@ except ImportError:
 
 # <default_configuration>
 param = {
-    "total": 1,
-    "formats": ["pdf", "tex", "tex+pdf", "pdf+tex"],
-    "default_formats": "pdf",
     "tex_command": "pdflatex -interaction=nonstopmode --shell-escape --enable-write18",
     "quiet_tex_command": "pdflatex -interaction=batchmode --shell-escape --enable-write18",
     "sympy_is_default": True,

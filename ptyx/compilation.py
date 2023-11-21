@@ -8,9 +8,10 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Iterable, Sequence, Union, NewType
+from typing import Optional, Iterable, Sequence, NewType
 
 import fitz
+from ptyx.compilation_options import DEFAULT_OPTIONS, CompilationOptions
 
 from ptyx.config import param, CPU_PHYSICAL_CORES
 from ptyx.latex_generator import compiler
@@ -164,36 +165,47 @@ def execute(command: str) -> str:
 def make_files(
     input_name: Path,
     correction: bool = False,
-    fixed_number_of_pages: bool = False,
-    pages: Optional[int] = None,
-    context: Optional[dict] = None,
-    quiet: Optional[bool] = None,
-    remove: Optional[bool] = None,
+    number_of_documents: int = None,
+    same_number_of_pages: bool = None,
+    generate_pdf: bool = None,
+    options: CompilationOptions = DEFAULT_OPTIONS,
     _nums: Iterable[int] = None,
-    **options,
 ) -> MultipleFilesCompilationInfo:
     """Generate the tex and pdf files.
-
+    - `input_name`: the path of the .pyx file.
     - `correction`: if True, include the solutions of the exercises
-    - `fixed_number_of_pages`: if True, all pdf files must have the same number of pages
-    - `pages`: keep only pdf documents respecting this number of pages contraint
-    - `context`: parameters to be passed to the LaTeX generator.
-    - `quiet`: if True, turn off debugging information
-    - `remove`: if True, remove `.compile` folder after successful compilation.
+    - `number_of_documents`: the number of documents to generate (default: 1)
+    - `same_number_of_pages`: if True, all pdf files must have the same number of pages
+    - `generate_pdf`: if False, stop before generating pdf files.
+       (Generated .tex files can be access from `.compile` folder).
+    - `options`: a `CompilationOptions`, used to pass other options if needed.
+    - `_nums` is used to manually set the documents ids, it is used by the MCQ extension.
+
+    Return a MultipleFilesCompilationInfo instance, which contains LaTeX errors
+    detected during pdftex compilation.
     """
 
-    target = options.get("number_of_documents", param["total"])
+    context = options.context
+    context["PTYX_WITH_ANSWERS"] = correction
+
     # `_nums` is used when generating the answers of the quiz.
     # In the first pass, when generating the quizzes, some numbers may
     # have been skipped (because they don't satisfy the pages number constraint).
     if _nums is not None:
         assert correction
         _nums = list(_nums)  # make a copy
-        target = len(_nums)
-    if context is None:
-        context = {"PTYX_WITH_ANSWERS": correction}
-    formats: list[str] = options.get("formats", param["default_formats"].split("+"))  # type: ignore
-    cpu_cores: Optional[int] = options.get("cpu_cores")  # type: ignore
+        target: int = len(_nums)
+    else:
+        target = number_of_documents or options.number_of_documents
+    assert isinstance(target, int)
+
+    if same_number_of_pages is None:
+        same_number_of_pages = options.same_number_of_pages or options.set_number_of_pages != 0
+    assert isinstance(same_number_of_pages, bool)
+
+    if generate_pdf is None:
+        generate_pdf = not options.no_pdf
+    assert isinstance(generate_pdf, bool)
 
     # Create an empty `.compile/{input_name}` subfolder.
     compilation_dir = input_name.parent / ".compile" / input_name.stem
@@ -218,8 +230,13 @@ def make_files(
     pages_per_document: dict[PageCount, MultipleFilesCompilationInfo] = {}
 
     # Compilation number, used to initialize random numbers' generator.
-    doc_id: DocId = DocId(options.get("start", 1) - 1)
+    doc_id: DocId = DocId(options.start - 1)
+
+    if not generate_pdf:
+        return all_compilation_info
+
     assert target is not None
+
     while len(all_compilation_info) < target:
         # ------------------------
         # Generate the LaTeX files
@@ -241,7 +258,8 @@ def make_files(
             filename = append_suffix(output_basename, f"-{doc_id}") if target > 1 else output_basename
             filenames.append(filename)
             # 2. Compile to LaTeX.
-            latex_files.append(generate_latex(filename, context))
+            print(context)
+            latex_files.append(generate_latex_file(filename, context))
 
         # --------------------------------
         # Compile to pdf using parallelism
@@ -250,8 +268,10 @@ def make_files(
         # with Pool(CPU_PHYSICAL_CORES) as pool:
         #     infos_list = pool.starmap(make_file, tasks)
 
-        cpu_cores_to_use = cpu_cores if cpu_cores else min(CPU_PHYSICAL_CORES, len(latex_files))
-        args = [(path, None, quiet) for path in latex_files]
+        cpu_cores_to_use = (
+            options.cpu_cores if options.cpu_cores >= 1 else min(CPU_PHYSICAL_CORES, len(latex_files))
+        )
+        args = [(path, None, options.quiet) for path in latex_files]
 
         if cpu_cores_to_use > 1:
             with multiprocessing.get_context("forkserver").Pool(cpu_cores_to_use) as pool:
@@ -268,8 +288,9 @@ def make_files(
         for doc_id, info in zip(doc_ids, compile_info_list):
             if not correction:
                 # 3. Test if the new generated file satisfies all options constraints.
-                if fixed_number_of_pages:
-                    if pages is None:
+                if same_number_of_pages:
+                    if options.set_number_of_pages == 0:
+                        # Determine automatically the best fixed page count.
                         # This is a bit subtle. We want all compiled documents to have
                         # the same pages number, yet we don't want to set it manually.
                         # So, we compile documents and memorize their size.
@@ -284,7 +305,7 @@ def make_files(
                         all_compilation_info = pages_per_document.setdefault(
                             info.page_count, MultipleFilesCompilationInfo(output_basename)
                         )
-                    elif pages != info.page_count:
+                    elif options.set_number_of_pages != info.page_count:
                         # Pages number is set manually, and don't match.
                         print(f"Warning: skipping {info.src} (incorrect page number) !")
                         continue
@@ -296,9 +317,9 @@ def make_files(
     filenames = all_compilation_info.pdf_paths
 
     # Join different versions in a single pdf, and compress if asked to do so.
-    join_files(output_basename, filenames, **options)
+    join_files(output_basename, filenames, options)
 
-    if options.get("generate_batch_for_windows_printing"):
+    if options.generate_batch_for_windows_printing:
         bat_file_name = input_name.parent / ("print_corr.bat" if correction else "print.bat")
         with open(bat_file_name, "w") as bat_file:
             bat_file.write(
@@ -306,35 +327,39 @@ def make_files(
                 + " ".join('"%s.pdf"' % os.path.basename(f) for f in filenames)  # type: ignore
             )
 
-    # Copy tex/pdf file to parent directory.
-    for ext in formats:
-        assert ext[0] != "."
-        ext = f".{ext}"
-        name = output_basename.with_suffix(ext)
-        if name.is_file():
-            # There is only one file (only one document was generated,
-            # or they were several documents, but they were joined into a single document).
-            shutil.copy(name, input_name.parent)
-        elif options.get("names_list"):
-            # Rename files according to the given names' list.
-            names = options["names_list"]
-            assert len(names) == len(filenames)
-            for filename, stem in zip(filenames, names):
-                new_name = filename.with_stem(stem).name
-                shutil.copy(filename.with_suffix(ext), input_name.parent / new_name)
-        else:
-            # Copy files without changing names.
-            for filename in filenames:
-                shutil.copy(filename.with_suffix(ext), input_name.parent)
+    # Copy pdf file/files to parent directory.
+    _copy_file_to_parent("pdf", filenames, input_name, output_basename, options)
 
     # Remove `.compile` folder if asked to.
-    if remove:
+    if options.remove:
         shutil.rmtree(compilation_dir)
 
     return all_compilation_info
 
 
-def generate_latex(
+def _copy_file_to_parent(
+    ext: str, filenames: list[Path], input_name: Path, output_basename: Path, options: CompilationOptions
+) -> None:
+    assert ext[0] != "."
+    ext = f".{ext}"
+    name = output_basename.with_suffix(ext)
+    if name.is_file():
+        # There is only one file (only one document was generated,
+        # or they were several documents, but they were joined into a single document).
+        shutil.copy(name, input_name.parent)
+    elif options.names_list:
+        # Rename files according to the given names' list.
+        assert len(options.names_list) == len(filenames)
+        for filename, stem in zip(filenames, options.names_list):
+            new_name = filename.with_stem(stem).name
+            shutil.copy(filename.with_suffix(ext), input_name.parent / new_name)
+    else:
+        # Copy files without changing names.
+        for filename in filenames:
+            shutil.copy(filename.with_suffix(ext), input_name.parent)
+
+
+def generate_latex_file(
     output_name: Path,
     context: Optional[dict] = None,
     log=True,
@@ -372,7 +397,7 @@ def make_file(
        - the number of pages of the pdf (or -1 if not found),
        - the dictionary of the LaTeX errors: {<error-title>: <error-message>}
     """
-    return compile_latex(generate_latex(output_name, context), quiet=quiet)
+    return compile_latex(generate_latex_file(output_name, context), quiet=quiet)
 
 
 def _print_latex_errors(out: str, filename: Path) -> dict[str, str]:
@@ -464,6 +489,36 @@ def _extract_page_number(pdflatex_log: str) -> PageCount:
     return PageCount(int(m.group(1)) if m is not None else -1)
 
 
+def join_files(
+    pdf_name: Path,
+    pdf_list: Sequence[Path | str],
+    options: CompilationOptions,
+):
+    """Join different versions in a single pdf, then compress it if asked to do so.
+
+    For compression, ghostscript must be installed.
+    """
+    pdf_name = pdf_name.with_suffix(".pdf")
+
+    if options.compress or options.cat:
+        # Nota: don't exclude the case `number == 1`,
+        # since the following actions rename file,
+        # so excluding the case `number == 1` would break autoqcm scan for example.
+        # For compression, ghostscript must be installed.
+
+        if len(pdf_list) > 1:
+            _join_pdf_files(pdf_name, pdf_list)
+        if options.compress:
+            # Need Ghostscript.
+            _compress_pdf(pdf_name)
+        if len(pdf_list) > 1:
+            print(f"{len(pdf_list)} files merged.")
+
+    if options.reorder_pages:
+        # Need Pdftk.
+        _reorder_pdf(pdf_name, options.reorder_pages)
+
+
 def _join_pdf_files(output_basename: Path | str, pdfnames: Sequence[Path | str]) -> None:
     """Join all the generated pdf files into one file."""
     # pdf: Document
@@ -478,35 +533,11 @@ def _join_pdf_files(output_basename: Path | str, pdfnames: Sequence[Path | str])
         pdf.save(output_basename)
 
 
-def join_files(
-    filename: Path,
-    pdfnames: Sequence[Union[Path, str]],
-    seed_file_name=None,
-    **options,
-):
-    """Join different versions in a single pdf, then compress it if asked to do so.
-
-    For compression, ghostscript must be installed.
-    """
-    # TODO: use pathlib.Path instead
-    pdf_name = str(filename) + ".pdf"
-    number = len(pdfnames)
-
-    if options.get("compress") or options.get("cat"):
-        # Nota: don't exclude the case `number == 1`,
-        # since the following actions rename file,
-        # so excluding the case `number == 1` would break autoqcm scan for example.
-        # For compression, ghostscript must be installed.
-
-        if len(pdfnames) > 1:
-            _join_pdf_files(f"{filename}.pdf", pdfnames)
-        if options.get("remove_all"):
-            for name in pdfnames:
-                os.remove(name)
-        if options.get("compress"):
-            temp_dir = tempfile.mkdtemp()
-            compressed_pdf_name = os.path.join(temp_dir, "compresse.pdf")
-            command = f"""command pdftops \
+def _compress_pdf(pdf_name: Path) -> None:
+    """Compress pdf using Ghostscript (which must have been installed previously)."""
+    temp_dir = tempfile.mkdtemp()
+    compressed_pdf_name = os.path.join(temp_dir, "compresse.pdf")
+    command = f"""command pdftops \
                 -paper match \
                 -nocrop \
                 -noshrink \
@@ -522,43 +553,37 @@ def join_files(
                 -dOptimize=true \
                 -dPDFSETTINGS=/prepress \
                 - "{compressed_pdf_name}" """
-            os.system(command)
-            old_size = os.path.getsize(pdf_name)
-            new_size = os.path.getsize(compressed_pdf_name)
-            if new_size < old_size:
-                shutil.copyfile(compressed_pdf_name, pdf_name)
-                print(f"Compression ratio: {old_size / new_size:.2f}")
-            else:
-                print("Warning: compression failed.")
-            if seed_file_name is not None:
-                temp_dir = tempfile.mkdtemp()
-                pdf_with_seed = os.path.join(temp_dir, "with_seed.pdf")
-                execute(f'pdftk "{pdf_name}" attach_files "{seed_file_name}" output "{pdf_with_seed}"')
-                shutil.copyfile(pdf_with_seed, pdf_name)
-        if number > 1:
-            print(f"{len(pdfnames)} files merged.")
+    os.system(command)
+    old_size = os.path.getsize(pdf_name)
+    new_size = os.path.getsize(compressed_pdf_name)
+    if new_size < old_size:
+        shutil.copyfile(compressed_pdf_name, pdf_name)
+        print(f"Compression ratio: {old_size / new_size:.2f}")
+    else:
+        print("Warning: compression failed.")
 
-    if options.get("reorder_pages"):
-        # Use pdftk to detect how many pages has the pdf document.
-        n = int(execute(f"pdftk {pdf_name} dump_data output | grep -i NumberOfPages:").strip().split()[-1])
-        mode = options.get("reorder_pages")
-        if mode == "brochure":
-            if n % 4:
-                raise RuntimeError(f"Page number is {n}, but must be a multiple of 4.")
-            order = []
-            for i in range(int(n / 4)):
-                order.extend([2 * i + 1, 2 * i + 2, n - 2 * i - 1, n - 2 * i])
-        elif mode == "brochure-reversed":
-            if n % 4:
-                raise RuntimeError(f"Page number is {n}, but must be a multiple of 4.")
-            order = n * [0]
-            for i in range(int(n / 4)):
-                order[2 * i] = 4 * i + 1
-                order[2 * i + 1] = 4 * i + 2
-                order[n - 2 * i - 2] = 4 * i + 3
-                order[n - 2 * i - 1] = 4 * i + 4
-        else:
-            raise NameError(f"Unknown mode {mode} for option --reorder-pages !")
-        # monfichier.pdf -> monfichier-brochure.pdf
-        new_name = "%s-%s.pdf" % (pdf_name[: pdf_name.index(".")], mode)
-        execute("pdftk %s cat %s output %s" % (pdf_name, " ".join(str(i) for i in order), new_name))
+
+def _reorder_pdf(pdf_name: Path, mode: str) -> None:
+    """Reorder pdf pages using Pdftk (which must have been installed previously)."""
+    # Use pdftk to detect how many pages has the pdf document.
+    n = int(execute(f"pdftk {pdf_name} dump_data output | grep -i NumberOfPages:").strip().split()[-1])
+    if mode == "brochure":
+        if n % 4:
+            raise RuntimeError(f"The number of pages is {n}, while it must be a multiple of 4.")
+        order = []
+        for i in range(int(n / 4)):
+            order.extend([2 * i + 1, 2 * i + 2, n - 2 * i - 1, n - 2 * i])
+    elif mode == "brochure-reversed":
+        if n % 4:
+            raise RuntimeError(f"The number of pages is {n}, while it must be a multiple of 4.")
+        order = n * [0]
+        for i in range(int(n / 4)):
+            order[2 * i] = 4 * i + 1
+            order[2 * i + 1] = 4 * i + 2
+            order[n - 2 * i - 2] = 4 * i + 3
+            order[n - 2 * i - 1] = 4 * i + 4
+    else:
+        raise NameError(f"Unknown mode {mode} for option --reorder-pages !")
+    # monfichier.pdf -> monfichier-brochure.pdf
+    new_name = "%s-%s.pdf" % (pdf_name.stem, mode)
+    execute("pdftk %s cat %s output %s" % (pdf_name, " ".join(str(i) for i in order), new_name))

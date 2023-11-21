@@ -3,6 +3,8 @@ from os import fsync
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from ptyx.compilation_options import CompilationOptions
+
 from ptyx.compilation import make_files, make_file
 from ptyx.latex_generator import compiler
 from ptyx.script import ptyx
@@ -64,7 +66,7 @@ def test_make_files(tmp_path):
     assert (tmp_path / "test-1.pdf").is_file()
     assert (tmp_path / "test-2.pdf").is_file()
     assert not pdf_path.is_file()
-    make_files(ptyx_path, number_of_documents=2, cat=True)
+    make_files(ptyx_path, number_of_documents=2, options=CompilationOptions(cat=True))
     assert pdf_path.is_file()
 
 
