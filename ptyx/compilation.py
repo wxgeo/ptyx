@@ -15,7 +15,7 @@ import fitz
 from ptyx.sys_info import CPU_PHYSICAL_CORES
 from ptyx.compilation_options import DEFAULT_OPTIONS, CompilationOptions
 from ptyx.config import param
-from ptyx.latex_generator import compiler
+from ptyx.latex_generator import Compiler
 
 ANSI_RED = "\u001B[31m"
 ANSI_REVERSE_RED = "\u001B[41m"
@@ -164,10 +164,11 @@ def execute(command: str) -> str:
 
 
 def make_files(
-    input_name: Path,
+    ptyx_file: Path,
     number_of_documents: int = None,
     correction: bool = False,
     doc_ids_selection: Iterable[int] = None,
+    compiler: Compiler = None,
     options: CompilationOptions = DEFAULT_OPTIONS,
 ) -> MultipleFilesCompilationInfo:
     """Generate the tex and pdf files.
@@ -175,6 +176,7 @@ def make_files(
     - `correction`: if True, include the solutions of the exercises
     - `number_of_documents`: the number of documents to generate (default: 1)
     - `doc_ids_selection` is used to manually set the documents ids when correction is set to `True`.
+    - `compiler`: a Compiler instance. This may be used to avoid parsing the same ptyx code several time.
     - `options`: a `CompilationOptions` instance, used to pass compilation options.
 
     Return a MultipleFilesCompilationInfo instance, which contains LaTeX errors
@@ -183,6 +185,9 @@ def make_files(
 
     context = options.context
     context["PTYX_WITH_ANSWERS"] = correction
+
+    if compiler is None:
+        compiler = Compiler(path=ptyx_file)
 
     if doc_ids_selection is None:
         target: int = number_of_documents or options.number_of_documents
@@ -200,14 +205,14 @@ def make_files(
     assert isinstance(target, int)
 
     # Create an empty `.compile/{input_name}` subfolder.
-    compilation_dir = input_name.parent / ".compile" / input_name.stem
+    compilation_dir = ptyx_file.parent / ".compile" / ptyx_file.stem
     if not correction and compilation_dir.is_dir():
         shutil.rmtree(compilation_dir)
     compilation_dir.mkdir(parents=True, exist_ok=True)
 
     # Set output base name
-    output_basename = compilation_dir / input_name.stem
-    if input_name.suffix != ".ptyx":
+    output_basename = compilation_dir / ptyx_file.stem
+    if ptyx_file.suffix != ".ptyx":
         # Avoid potential name conflict between input and output.
         output_basename = append_suffix(output_basename, "_")
     if correction:
@@ -223,9 +228,6 @@ def make_files(
 
     # Compilation number, used to initialize random numbers' generator.
     doc_id: DocId = DocId(options.start - 1)
-
-    if options.no_pdf:
-        return all_compilation_info
 
     assert target is not None
 
@@ -248,7 +250,10 @@ def make_files(
             filename = append_suffix(output_basename, f"-{doc_id}") if target > 1 else output_basename
             # 2. Compile to LaTeX.
             print(context)
-            latex_files[doc_id] = generate_latex_file(filename, context)
+            latex_files[doc_id] = generate_latex_file(filename, compiler, context)
+
+        if options.no_pdf:
+            return all_compilation_info
 
         # --------------------------------
         # Compile to pdf using parallelism
@@ -308,14 +313,14 @@ def make_files(
     join_files(output_basename, filenames, options)
 
     if options.generate_batch_for_windows_printing:
-        bat_file_name = input_name.parent / ("print_corr.bat" if correction else "print.bat")
+        bat_file_name = ptyx_file.parent / ("print_corr.bat" if correction else "print.bat")
         with open(bat_file_name, "w") as bat_file:
             bat_file.write(
                 param["win_print_command"] + " ".join(f'"{f.name}.pdf"' for f in filenames)  # type: ignore
             )
 
     # Copy pdf file/files to parent directory.
-    _copy_file_to_parent("pdf", filenames, input_name, output_basename, options)
+    _copy_file_to_parent("pdf", filenames, ptyx_file, output_basename, options)
 
     # Remove `.compile` folder if asked to.
     if options.remove:
@@ -348,6 +353,7 @@ def _copy_file_to_parent(
 
 def generate_latex_file(
     output_name: Path,
+    compiler: Compiler,
     context: Optional[dict] = None,
     log=True,
 ) -> Path:
@@ -375,6 +381,7 @@ def generate_latex_file(
 # TODO: is this still useful ?
 def make_file(
     output_name: Path,
+    compiler: Compiler,
     context: Optional[dict] = None,
     quiet: Optional[bool] = None,
 ) -> SingleFileCompilationInfo:
@@ -384,7 +391,7 @@ def make_file(
        - the number of pages of the pdf (or -1 if not found),
        - the dictionary of the LaTeX errors: {<error-title>: <error-message>}
     """
-    return compile_latex(generate_latex_file(output_name, context), quiet=quiet)
+    return compile_latex(generate_latex_file(output_name, compiler, context), quiet=quiet)
 
 
 def _print_latex_errors(out: str, filename: Path) -> dict[str, str]:

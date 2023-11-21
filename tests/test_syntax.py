@@ -68,14 +68,14 @@ def test_latex_code_generator():
         "#END ok"
     )
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == "2some text here ok"
 
 
 def test_hash():
     test = "#{a=5}###a####a"
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == "5#5##a"
 
 
@@ -101,7 +101,7 @@ def test_latex_newcommand():
     test = r"""\newcommand{\rep}[1]{\ding{114}\,\,#1\hfill}"""
     result = test
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -122,7 +122,7 @@ Last, $a=7$ still.
 # is just displayed as a hash, it is not a comment.
 #"""
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -135,7 +135,7 @@ def test_hashtag_inside_python_block():
     #s #t
     """
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == "\n    # #test\n    "
 
 
@@ -149,7 +149,7 @@ write("#a ")
 write("#a", parse=True)
 #END
 """
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == "$\\#$ #a 5\n"
 
 
@@ -170,7 +170,7 @@ b = 5
 write("$b_i=#a$", parse=True, verbatim=True)
 #END
 """
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == "\\texttt{\\$b\\_i=27\\$}\n"
 
 

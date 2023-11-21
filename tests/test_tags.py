@@ -27,7 +27,7 @@ def test_SEED_SHUFFLE():
 
 "The game is up."'''
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -65,7 +65,7 @@ c
     c = Compiler()
     results = []
     for test in tests:
-        results.append(c.parse(test))
+        results.append(c.parse(code=test))
     assert results[0] == "%\nc\na\nb"
     assert results[1] == "%\n\nc\na\nb"
     assert results[2] == "%\nc\na\nb"
@@ -107,7 +107,7 @@ def test_CASE():
     )
     result = "second case bonus this is something else."
     c = Compiler()
-    latex = c.parse(test, PTYX_NUM=1)
+    latex = c.parse(code=test, PTYX_NUM=1)
     assert latex == result
 
 
@@ -118,7 +118,7 @@ def test_IF_ELIF_ELSE():
     )
     result = r"10{}2."
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -126,7 +126,7 @@ def test_MACRO():
     test = r"#MACRO{a0}#IF{a==0}$a=0$#ELSE$a\neq 0$#END#END_MACRO#{a=0;}Initially #CALL{a0}#{a=2;}, but now #CALL{a0}."
     result = r"Initially $a=0$, but now $a\neq 0$."
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -134,7 +134,7 @@ def test_TEST():
     test = r"""#{hxA=2;}#{yA=3;}\fbox{#TEST{hxA==yA}{is in}{isn't in}}"""
     result = r"""\fbox{isn't in}"""
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -153,14 +153,14 @@ $\dfrac{-8\times (5 x + 8)-\left(- 8 x + 4\right)\times 5}{(5 x + 8)^2}$"""
     alternative_result = r"""
 $\dfrac{-8\times (5 x + 8)-\left(4 - 8 x\right)\times 5}{(5 x + 8)^2}$"""
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result or latex == alternative_result
 
     # Test 2
     test = "2#*3"
     result = r"2\times 3"
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -180,7 +180,7 @@ $6\times \left(6 x + 5\right)$
 $6-\left(6 x + 5\right)$
 $6-4$"""
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -188,7 +188,7 @@ def test_EVAL_abs():
     test = r"$#{abs(-5)}$"
     result = r"$5$"
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -196,12 +196,12 @@ def test_EVAL_rounding():
     test = r"#[2]{2/3}"
     result = r"0,67"
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
     test = r"#[2,.]{2/3}"
     result = r"0.67"
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -215,7 +215,7 @@ $#a#+\dfrac{#b}{x}$"""
     result = r"""
 $2+\dfrac{3}{x}$"""
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -229,7 +229,7 @@ It may contain some pTyX code...
 Note that if $a=1$, then $a+1=2$.
 Last, $a=7$ still."""
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -249,7 +249,7 @@ Note that if $a=1$, then $a+1=2$.
 
 Last, $a=7$ still."""
     c = Compiler()
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == result
 
 
@@ -261,7 +261,7 @@ def pi2():
     return "$\pi^2$"
 #END
 """
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == (
         r'\texttt{def~pi2():\linebreak\phantom{}~~~~return~"\$\textbackslash{}pi\textasciicircum{}2\$"}' "\n"
     )
@@ -275,7 +275,7 @@ a = 2 # test for comment support
 #END
 #a
 """
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     assert latex == "\n2\n"
 
 
@@ -285,7 +285,7 @@ def test_PRINT_tag(capfd):
 #SEED{0}
 #PRINT{Hello}
 """
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     out, err = capfd.readouterr()
     assert out == "Hello\n"
 
@@ -296,7 +296,7 @@ def test_PRINT_hash_symbol(capfd):
 #SEED{0}
 #PRINT{Hello ## ##}
 """
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     out, err = capfd.readouterr()
     assert out == "Hello # #\n"
     assert latex == "\n\n\n"
@@ -309,7 +309,7 @@ def test_PRINT_hash_symbol2(capfd):
 #{a=7;}
 #PRINT{Hello ##a ##}
 """
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     out, err = capfd.readouterr()
     assert out == "Hello #a #\n"
     assert latex == "\n\n\n\n"
@@ -322,7 +322,7 @@ def test_PRINT_EVAL_tag(capfd):
 #{a=7;}Hi #a!
 #PRINT_EVAL{Hello #a ##}
 """
-    latex = c.parse(test)
+    latex = c.parse(code=test)
     out, err = capfd.readouterr()
     assert out == "Hello 7 #\n"
     assert latex == "\n\nHi 7!\n\n"
@@ -349,7 +349,7 @@ Question:
 
 Bye!
 """
-    tex = c.parse(test)
+    tex = c.parse(code=test)
     assert (
         tex
         == r"""
@@ -366,7 +366,7 @@ Bye!
 """
     )
     c.reset()
-    tex = c.parse(test, PTYX_WITH_ANSWERS=True)
+    tex = c.parse(code=test, PTYX_WITH_ANSWERS=True)
     assert (
         tex
         == r"""

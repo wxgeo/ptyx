@@ -6,7 +6,7 @@ from tempfile import NamedTemporaryFile
 from ptyx.compilation_options import CompilationOptions
 
 from ptyx.compilation import make_files, make_file
-from ptyx.latex_generator import compiler
+from ptyx.latex_generator import Compiler
 from ptyx.script import ptyx
 
 
@@ -45,10 +45,10 @@ def test_make_file(tmp_path):
         f.write(PTYX_SAMPLE)
         f.flush()
         fsync(f.fileno())
-    compiler.reset()
+    compiler = Compiler()
     compiler.parse(path=ptyx_path)
     pdf_path = ptyx_path.with_suffix(".pdf")
-    make_file(pdf_path)
+    make_file(pdf_path, compiler=compiler)
     assert pdf_path.is_file()
 
 
@@ -59,15 +59,29 @@ def test_make_files(tmp_path):
         f.write(PTYX_SAMPLE)
         f.flush()
         fsync(f.fileno())
-    compiler.reset()
+    compiler = Compiler()
     compiler.parse(path=ptyx_path)
     pdf_path = ptyx_path.with_suffix(".pdf")
-    make_files(ptyx_path, number_of_documents=2)
+    make_files(ptyx_path, compiler=compiler, number_of_documents=2)
     assert (tmp_path / "test-1.pdf").is_file()
     assert (tmp_path / "test-2.pdf").is_file()
     assert not pdf_path.is_file()
-    make_files(ptyx_path, number_of_documents=2, options=CompilationOptions(cat=True))
+    make_files(ptyx_path, compiler=compiler, options=CompilationOptions(cat=True))
     assert pdf_path.is_file()
+
+
+def make_files_no_pdf(tmp_path):
+    print(tmp_path)
+    ptyx_path: Path = tmp_path / "test.ptyx"
+    with open(ptyx_path, "w", encoding="utf8") as f:
+        f.write(PTYX_SAMPLE)
+        f.flush()
+        fsync(f.fileno())
+    make_files(ptyx_path, options=CompilationOptions(no_pdf=True))
+    assert (tmp_path / f".compile/{ptyx_path.stem}/test-1.tex").is_file()
+    assert (tmp_path / f".compile/{ptyx_path.stem}/test-2.tex").is_file()
+    assert not (tmp_path / f".compile/{ptyx_path.stem}/test-1.pdf").is_file()
+    assert not (tmp_path / f".compile/{ptyx_path.stem}/test-2.pdf").is_file()
 
 
 if __name__ == "__main__":

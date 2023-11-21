@@ -857,10 +857,14 @@ class Compiler:
       versions of the same document.
     """
 
-    def __init__(self):
+    def __init__(self, *, code=None, path=None):
         self.syntax_tree_generator = SyntaxTreeGenerator()
         self.latex_generator = LatexGenerator(self)
         self.reset()
+        if path is not None or code is not None:
+            self.load(path=path, code=code)
+            self.preparse()
+            self.generate_syntax_tree()
 
     def reset(self) -> None:
         self._state: State = {}
@@ -1039,6 +1043,7 @@ class Compiler:
                     f.write(code)
 
     def generate_syntax_tree(self) -> None:
+        """Generate the syntax tree."""
         code = self._state.get("plain_ptyx_code")
         if code is None:
             raise RuntimeError("Compiler.preparse() must be run first.")
@@ -1083,11 +1088,27 @@ class Compiler:
             self.syntax_tree_generator.update_tags()
             self.latex_generator.parser.update_tags()
 
-    # TODO: change the signature of parse, to force use of `code` as a keyword argument.
-    # Note that this will involve rewriting a lot of tests in both ptyx and ptyx-mcq projects.
-    #   parse(self, *, code: str = None, path: Union[Path, str] = None, **context)
+    def load(self, *, code: str = None, path: Union[Path, str] = None) -> None:
+        """Reset state, parse pTyX code and generate the syntax tree.
 
-    def parse(self, code: str = None, *, path: Union[Path, str] = None, **context) -> str:
+        One may provide either directly the pTyX code, or the path of a pTyX file to be read.
+
+        If both `code` and `path` are provided, the compiler acts as if `code` was the content
+        of the pTyX file located at `path`."""
+        self.reset()
+        if path is None and code is None:
+            raise ValueError(
+                "You must provide either the pTyX code or the path to a pTyX file:\n"
+                'compiler.load(code="...") or compiler.load(path="/path/to/file.ptyx")'
+            )
+        if path is not None:
+            self.read_file(path)
+        if code is not None:
+            self.read_code(code)
+        self.preparse()
+        self.generate_syntax_tree()
+
+    def parse(self, *, code: str = None, path: Union[Path, str] = None, **context) -> str:
         """Convert ptyx code to plain LaTeX in one shot.
 
         This is mainly used for testing (in unit tests or in interactive mode).
@@ -1097,18 +1118,7 @@ class Compiler:
         If both `code` and `path` are provided, the compiler acts as if `code` was the content
         of the pTyX file located at `path`.
         """
-        self.reset()
-        if path is None and code is None:
-            raise ValueError(
-                "You must provide either the pTyX code or the path to a pTyX file:\n"
-                'compiler.parse(code="...") or compiler.parse(path="/path/to/file.ptyx")'
-            )
-        if path is not None:
-            self.read_file(path)
-        if code is not None:
-            self.read_code(code)
-        self.preparse()
-        self.generate_syntax_tree()
+        self.load(code=code, path=path)
         latex = self.get_latex(**context)
         return latex
 
@@ -1133,6 +1143,6 @@ class Compiler:
         return list(self._state["loaded_extensions"].keys())
 
 
-compiler = Compiler()
-
-parse = compiler.parse
+# compiler = Compiler()
+#
+# parse = compiler.parse

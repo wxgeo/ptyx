@@ -203,7 +203,7 @@ def ptyx(parser=PtyxArgumentParser()):
         exit(0)
 
     from ptyx.compilation import make_files
-    from ptyx.latex_generator import compiler
+    from ptyx.latex_generator import Compiler
 
     # Time to act ! Let's compile all ptyx files...
     # ---------------------------------------------
@@ -212,18 +212,22 @@ def ptyx(parser=PtyxArgumentParser()):
         # Read pTyX file.
         print(f"Reading {input_name}...")
         input_name = Path(input_name).expanduser().resolve()
-        compiler.read_file(input_name)
-        # Parse #INCLUDE tags, load extensions if needed, read seed.
-        compiler.preparse()
 
-        # Generate syntax tree.
+        # Parse #INCLUDE tags, load extensions if needed, read seed.
+        # Then generate syntax tree.
         # The syntax tree is generated only once, and will then be used
         # for all the following compilations.
-        compiler.generate_syntax_tree()
+        compiler = Compiler(path=input_name)
         # print(compiler.state['syntax_tree'].display())
 
         # Compile and generate output files (tex or pdf)
-        all_info = make_files(input_name, options=options)
+        all_info = make_files(input_name, compiler=compiler, options=options)
+
+        # TODO: DO NOT USE GLOBAL VARIABLE `compiler` anymore!
+        #  Instead, generate a new Compiler instance each time.
+        #  Then, add a parameter `syntax_tree` to make_files() and make_file(),
+        #  to optionally get a `syntax_tree` instance, else create a Compiler
+        #  instance inside make_files() and generate the syntax tree.
 
         # Keep track of the seed used.
         seed_value = compiler.seed
@@ -242,7 +246,13 @@ def ptyx(parser=PtyxArgumentParser()):
 
             tags = compiler.syntax_tree.tags
             if any(tag in tags for tag in answer_tags):
-                make_files(input_name, correction=True, doc_ids_selection=all_info.doc_ids, options=options)
+                make_files(
+                    input_name,
+                    compiler=compiler,
+                    correction=True,
+                    doc_ids_selection=all_info.doc_ids,
+                    options=options,
+                )
 
 
 if __name__ == "__main__":
