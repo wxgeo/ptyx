@@ -26,6 +26,7 @@
 import argparse
 import csv
 import sys
+from functools import partial
 from pathlib import Path
 
 from ptyx import __version__
@@ -218,10 +219,11 @@ def ptyx(parser=PtyxArgumentParser()):
         # The syntax tree is generated only once, and will then be used
         # for all the following compilations.
         compiler = Compiler(path=input_name)
+        make = partial(make_files, compiler=compiler, options=options)
         # print(compiler.state['syntax_tree'].display())
 
         # Compile and generate output files (tex or pdf)
-        all_info = make_files(input_name, compiler=compiler, options=options)
+        all_info = make(input_name)
 
         # TODO: DO NOT USE GLOBAL VARIABLE `compiler` anymore!
         #  Instead, generate a new Compiler instance each time.
@@ -246,13 +248,7 @@ def ptyx(parser=PtyxArgumentParser()):
 
             tags = compiler.syntax_tree.tags
             if any(tag in tags for tag in answer_tags):
-                make_files(
-                    input_name,
-                    compiler=compiler,
-                    correction=True,
-                    doc_ids_selection=all_info.doc_ids,
-                    options=options,
-                )
+                make(input_name, correction=True, doc_ids_selection=all_info.doc_ids)
 
 
 if __name__ == "__main__":

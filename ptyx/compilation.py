@@ -172,14 +172,19 @@ def make_files(
     options: CompilationOptions = DEFAULT_OPTIONS,
 ) -> MultipleFilesCompilationInfo:
     """Generate the tex and pdf files.
+
+    Arguments:
     - `input_name`: the path of the .pyx file.
     - `correction`: if True, include the solutions of the exercises
     - `number_of_documents`: the number of documents to generate (default: 1)
     - `doc_ids_selection` is used to manually set the documents ids when correction is set to `True`.
-    - `compiler`: a Compiler instance. This may be used to avoid parsing the same ptyx code several time.
+    - `compiler`: a Compiler instance.
+       This is useful to avoid parsing the same ptyx code several times,
+       when generating several documents with different parameters from
+       the same source pTyX file.
     - `options`: a `CompilationOptions` instance, used to pass compilation options.
 
-    Return a MultipleFilesCompilationInfo instance, which contains LaTeX errors
+    Return a MultipleFilesCompilationInfo instance, which contains all LaTeX errors
     detected during pdftex compilation.
     """
 
@@ -269,9 +274,9 @@ def make_files(
 
         if cpu_cores_to_use > 1:
             with multiprocessing.get_context("forkserver").Pool(cpu_cores_to_use) as pool:
-                compile_info_list: list[SingleFileCompilationInfo] = pool.starmap(compile_latex, args)
+                compile_info_list: list[SingleFileCompilationInfo] = pool.starmap(compile_latex_to_pdf, args)
         else:
-            compile_info_list = list(itertools.starmap(compile_latex, args))
+            compile_info_list = list(itertools.starmap(compile_latex_to_pdf, args))
 
         # pages_numbers: list[int] = [info.page_count for info in compile_info_list]
 
@@ -378,20 +383,23 @@ def generate_latex_file(
         return texfile_path
 
 
-# TODO: is this still useful ?
-def make_file(
+def compile_ptyx_file(
+    ptyx_file: Path,
     output_name: Path,
-    compiler: Compiler,
     context: Optional[dict] = None,
     quiet: Optional[bool] = None,
-) -> SingleFileCompilationInfo:
+) -> SingleFileCompilationInfo | None:
     """Generate latex and/or pdf file from ptyx source file.
 
-    Return a 2-tuple:
-       - the number of pages of the pdf (or -1 if not found),
-       - the dictionary of the LaTeX errors: {<error-title>: <error-message>}
+    Output name may be either a LaTeX file, or a Pdf file.
+    - If output is a Pdf file, return a SingleFileCompilationInfo, including LaTeX compilation error.
+    - Else, if output is only LaTeX, return None.
+
+    Note that when output format is Pdf, a LaTeX file will also be generated in the same directory.
     """
-    return compile_latex(generate_latex_file(output_name, compiler, context), quiet=quiet)
+    compiler = Compiler(path=ptyx_file)
+    latex_file = generate_latex_file(output_name, compiler=compiler, context=context)
+    return compile_latex_to_pdf(latex_file, quiet=quiet) if output_name.suffix == ".pdf" else None
 
 
 def _print_latex_errors(out: str, filename: Path) -> dict[str, str]:
@@ -438,7 +446,7 @@ def _print_latex_errors(out: str, filename: Path) -> dict[str, str]:
     return errors
 
 
-def compile_latex(
+def compile_latex_to_pdf(
     filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False
 ) -> SingleFileCompilationInfo:
     """Compile the latex file.

@@ -5,7 +5,7 @@ from tempfile import NamedTemporaryFile
 
 from ptyx.compilation_options import CompilationOptions
 
-from ptyx.compilation import make_files, make_file
+from ptyx.compilation import make_files, compile_ptyx_file
 from ptyx.latex_generator import Compiler
 from ptyx.script import ptyx
 
@@ -38,17 +38,21 @@ def test_basic_test():
         assert (compile_directory / (filename.stem + ext)).is_file()
 
 
-def test_make_file(tmp_path):
+def test_compile_ptyx_file(tmp_path):
     print(tmp_path)
     ptyx_path: Path = tmp_path / "test.ptyx"
     with open(ptyx_path, "w", encoding="utf8") as f:
         f.write(PTYX_SAMPLE)
         f.flush()
         fsync(f.fileno())
-    compiler = Compiler()
-    compiler.parse(path=ptyx_path)
+    tex_path = ptyx_path.with_suffix(".tex")
     pdf_path = ptyx_path.with_suffix(".pdf")
-    make_file(pdf_path, compiler=compiler)
+    compile_ptyx_file(ptyx_path, tex_path)
+    assert tex_path.is_file()
+    assert not pdf_path.is_file()
+    tex_path.unlink()
+    compile_ptyx_file(ptyx_path, pdf_path)
+    assert tex_path.is_file()
     assert pdf_path.is_file()
 
 
