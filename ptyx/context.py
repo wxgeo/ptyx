@@ -5,7 +5,7 @@ import builtins
 
 import ptyx.randfunc as randfunc
 from ptyx.printers import sympy2latex
-from ptyx.config import SYMPY_AVAILABLE, NUMPY_AVAILABLE
+from ptyx.sys_info import SYMPY_AVAILABLE, NUMPY_AVAILABLE
 from ptyx.utilities import latex_verbatim
 
 GLOBAL_CONTEXT = dict()

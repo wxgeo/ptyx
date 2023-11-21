@@ -8,12 +8,14 @@ from pathlib import Path
 from types import ModuleType
 from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List, TypedDict
 
+
 from ptyx.extensions import CompilerExtension
 
 import ptyx.randfunc as randfunc
 from ptyx import __version__
-from ptyx.config import param, SYMPY_AVAILABLE
+from ptyx.config import param
 from ptyx.context import GLOBAL_CONTEXT
+from ptyx.sys_info import SYMPY_AVAILABLE
 
 # from ptyx.printers import sympy2latex
 from ptyx.syntax_tree import Node, SyntaxTreeGenerator, Tag, TagSyntax

@@ -5,8 +5,9 @@ from math import gcd
 from typing import Callable, Iterable
 
 from numpy import array
+from ptyx.sys_info import SYMPY_AVAILABLE
 
-from ptyx.config import param, SYMPY_AVAILABLE
+from ptyx.config import param
 
 
 if SYMPY_AVAILABLE:

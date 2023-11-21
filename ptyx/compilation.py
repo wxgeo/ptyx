@@ -11,9 +11,10 @@ from pathlib import Path
 from typing import Optional, Iterable, Sequence, NewType
 
 import fitz
-from ptyx.compilation_options import DEFAULT_OPTIONS, CompilationOptions
 
-from ptyx.config import param, CPU_PHYSICAL_CORES
+from ptyx.sys_info import CPU_PHYSICAL_CORES
+from ptyx.compilation_options import DEFAULT_OPTIONS, CompilationOptions
+from ptyx.config import param
 from ptyx.latex_generator import compiler
 
 ANSI_RED = "\u001B[31m"
