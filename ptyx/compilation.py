@@ -165,22 +165,17 @@ def execute(command: str) -> str:
 
 def make_files(
     input_name: Path,
-    correction: bool = False,
     number_of_documents: int = None,
-    same_number_of_pages: bool = None,
-    generate_pdf: bool = None,
+    correction: bool = False,
+    doc_ids_selection: Iterable[int] = None,
     options: CompilationOptions = DEFAULT_OPTIONS,
-    _nums: Iterable[int] = None,
 ) -> MultipleFilesCompilationInfo:
     """Generate the tex and pdf files.
     - `input_name`: the path of the .pyx file.
     - `correction`: if True, include the solutions of the exercises
     - `number_of_documents`: the number of documents to generate (default: 1)
-    - `same_number_of_pages`: if True, all pdf files must have the same number of pages
-    - `generate_pdf`: if False, stop before generating pdf files.
-       (Generated .tex files can be access from `.compile` folder).
-    - `options`: a `CompilationOptions`, used to pass other options if needed.
-    - `_nums` is used to manually set the documents ids, it is used by the MCQ extension.
+    - `doc_ids_selection` is used to manually set the documents ids when correction is set to `True`.
+    - `options`: a `CompilationOptions` instance, used to pass compilation options.
 
     Return a MultipleFilesCompilationInfo instance, which contains LaTeX errors
     detected during pdftex compilation.
@@ -189,24 +184,20 @@ def make_files(
     context = options.context
     context["PTYX_WITH_ANSWERS"] = correction
 
-    # `_nums` is used when generating the answers of the quiz.
-    # In the first pass, when generating the quizzes, some numbers may
-    # have been skipped (because they don't satisfy the pages number constraint).
-    if _nums is not None:
-        assert correction
-        _nums = list(_nums)  # make a copy
-        target: int = len(_nums)
+    if doc_ids_selection is None:
+        target: int = number_of_documents or options.number_of_documents
+        # if correction:
+        #     raise RuntimeError("Please specify documents ids list when `correction` is set to True.")
     else:
-        target = number_of_documents or options.number_of_documents
+        # `doc_ids_selection` is used when generating the correction of the documents.
+        # In the first pass, when generating the documents, some numbers may
+        # have been skipped (because they didn't satisfy the pages number constraint).
+        # if not correction:
+        #     raise RuntimeError("Documents ids list should only be provided"
+        #                        " when `correction` is set to True.")
+        doc_ids_selection = list(doc_ids_selection)  # Important: make a copy!
+        target = len(doc_ids_selection)
     assert isinstance(target, int)
-
-    if same_number_of_pages is None:
-        same_number_of_pages = options.same_number_of_pages or options.set_number_of_pages != 0
-    assert isinstance(same_number_of_pages, bool)
-
-    if generate_pdf is None:
-        generate_pdf = not options.no_pdf
-    assert isinstance(generate_pdf, bool)
 
     # Create an empty `.compile/{input_name}` subfolder.
     compilation_dir = input_name.parent / ".compile" / input_name.stem
@@ -233,7 +224,7 @@ def make_files(
     # Compilation number, used to initialize random numbers' generator.
     doc_id: DocId = DocId(options.start - 1)
 
-    if not generate_pdf:
+    if options.no_pdf:
         return all_compilation_info
 
     assert target is not None
@@ -244,23 +235,20 @@ def make_files(
         # ------------------------
         # (Note that the actual number of generated files may be more than that,
         # because by default we aim to have documents with the same number of pages.)
-        latex_files: list[Path] = []
-        doc_ids: list[DocId] = []
-        filenames: list[Path] = []
+        latex_files: dict[DocId, Path] = {}
         for _ in range(target - len(all_compilation_info)):
             # 1. Generate context.
-            # Restart from previous doc_id value (don't reset it!)
-            doc_id = DocId(doc_id + 1)
-            if correction and _nums is not None:
+            if doc_ids_selection is None:
+                # Restart from previous doc_id value (don't reset it!)
+                doc_id = DocId(doc_id + 1)
+            else:
                 # Overwrite default numeration, since correction numeration must match first pass.
-                doc_id = DocId(_nums.pop(0))
+                doc_id = DocId(doc_ids_selection.pop(0))
             context.update(PTYX_NUM=doc_id)
-            doc_ids.append(DocId(doc_id))
             filename = append_suffix(output_basename, f"-{doc_id}") if target > 1 else output_basename
-            filenames.append(filename)
             # 2. Compile to LaTeX.
             print(context)
-            latex_files.append(generate_latex_file(filename, context))
+            latex_files[doc_id] = generate_latex_file(filename, context)
 
         # --------------------------------
         # Compile to pdf using parallelism
@@ -272,7 +260,7 @@ def make_files(
         cpu_cores_to_use = (
             options.cpu_cores if options.cpu_cores >= 1 else min(CPU_PHYSICAL_CORES, len(latex_files))
         )
-        args = [(path, None, options.quiet) for path in latex_files]
+        args = [(path, None, options.quiet) for path in latex_files.values()]
 
         if cpu_cores_to_use > 1:
             with multiprocessing.get_context("forkserver").Pool(cpu_cores_to_use) as pool:
@@ -286,30 +274,29 @@ def make_files(
         # Analyze results
         # ---------------
         info: SingleFileCompilationInfo
-        for doc_id, info in zip(doc_ids, compile_info_list):
-            if not correction:
+        for doc_id, info in zip(latex_files, compile_info_list):
+            if doc_ids_selection is None:
                 # 3. Test if the new generated file satisfies all options constraints.
-                if same_number_of_pages:
-                    if options.set_number_of_pages == 0:
-                        # Determine automatically the best fixed page count.
-                        # This is a bit subtle. We want all compiled documents to have
-                        # the same pages number, yet we don't want to set it manually.
-                        # So, we compile documents and memorize their size.
-                        # We'll group compilation results by the length of the resulting document.
-                        # We'll keep one dictionary {document id: Path}  for each size of document.
-                        # At each loop, if the compiled document is of size n,
-                        # we update the dictionary of all the n-sized documents with the document ID
-                        # and its path.
-                        # Before beginning the next loop, the dictionary size will be checked,
-                        # to see if it contains enough documents.
-                        # (There's no need to have a look on the others dicts, since they haven't changed...)
-                        all_compilation_info = pages_per_document.setdefault(
-                            info.page_count, MultipleFilesCompilationInfo(output_basename)
-                        )
-                    elif options.set_number_of_pages != info.page_count:
-                        # Pages number is set manually, and don't match.
-                        print(f"Warning: skipping {info.src} (incorrect page number) !")
-                        continue
+                if options.set_number_of_pages not in (0, info.page_count):
+                    # Pages number is set manually, and don't match.
+                    print(f"Warning: skipping {info.src} (incorrect page number) !")
+                    continue
+                elif options.same_number_of_pages:
+                    # Determine automatically the best fixed page count.
+                    # This is a bit subtle. We want all compiled documents to have
+                    # the same pages number, yet we don't want to set it manually.
+                    # So, we compile documents and memorize their size.
+                    # We'll group compilation results by the length of the resulting document.
+                    # We'll keep one dictionary {document id: Path}  for each size of document.
+                    # At each loop, if the compiled document is of size n,
+                    # we update the dictionary of all the n-sized documents with the document ID
+                    # and its path.
+                    # Before beginning the next loop, the dictionary size will be checked,
+                    # to see if it contains enough documents.
+                    # (There's no need to have a look on the others dicts, since they haven't changed...)
+                    all_compilation_info = pages_per_document.setdefault(
+                        info.page_count, MultipleFilesCompilationInfo(output_basename)
+                    )
 
             all_compilation_info.info_dict[doc_id] = info
             doc_id = DocId(doc_id + 1)
@@ -324,8 +311,7 @@ def make_files(
         bat_file_name = input_name.parent / ("print_corr.bat" if correction else "print.bat")
         with open(bat_file_name, "w") as bat_file:
             bat_file.write(
-                param["win_print_command"]
-                + " ".join('"%s.pdf"' % os.path.basename(f) for f in filenames)  # type: ignore
+                param["win_print_command"] + " ".join(f'"{f.name}.pdf"' for f in filenames)  # type: ignore
             )
 
     # Copy pdf file/files to parent directory.

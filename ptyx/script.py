@@ -143,7 +143,10 @@ class PtyxArgumentParser(argparse.ArgumentParser):
         self.add_argument(
             "--no-pdf",
             action="store_true",
-            help="Don't generate Pdf files, only LaTeX ones.",
+            help=(
+                "Don't generate Pdf files, only LaTeX ones."
+                " (Generated LaTeX files are located in the `.compile` folder)."
+            ),
         )
         self.add_argument(
             "-g",
@@ -239,7 +242,7 @@ def ptyx(parser=PtyxArgumentParser()):
 
             tags = compiler.syntax_tree.tags
             if any(tag in tags for tag in answer_tags):
-                make_files(input_name, correction=True, _nums=all_info.doc_ids, options=options)
+                make_files(input_name, correction=True, doc_ids_selection=all_info.doc_ids, options=options)
 
 
 if __name__ == "__main__":
