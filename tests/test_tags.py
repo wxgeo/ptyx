@@ -219,6 +219,20 @@ $2+\dfrac{3}{x}$"""
     assert latex == result
 
 
+def test_EVAL_1():
+    test = r"""
+    #PYTHON
+    a = 1
+    b = 1
+    c = -1
+    #END
+    $#[?]a x #+ #[?]b y #+ #[?]c z = 0$"""
+    target = "$x+y-z=0$" ""
+    c = Compiler()
+    latex = c.parse(code=test)
+    assert latex.replace(" ", "").strip() == target
+
+
 def test_INCLUDE():
     os.chdir(TEST_DIR)
     test = "#SEED{99}First, $a=#{a=7}$#INCLUDE{include_example.txt}Last, $a=#a$ still."

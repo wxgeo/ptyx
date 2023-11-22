@@ -399,9 +399,10 @@ class LatexGenerator:
                 self.flags["round"] = int(arg)
             elif arg == ".":
                 self.flags["."] = True
+            elif arg == "?":
+                self.flags["?"] = True
             elif arg in ("floats", "float"):
                 self.flags["floats"] = True
-
             elif arg == "str":
                 self.flags["str"] = True
             else:
@@ -735,6 +736,7 @@ class LatexGenerator:
             code = code.rstrip(";")
             display_result = False
 
+        result = ""
         for subcode in advanced_split(code, ";", brackets=()):
             result = self._eval_python_expr(subcode)
         # Note that only last result will be displayed.
@@ -745,6 +747,14 @@ class LatexGenerator:
         if not display_result:
             return ""
 
+        if flags.get("?"):
+            if result == 1:
+                if flags.get("+"):
+                    return "+"
+                return ""
+            elif result == -1:
+                result = "-"
+
         if sympy_code and not flags.get("str"):
             from ptyx.printers import sympy2latex
 
@@ -752,8 +762,8 @@ class LatexGenerator:
         else:
             latex = str(result)
 
-        def neg(latex):
-            return latex.lstrip().startswith("-")
+        def neg(latex_):
+            return latex_.lstrip().startswith("-")
 
         if flags.get("+"):
             if result == 0:
