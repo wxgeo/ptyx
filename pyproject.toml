@@ -40,6 +40,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.mypy]
 ignore_missing_imports = true
 implicit_optional = true
+warn_unused_ignores = true
 
 [tool.black]
 line-length = 110

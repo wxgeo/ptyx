@@ -1,6 +1,8 @@
 """
 A variant of sympy latex printer, based on wxgeometrie one.
 """
+from ptyx.internal_types import EvalFlags
+
 
 # TODO: Clean-up unused wxgeometrie code !
 # TODO: This module needs lot's of cleaning and refactoring.
@@ -159,11 +161,14 @@ def custom_latex(expr, **settings):
     return CustomLatexPrinter(settings).doprint(expr)
 
 
-def sympy2latex(expr, **flags):
+def sympy2latex(expr, flags: EvalFlags = None) -> str:
     """Convert a sympy expression to LaTeX code."""
-    if flags.get("str"):
+    if flags is None:
+        flags = EvalFlags()
+
+    if flags.format_as_str:
         latex = str(expr)
-    elif isinstance(expr, float) or (sympy and isinstance(expr, Float)) or flags.get("."):
+    elif isinstance(expr, float) or (sympy and isinstance(expr, Float)) or flags.keep_dot_as_decimal_mark:
         # -0.06000000000000001 means probably -0.06 ; that's because
         # floating point arithmetic is not based on decimal numbers, and
         # so some decimal numbers do not have exact internal representation.
@@ -180,7 +185,7 @@ def sympy2latex(expr, **flags):
         # In french, german... a comma is used as floating point.
         # However, if `float` flag is set, floating point is left unchanged
         # (useful for Tikz for example).
-        if not flags.get("."):
+        if not flags.keep_dot_as_decimal_mark:
             # It would be much better to subclass sympy LaTeX printer
             latex = latex.replace(".", param["floating_point"])
 

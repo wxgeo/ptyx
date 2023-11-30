@@ -219,15 +219,30 @@ $2+\dfrac{3}{x}$"""
     assert latex == result
 
 
-def test_EVAL_1():
+def test_EVAL_MUL_FLAG():
     test = r"""
     #PYTHON
     a = 1
     b = 1
     c = -1
+    d = 0
     #END
-    $#[?]a x #+ #[?]b y #+ #[?]c z = 0$"""
+    $#[*]a x #+ #[*]b y #+ #[*]c z #+ #[*]d #t= 0$"""
     target = "$x+y-z=0$" ""
+    c = Compiler()
+    latex = c.parse(code=test)
+    assert latex.replace(" ", "").strip() == target
+
+
+def test_rand_pick():
+    test = r"""
+    #SEED{187}
+    #PYTHON
+    values = [1,2,3,4]
+    #END
+    #[rand]values is #[select]values ?
+    """
+    target = "3is1?"
     c = Compiler()
     latex = c.parse(code=test)
     assert latex.replace(" ", "").strip() == target

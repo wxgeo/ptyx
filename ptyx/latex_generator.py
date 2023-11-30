@@ -14,9 +14,9 @@ import ptyx.randfunc as randfunc
 from ptyx import __version__
 from ptyx.config import param
 from ptyx.context import GLOBAL_CONTEXT
+from ptyx.internal_types import NiceOp, PickItemAction, EvalFlags
 from ptyx.sys_info import SYMPY_AVAILABLE
 
-# from ptyx.printers import sympy2latex
 from ptyx.syntax_tree import Node, SyntaxTreeGenerator, Tag, TagSyntax
 from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_can, latex_verbatim
 
@@ -71,7 +71,7 @@ class LatexGenerator:
 
     # noinspection RegExpRedundantEscape
     re_varname = re.compile(r"[A-Za-z_]\w*(\[.+\])?$")
-    flags: dict[str, bool | int]
+    flags: EvalFlags
     macros: dict[str, list[str | Node]]
     # TODO: use a TypedDict for context. (Extensions should use TypedDict inheriting from this one.)
     #  Since typing all of global context isn't realistic (in includes sympy!), one should
@@ -109,7 +109,7 @@ class LatexGenerator:
         # Now, one should use write(..., parse=True) if needed, which is much saner.
         self.context["write"] = self.write
         # Internal flags
-        self.flags = {}
+        self.flags = EvalFlags(eval_as_float=self.context.get("ALL_FLOATS"))
 
     def reset(self):
         """To overwrite."""
@@ -262,10 +262,17 @@ class LatexGenerator:
         # so some basic testing is done before.
         text = str(text)
         if text.strip():
-            for flag in "+-*":
-                if self.flags.get(flag):
-                    text = (r"\times " if flag == "*" else flag) + text
-                    self.flags[flag] = False
+            match (flags := self.flags).previous_nice_op:
+                case NiceOp.ADD:
+                    text = "+" + text
+                    flags.previous_nice_op = NiceOp.NONE
+                case NiceOp.SUB:
+                    text = "-" + text
+                    flags.previous_nice_op = NiceOp.NONE
+                case NiceOp.MUL:
+                    text = r"\times " + text
+                    flags.previous_nice_op = NiceOp.NONE
+
         if parse and "#" in text:
             if param["debug"]:
                 print("Parsing %s..." % repr(text))
@@ -401,23 +408,27 @@ class LatexGenerator:
             assert test
 
     def _parse_EVAL_tag(self, node: Node):
+        if self.flags.suppress_next_eval:
+            self.flags = EvalFlags(eval_as_float=self.context.get("ALL_FLOATS"))  # type: ignore
+            return
         args, kw = self._parse_options(node)
-        if self.context.get("ALL_FLOATS"):
-            self.flags["floats"] = True
         for arg in args:
             if arg.isdigit():
-                self.flags["round"] = int(arg)
+                self.flags.round = int(arg)
             elif arg == ".":
-                self.flags["."] = True
-            elif arg == "?":
-                self.flags["?"] = True
+                self.flags.keep_dot_as_decimal_mark = True
+            elif arg == "*":
+                self.flags.is_mul_coeff = True
             elif arg in ("floats", "float"):
-                self.flags["floats"] = True
+                self.flags.eval_as_float = True
             elif arg == "str":
-                self.flags["str"] = True
+                self.flags.format_as_str = True
+            elif arg == "select":
+                self.flags.pick_action = PickItemAction.SELECT_FROM_NUM
+            elif arg == "rand":
+                self.flags.pick_action = PickItemAction.RAND_CHOICE
             else:
                 raise ValueError("Unknown flag: " + repr(arg))
-        # XXX: support options round, float, (sympy, python,) select and rand
         code = node.arg(0)
         assert isinstance(code, str), type(code)
         try:
@@ -428,7 +439,10 @@ class LatexGenerator:
         # Tags must be cleared *before* calling .write(txt), since .write(txt)
         # add '+', '-' and '\times ' before txt if corresponding flags are set,
         # and ._eval_and_format_python_expr() has already do this.
-        self.flags.clear()
+        self.flags = EvalFlags(
+            eval_as_float=self.context.get("ALL_FLOATS"),  # type: ignore
+            suppress_next_eval=self.flags.suppress_next_eval,
+        )
         self.write(txt)
 
     def _parse_MACRO_tag(self, node: Node):
@@ -586,23 +600,23 @@ class LatexGenerator:
         # a '+' will be displayed at the beginning of the next result if positive ;
         # if the result is negative, nothing will be done, and if null,
         # no result at all will be displayed.
-        self.flags["+"] = True
+        self.flags.previous_nice_op = NiceOp.ADD
 
     def _parse_SUB_tag(self, node: Node) -> None:
         # a '-' will be displayed at the beginning of the next result, and the result
         # will be embedded in parentheses if negative.
-        self.flags["-"] = True
+        self.flags.previous_nice_op = NiceOp.SUB
 
     def _parse_MUL_tag(self, node: Node) -> None:
         # a '\times' will be displayed at the beginning of the next result, and the result
         # will be embedded in parentheses if negative.
-        self.flags["*"] = True
+        self.flags.previous_nice_op = NiceOp.MUL
 
     def _parse_EQUAL_tag(self, node: Node) -> None:
         # Display '=' or '\approx' when a rounded result is requested :
         # if rounded is equal to exact one, '=' is displayed.
         # Else, '\approx' is displayed instead.
-        self.flags["="] = True
+        self.flags.previous_nice_op = NiceOp.EQ
         # All other operations (#+, #-, #*) occur just before number, but between `=` and
         # the result, some formatting instructions may occur (like '\fbox{' for example).
         # So, `#=` is used as a temporary marker, and will be replaced by '=' or '\approx' later.
@@ -680,14 +694,9 @@ class LatexGenerator:
         return code
 
     def _eval_python_expr(self, code: str):
-        flags = self.flags
         context = self.context
         if not code:
             return ""
-        sympy_code = flags.get("sympy", param["sympy_is_default"])
-
-        if sympy_code and not SYMPY_AVAILABLE:
-            raise ImportError("sympy library not found.")
 
         varname = ""
         i = code.find("=")
@@ -704,7 +713,7 @@ class LatexGenerator:
             varname = "_"
         if " if " in code and " else " not in code:
             code += " else ''"
-        if SYMPY_AVAILABLE and sympy_code:
+        if param["sympy_is_default"]:
             import sympy
 
             try:
@@ -739,7 +748,6 @@ class LatexGenerator:
         context = self.context
         if not code:
             return ""
-        sympy_code = flags.get("sympy", param["sympy_is_default"])
 
         display_result = True
         if code.endswith(";"):
@@ -757,39 +765,42 @@ class LatexGenerator:
         if not display_result:
             return ""
 
-        if flags.get("?"):
+        if flags.is_mul_coeff:
             if result == 1:
-                if flags.get("+"):
+                if flags.previous_nice_op == NiceOp.ADD:
                     return "+"
                 return ""
             elif result == -1:
-                result = "-"
+                return "-"
+            elif result == 0:
+                flags.suppress_next_eval = True
+                return ""
 
-        if sympy_code and not flags.get("str"):
+        if param["sympy_is_default"] and not flags.format_as_str:
             from ptyx.printers import sympy2latex
 
-            latex = sympy2latex(result, **flags)
+            latex = sympy2latex(result, flags)
         else:
             latex = str(result)
 
         def neg(latex_):
             return latex_.lstrip().startswith("-")
 
-        if flags.get("+"):
+        if flags.previous_nice_op == NiceOp.ADD:
             if result == 0:
                 latex = ""
             elif not neg(latex):
                 latex = "+" + latex
-        elif flags.get("*"):
+        elif flags.previous_nice_op == NiceOp.MUL:
             if neg(latex) or getattr(result, "is_Add", False):
                 latex = r"\left(" + latex + r"\right)"
             latex = r"\times " + latex
-        elif flags.get("-"):
+        elif flags.previous_nice_op == NiceOp.SUB:
             if neg(latex) or getattr(result, "is_Add", False):
                 latex = r"\left(" + latex + r"\right)"
             latex = "-" + latex
-        elif flags.get("="):
-            if flags.get("result_is_exact"):
+        elif flags.previous_nice_op == NiceOp.EQ:
+            if flags.result_is_exact:
                 symb = " = "
             else:
                 symb = r" \approx "
@@ -813,18 +824,25 @@ class LatexGenerator:
         If result is iterable, an element of result is returned, chosen according
         to current flag."""
         flags = self.flags
-        if hasattr(result, "__iter__"):
-            if flags.get("rand"):
-                result = random.choice(result)
-            elif flags.get("select"):
-                result = result[self.NUM % len(result)]
+        if flags.pick_action != PickItemAction.NONE:
+            try:
+                if flags.pick_action == PickItemAction.RAND_CHOICE:
+                    result = randfunc.randchoice(result)
+                elif flags.pick_action == PickItemAction.SELECT_FROM_NUM:
+                    result = result[self.NUM % len(result)]
+            except (TypeError, IndexError) as e:
+                traceback.print_exception(e, limit=2)
+                print(
+                    "Warning: flags `rand` or `select` have been used for an incorrect data type"
+                    " (more details above)."
+                )
 
-        if "round" in flags:
+        if flags.round is not None:
             try:
                 if SYMPY_AVAILABLE:
-                    round_result = numbers_to_floats(result, ndigits=flags["round"])
+                    round_result = numbers_to_floats(result, ndigits=flags.round)
                 else:
-                    round_result = round(result, flags["round"])
+                    round_result = round(result, flags.round)
             except ValueError:
                 print("** ERROR while rounding value: **")
                 print(result)
@@ -836,13 +854,13 @@ class LatexGenerator:
                 import sympy
             # noinspection PyUnboundLocalVariable
             if SYMPY_AVAILABLE and isinstance(result, sympy.Basic):
-                flags["result_is_exact"] = {_float_me_if_you_can(elt) for elt in result.atoms()} == {
+                flags.result_is_exact = {_float_me_if_you_can(elt) for elt in result.atoms()} == {
                     _float_me_if_you_can(elt) for elt in round_result.atoms()
                 }
             else:
-                flags["result_is_exact"] = result == round_result
+                flags.result_is_exact = result == round_result
             result = round_result
-        elif "floats" in self.flags:
+        elif self.flags.eval_as_float:
             result = numbers_to_floats(result)
         return result
 

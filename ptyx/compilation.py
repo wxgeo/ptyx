@@ -320,9 +320,7 @@ def make_files(
     if options.generate_batch_for_windows_printing:
         bat_file_name = ptyx_file.parent / ("print_corr.bat" if correction else "print.bat")
         with open(bat_file_name, "w") as bat_file:
-            bat_file.write(
-                param["win_print_command"] + " ".join(f'"{f.name}.pdf"' for f in filenames)  # type: ignore
-            )
+            bat_file.write(param["win_print_command"] + " ".join(f'"{f.name}.pdf"' for f in filenames))
 
     # Copy pdf file/files to parent directory.
     _copy_file_to_parent("pdf", filenames, ptyx_file, output_basename, options)
@@ -474,7 +472,7 @@ def compile_latex_to_pdf(
 
 def _build_command(filename: Path, dest: Path, quiet: Optional[bool] = False) -> str:
     """Generate the command used to compile the LaTeX file."""
-    command: str = param["quiet_tex_command"] if quiet else param["tex_command"]  # type: ignore
+    command: str = param["quiet_tex_command"] if quiet else param["tex_command"]
     command += f' -output-directory "{dest}" "{filename}"'
     return command
 

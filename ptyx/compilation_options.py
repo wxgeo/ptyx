@@ -4,7 +4,6 @@ from typing import Literal, Any, get_origin
 from argparse import Namespace
 
 
-
 @dataclass(kw_only=True, frozen=True)
 class CompilationOptions:
     filenames: list[str] = field(default_factory=list)
@@ -26,7 +25,7 @@ class CompilationOptions:
     context: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def load(cls, options: Namespace) -> "CompilationOptions":  # type: ignore
+    def load(cls, options: Namespace) -> "CompilationOptions":
         kwargs = vars(options)
 
         # -------------------------
