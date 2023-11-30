@@ -794,7 +794,8 @@ class LatexGenerator:
         elif flags.previous_nice_op == NiceOp.MUL:
             if neg(latex) or getattr(result, "is_Add", False):
                 latex = r"\left(" + latex + r"\right)"
-            latex = r"\times " + latex
+            if not getattr(result, "is_Add", False) and not getattr(result, "is_Symbol", False):
+                latex = r"\times " + latex
         elif flags.previous_nice_op == NiceOp.SUB:
             if neg(latex) or getattr(result, "is_Add", False):
                 latex = r"\left(" + latex + r"\right)"

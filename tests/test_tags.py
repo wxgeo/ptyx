@@ -173,10 +173,16 @@ c = 5
 d = -4
 #END
 $#a#*#{b*x+c}$
+$#a#*#d$
+$#d#*#a$
+$#d#*#x$
 $#a#-#{b*x+c}$
 $#a#+#d$"""
     result = r"""
-$6\times \left(6 x + 5\right)$
+$6\left(6 x + 5\right)$
+$6\times \left(-4\right)$
+$-4\times 6$
+$-4x$
 $6-\left(6 x + 5\right)$
 $6-4$"""
     c = Compiler()
@@ -219,16 +225,28 @@ $2+\dfrac{3}{x}$"""
     assert latex == result
 
 
-def test_EVAL_MUL_FLAG():
+def test_EVAL_mul_flag():
     test = r"""
     #PYTHON
     a = 1
     b = 1
     c = -1
     d = 0
+    e = 5
     #END
-    $#[*]a x #+ #[*]b y #+ #[*]c z #+ #[*]d #t= 0$"""
-    target = "$x+y-z=0$" ""
+    $#[*]a x #+ #[*]b #y #+ #[*]c #z #+ #[*]d #t#+#x= 0$"""
+    target = "$x+y-z+x=0$"
+    c = Compiler()
+    latex = c.parse(code=test)
+    assert latex.replace(" ", "").strip() == target
+    test = r"""
+    #PYTHON
+    xu = S(0)
+    xv = S(-1)
+    xw = S(1)
+    #END
+    #[*]xu #a#+#[*]xv #b#+#[*]xw #c=0"""
+    target = "-b+c=0"
     c = Compiler()
     latex = c.parse(code=test)
     assert latex.replace(" ", "").strip() == target
