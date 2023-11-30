@@ -428,7 +428,7 @@ class LatexGenerator:
             elif arg == "rand":
                 self.flags.pick_action = PickItemAction.RAND_CHOICE
             else:
-                raise ValueError("Unknown flag: " + repr(arg))
+                raise ValueError(f"Unknown flag {arg!r} in `#[{node.options}]{node.arg(0)}`.")
         code = node.arg(0)
         assert isinstance(code, str), type(code)
         try:
