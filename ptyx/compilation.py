@@ -157,7 +157,7 @@ def execute(command: str) -> str:
         out_str = out_bytes.decode("utf-8")
     except UnicodeDecodeError:
         out_str = out_bytes.decode("utf-8", errors="replace")
-        print("UnicodeDecodeError when reading command output!")
+        print("Warning: UnicodeDecodeError when reading command output!")
         print(f"Command: {command!r}")
         print(f"Output: {out_str if len(out_str) < 100 else out_str[:100] + '...'}")
     return out_str

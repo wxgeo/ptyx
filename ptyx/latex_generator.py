@@ -6,8 +6,7 @@ from importlib import import_module, metadata
 from os.path import dirname, basename, join
 from pathlib import Path
 from types import ModuleType
-from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List, TypedDict
-
+from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List, TypedDict, Any
 
 from ptyx.extensions import CompilerExtension
 
@@ -72,6 +71,17 @@ class LatexGenerator:
 
     # noinspection RegExpRedundantEscape
     re_varname = re.compile(r"[A-Za-z_]\w*(\[.+\])?$")
+    flags: dict[str, bool | int]
+    macros: dict[str, list[str | Node]]
+    # TODO: use a TypedDict for context. (Extensions should use TypedDict inheriting from this one.)
+    #  Since typing all of global context isn't realistic (in includes sympy!), one should
+    #  split context dictionary, and **create a specific dictionary for environment variables**,
+    #  like PTYX_NUM, or PTYX_LATEX.
+    #  This environment variables dict should use a TypedDict for local context.
+    #  Using a dataclass is also possible, but it may prove complicated for extensions,
+    #  with dynamic heritage needed, so it's probably not worth it.
+    context: dict[str, Any]
+    backups: list[list[str]]
 
     def __init__(self, compiler=None):
         self.clear()
@@ -105,7 +115,7 @@ class LatexGenerator:
         """To overwrite."""
         self.clear()
 
-    def set_new_context(self, base_context: Optional[Dict] = None) -> Dict:
+    def set_new_context(self, base_context: Optional[Dict] = None) -> dict[str, Any]:
         """Set a new context of evaluation for code, except for PTYX_LATEX value."""
         old_context = self.context
         if base_context is None:
@@ -233,7 +243,7 @@ class LatexGenerator:
                     args.append(option.strip())
         return args, kw
 
-    def write(self, text: str, parse: bool = False, verbatim: bool = False):
+    def write(self, text: str, parse: bool = False, verbatim: bool = False) -> None:
         """Append a piece of LaTeX text to context['PTYX_LATEX'].
 
         :param text: a block of text, which may contain pTyX code.
@@ -265,7 +275,7 @@ class LatexGenerator:
                 text = latex_verbatim(text)
             self.context["PTYX_LATEX"].append(text)
 
-    def read(self):
+    def read(self) -> str:
         return "".join(self.context["PTYX_LATEX"])
 
     def _parse_APART_tag(self, node: Node):
@@ -867,6 +877,8 @@ class Compiler:
       versions of the same document.
     """
 
+    _state: State
+
     def __init__(self, *, code=None, path=None):
         self.syntax_tree_generator = SyntaxTreeGenerator()
         self.latex_generator = LatexGenerator(self)
@@ -877,7 +889,7 @@ class Compiler:
             self.generate_syntax_tree()
 
     def reset(self) -> None:
-        self._state: State = {}
+        self._state = {}
         # Make SyntaxTreeGenerator context free ?
         self.syntax_tree_generator.reset()
         self.latex_generator.reset()
