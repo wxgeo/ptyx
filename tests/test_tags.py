@@ -196,6 +196,10 @@ def test_EVAL_abs():
     assert parse(r"$#{abs(-5)}$") == r"$5$"
 
 
+def test_EVAL_underscore_in_variable_name():
+    assert parse("#{this_is_a_strange_name_1=3}:#this_is_a_strange_name_1") == "3:3"
+
+
 def test_EVAL_rounding():
     assert parse(r"#[2]{2/3}") == r"0,67"
     assert parse(r"#[2,.]{2/3}") == r"0.67"

@@ -453,7 +453,7 @@ class SyntaxTreeGenerator:
                             new_pos = end + 1
                         else:
                             end = position
-                            while end < len(text) and text[end].isalnum():
+                            while end < len(text) and (text[end].isalnum() or text[end] == "_"):
                                 end += 1
                             new_pos = end
                     except IndexError:
