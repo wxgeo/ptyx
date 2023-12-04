@@ -25,13 +25,18 @@
 
 import argparse
 import csv
+import subprocess
 import sys
 from functools import partial
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ptyx import __version__
 from ptyx.compilation_options import CompilationOptions
 from ptyx.config import param
+
+if TYPE_CHECKING:
+    from ptyx.compilation import MultipleFilesCompilationInfo
 
 if sys.version_info.major == 2:
     raise RuntimeError("Python 2 not supported, please update to latest python 3 version!")
@@ -98,8 +103,14 @@ class PtyxArgumentParser(argparse.ArgumentParser):
             "-C",
             "--compress",
             action="store_true",
-            help="Like --cat, but compress final pdf file using pdf2ps and ps2pdf. "
-            "Ghostscript must be present (on Linux, it is probably already installed).",
+            help="Like --cat, but compress final pdf file using pdf2ps and ps2pdf."
+            " Ghostscript must be present (on Linux, it is probably already installed).",
+        )
+        self.add_argument(
+            "--view",
+            action="store_true",
+            help="Display pdf after compilation, using default viewer."
+            " (If several files are generated, only one will be displayed.)",
         )
         self.add_argument(
             "--reorder-pages",
@@ -209,6 +220,8 @@ def ptyx(parser=PtyxArgumentParser()):
     # Time to act ! Let's compile all ptyx files...
     # ---------------------------------------------
 
+    all_info: MultipleFilesCompilationInfo | None = None
+
     for input_name in options.filenames:
         # Read pTyX file.
         print(f"Reading {input_name}...")
@@ -248,7 +261,14 @@ def ptyx(parser=PtyxArgumentParser()):
 
             tags = compiler.syntax_tree.tags
             if any(tag in tags for tag in answer_tags):
-                make(input_name, correction=True, doc_ids_selection=all_info.doc_ids)
+                all_info = make(input_name, correction=True, doc_ids_selection=all_info.doc_ids)
+
+    if options.view and all_info is not None:
+        if options.cat or options.compress:
+            pdf_path = all_info.basename.with_suffix(".pdf")
+        else:
+            pdf_path = all_info.pdf_paths[0]
+        subprocess.run(["xdg-open", pdf_path])
 
 
 if __name__ == "__main__":

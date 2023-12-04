@@ -20,6 +20,7 @@ class CompilationOptions:
     same_number_of_pages: bool = False
     no_correction: bool = False
     no_pdf: bool = False
+    view: bool = False
     generate_batch_for_windows_printing: bool = False
     cpu_cores: int = 0
     context: dict[str, Any] = field(default_factory=dict)
