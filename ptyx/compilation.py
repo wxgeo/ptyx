@@ -310,8 +310,11 @@ def make_files(
 
             all_compilation_info.info_dict[doc_id] = info
             doc_id = DocId(doc_id + 1)
+        for compil_info in pages_per_document.values():
+            if len(compil_info.doc_ids) > len(all_compilation_info.doc_ids):
+                all_compilation_info = compil_info
 
-    assert len(all_compilation_info) == target
+    assert len(all_compilation_info) == target, len(all_compilation_info)
     filenames = all_compilation_info.pdf_paths
 
     # Join different versions in a single pdf, and compress if asked to do so.

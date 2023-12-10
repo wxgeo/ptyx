@@ -196,8 +196,13 @@ def test_EVAL_abs():
     assert parse(r"$#{abs(-5)}$") == r"$5$"
 
 
-def test_EVAL_underscore_in_variable_name():
+def test_EVAL_variable_name():
+    # Underscore in variable name
     assert parse("#{this_is_a_strange_name_1=3}:#this_is_a_strange_name_1") == "3:3"
+    assert parse("#_a") == "_a"
+    assert parse("#a_") == "a_{}"
+    # A variable name can't start with a digit
+    assert parse("#5_a") == "#5_a"
 
 
 def test_EVAL_rounding():
