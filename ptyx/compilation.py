@@ -84,6 +84,13 @@ class MultipleFilesCompilationInfo:
     def __len__(self):
         return len(self.info_dict)
 
+    def __getitem__(self, item: DocId | slice):
+        if isinstance(item, slice):
+            info_dict = {key: self.info_dict[key] for key in list(self.info_dict)[item]}
+            return MultipleFilesCompilationInfo(basename=self.basename, info_dict=info_dict)
+        else:
+            return self.info_dict[item]
+
 
 class _LoggedStream(object):
     """Add logging to a data stream, like stdout or stderr.
@@ -291,7 +298,7 @@ def make_files(
                     # Pages number is set manually, and don't match.
                     print(f"Warning: skipping {info.src} (incorrect page number) !")
                     continue
-                elif options.same_number_of_pages:
+                elif options.same_number_of_pages or options.same_number_of_pages_compact:
                     # Determine automatically the best fixed page count.
                     # This is a bit subtle. We want all compiled documents to have
                     # the same pages number, yet we don't want to set it manually.
@@ -310,9 +317,29 @@ def make_files(
 
             all_compilation_info.info_dict[doc_id] = info
             doc_id = DocId(doc_id + 1)
-        for compil_info in pages_per_document.values():
-            if len(compil_info.doc_ids) > len(all_compilation_info.doc_ids):
-                all_compilation_info = compil_info
+        if options.same_number_of_pages_compact:
+            # In compact mode, we try to minimize the number of pages of the generated documents.
+            # To not increase too drastically the time of compilation, we adopt the following heuristic:
+            # we'll use the shorter documents, if their frequency exceed 25% of the total documents.
+            total = sum(len(compil_info.doc_ids) for compil_info in pages_per_document.values())
+            for page_count in sorted(pages_per_document):
+                if len(pages_per_document[page_count].doc_ids) > total / 4:
+                    all_compilation_info = pages_per_document[page_count]
+                    break
+            else:
+                # Exceptionally, if the length of each document is highly variable, each page count value
+                # may occur less than 25%. Then, we'll select the most frequent page count.
+                for compil_info in pages_per_document.values():
+                    if len(compil_info.doc_ids) > len(all_compilation_info.doc_ids):
+                        all_compilation_info = compil_info
+
+            if len(all_compilation_info) > target:
+                all_compilation_info = all_compilation_info[:target]
+
+        elif options.same_number_of_pages:
+            for compil_info in pages_per_document.values():
+                if len(compil_info.doc_ids) > len(all_compilation_info.doc_ids):
+                    all_compilation_info = compil_info
 
     assert len(all_compilation_info) == target, len(all_compilation_info)
     filenames = all_compilation_info.pdf_paths

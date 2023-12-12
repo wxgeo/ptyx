@@ -18,6 +18,7 @@ class CompilationOptions:
     reorder_pages: Literal["brochure", "brochure-reversed", ""] = ""
     set_number_of_pages: int = 0
     same_number_of_pages: bool = False
+    same_number_of_pages_compact: bool = False
     no_correction: bool = False
     no_pdf: bool = False
     view: bool = False

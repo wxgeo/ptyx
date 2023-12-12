@@ -146,6 +146,20 @@ class PtyxArgumentParser(argparse.ArgumentParser):
                 " number of documents is always respected, contrary to `--set-number-of-pages` option."
             ),
         )
+        group2.add_argument(
+            "-sc",
+            "--same-number-of-pages-compact",
+            action="store_true",
+            help=(
+                "Ensure that all documents have the same number of pages."
+                " Since the number of pages is automatically set, the requested"
+                " number of documents is always respected, contrary to `--set-number-of-pages` option."
+                " Try to minimize the number of pages per document."
+                " Note that this may increase significantly compilation time,"
+                " compared to `--same-number-of-pages` option"
+                " (the compilation may be up to 2 times slower)."
+            ),
+        )
         self.add_argument(
             "-nc",
             "--no-correction",
