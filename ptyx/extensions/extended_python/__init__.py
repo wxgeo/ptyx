@@ -28,7 +28,6 @@ from re import sub, DOTALL
 
 
 PYTHON_DELIMITER = "\n[ \t]*\\.{4,}[ \t]*\n"
-PYTHON_AREA = f"{PYTHON_DELIMITER}(?P<content>.*?){PYTHON_DELIMITER}"
 
 
 def parse_extended_python_code(code):
@@ -112,7 +111,7 @@ def main(text, compiler):
     # Python code
     # ............
     return sub(
-        PYTHON_AREA,
+        f"{PYTHON_DELIMITER}(?P<content>.*?){PYTHON_DELIMITER}",
         parse,
         text,
         flags=DOTALL,

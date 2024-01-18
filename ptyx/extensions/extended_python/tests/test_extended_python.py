@@ -2,7 +2,7 @@
 EXTENDED PYTHON
 
 """
-
+import re
 
 from ptyx.extensions.extended_python import main
 
@@ -71,3 +71,13 @@ f()
 Some text too.
 """
     assert main(text, None) == text2
+
+
+def test_change_delimiter():
+    import ptyx.extensions.extended_python as ext
+
+    assert isinstance(ext.PYTHON_DELIMITER, str)
+    ext.PYTHON_DELIMITER = re.escape("\n***\n")
+    code = "\n***\nprint('hello')\n***\n***"
+    code2 = code.replace("***", "#PYTHON", 1).replace("***", "#END_PYTHON", 1)
+    assert ext.main(code, None) == code2
