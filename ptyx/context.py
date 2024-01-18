@@ -83,6 +83,7 @@ for fname in (
     "srandfloat",
     "randchoice",
     "srandchoice",
+    "randsample",
     "randmatrix",
     "randpop",
     "shuffle",

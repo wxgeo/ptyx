@@ -2,7 +2,7 @@ import random
 import functools
 from collections import namedtuple
 from math import gcd
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Sequence, TypeVar
 
 from numpy import array
 from ptyx.sys_info import SYMPY_AVAILABLE
@@ -29,6 +29,7 @@ else:
 
 _RANDOM_STATE = random.getstate()
 _SANDBOXED_MODE = False
+_T = TypeVar("_T")
 
 
 class Point(namedtuple("Point", ["x", "y"])):
@@ -258,6 +259,14 @@ def randchoice(items, *others, **kw):
     if isinstance(val, (int, float, complex)):
         val = S(val)
     return val
+
+
+@sandboxed
+def randsample(items: Sequence[_T], k: int) -> list[_T]:
+    """Return a random list of k unique elements from `items`.
+
+    Raise `ValueError` if `items` does not contain enough elements."""
+    return random.sample(items, k)
 
 
 @sandboxed
