@@ -168,7 +168,7 @@ class SyntaxTreeGenerator:
         "PRINT": (0, 1, None),
         "PRINT_EVAL": (0, 1, None),
         "PTYX_VERSION": (0, 1, None),
-        "PYTHON": (0, 0, ["@END", "@END_PYTHON"]),
+        "PYTHON": (0, 0, ["@END_PYTHON"]),
         "QUESTION": (0, 1, None),
         # ROOT isn't a real tag, and is never closed.
         "ROOT": (0, 0, []),
@@ -387,18 +387,22 @@ class SyntaxTreeGenerator:
             # Special case : don't pre-parse #PYTHON ... #END content.
             # ----------------------------------------------------
             if tag == "PYTHON":
-                end = text.index("#END", position)
+                end = text.find("#END_PYTHON", position)
+                if end == -1:
+                    raise SyntaxError("#PYTHON tag must be close with a #END_PYTHON tag.")
                 # Create and enter new node.
                 node = node.add_child(Node(tag))
                 # Some specific parsing is done however:
                 # a line starting with `%` will be interpreted as a comment.
                 # This makes the code a bit more readable, since `%` is already used
                 # for comments in LateX code.
+                # TODO: this was useful when editing pTyX code in a LaTeX editor.
+                #       Is this still the case, now that there exist a custom pTyX editor?
                 _text = text[position:end]
                 _text = re.sub(r"^\s*%", "#", _text, flags=re.MULTILINE)
                 node.add_child(_text)
                 node = node.parent
-                position = end + 4
+                position = end + 11  # the length of the string "#END_PYTHON"
 
             # General case
             # ------------

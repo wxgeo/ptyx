@@ -135,7 +135,7 @@ def test_MUL():
     code = r"""
 #PYTHON
 a, b, c, d = -8, 4, 5, 8
-#END
+#END_PYTHON
 $\dfrac{#a#*(#{c*x+d})#-#{a*x+b}#*#c}{(#{c*x+d})^2}$"""
     result = r"""
 $\dfrac{-8\times (5 x + 8)-\left(- 8 x + 4\right)\times 5}{(5 x + 8)^2}$"""
@@ -150,7 +150,7 @@ def test_SUB_ADD_expr():
     code = r"""
 #PYTHON
 a, b, c, d = 6, 6, 5, -4
-#END
+#END_PYTHON
 $#a#-#{b*x+c}$
 $#a#+#d$"""
     result = r"""
@@ -169,7 +169,7 @@ d = -4
 e = 0
 f = -1
 g = 1
-#END
+#END_PYTHON
 $#a#*#{b*x+c}$
 $#a#*#d$
 $#d#*#a$
@@ -213,7 +213,7 @@ def test_EVAL_rounding():
 def test_ADD():
     code = r"""#PYTHON
 a, b = 2, 3
-#END
+#END_PYTHON
 $#a#+\dfrac{#b}{x}$"""
     assert parse(code) == "\n" r"$2+\dfrac{3}{x}$"
 
@@ -226,7 +226,7 @@ def test_EVAL_mul_flag():
     c = -1
     d = 0
     e = 5
-    #END
+    #END_PYTHON
     $#[*]a x #+ #[*]b #y #+ #[*]c #z #+ #[*]d #t#+#x= 0$"""
     target = "$x+y-z+x=0$"
     c = Compiler()
@@ -237,7 +237,7 @@ def test_EVAL_mul_flag():
     xu = S(0)
     xv = S(-1)
     xw = S(1)
-    #END
+    #END_PYTHON
     #[*]xu #a#+#[*]xv #b#+#[*]xw #c=0"""
     target = "-b+c=0"
     c = Compiler()
@@ -250,7 +250,7 @@ def test_rand_select_pick():
     #SEED{187}
     #PYTHON
     values = [1,2,3,4]
-    #END
+    #END_PYTHON
     #[rand]values is #[select]values?
     """
     assert parse(code).strip() == "3 is 1?"
@@ -302,7 +302,18 @@ def test_PYTHON_tag():
     code = r"""
 #PYTHON
 a = 2 # test for comment support
-#END
+#END_PYTHON
+#a
+"""
+    assert parse(code) == "\n2\n"
+
+
+def test_PYTHON_tag_bug():
+    code = r"""
+#PYTHON
+print("#END")
+a = 2 # test for comment support
+#END_PYTHON
 #a
 """
     assert parse(code) == "\n2\n"

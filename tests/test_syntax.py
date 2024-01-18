@@ -46,7 +46,7 @@ def test_syntax_tree():
 """.strip()
     assert s.syntax_tree.display(color=False) == tree
 
-    text = "#PYTHON#some comment\nvariable = 2\n#END#ASSERT{variable == 2}"
+    text = "#PYTHON#some comment\nvariable = 2\n#END_PYTHON#ASSERT{variable == 2}"
     s.generate_tree(text)
     tree = """
 + Node ROOT
@@ -131,7 +131,7 @@ def test_hashtag_inside_python_block():
     #PYTHON
     s = "#" # This should not be a problem.
     t = "#test" # Neither this.
-    #END
+    #END_PYTHON
     #s #t
     """
     c = Compiler()
@@ -147,7 +147,7 @@ a = 5
 write(r"$\#$ ")
 write("#a ")
 write("#a", parse=True)
-#END
+#END_PYTHON
 """
     latex = c.parse(code=test)
     assert latex == "$\\#$ #a 5\n"
@@ -168,7 +168,7 @@ def test_write_verbatim():
 a = 27
 b = 5
 write("$b_i=#a$", parse=True, verbatim=True)
-#END
+#END_PYTHON
 """
     latex = c.parse(code=test)
     assert latex == "\\texttt{\\$b\\_i=27\\$}\n"

@@ -17,7 +17,7 @@ PTYX_SAMPLE = r"""\documentclass[]{scrartcl}
 #PYTHON
 a = randint(2, 9)
 b = randint(2, 9)
-#END
+#END_PYTHON
 
 Is $x \mapsto #{a*x+b}$ a linear function~?
 

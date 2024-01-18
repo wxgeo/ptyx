@@ -102,7 +102,7 @@ def parse_extended_python_code(code):
 def main(text, compiler):
     def parse(m):
         content = m.group("content")
-        return "\n#PYTHON\n%s\n#END\n" % parse_extended_python_code(content)
+        return "\n#PYTHON\n%s\n#END_PYTHON\n" % parse_extended_python_code(content)
 
     # ............
     # Python code
