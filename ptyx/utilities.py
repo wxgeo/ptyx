@@ -228,12 +228,12 @@ def latex_verbatim(s: str) -> str:
         s = s[1:]
     # Replace \ first !
     s = s.replace("\\", r"\textbackslash<!ø5P3C14Lø?>")
-    s = s.replace("~", r"\textasciitilde<!ø5P3C14Lø?>")
-    s = s.replace("^", r"\textasciicircum<!ø5P3C14Lø?>")
-    s = s.replace("'", r"\textquotesingle<!ø5P3C14Lø?>")
     for char in "#$%&_{}":
         s = s.replace(char, rf"\{char}")
     s = s.replace("<!ø5P3C14Lø?>", "{}")
+    s = s.replace("~", r"\raisebox{0.5ex}{\texttildelow}")
+    s = s.replace("^", r"\textasciicircum{}")
+    s = s.replace("'", r"\textquotesingle{}")
     # Use \phantom{} after \linebreak to preserve spaces at the beginning of the line.
     s = s.replace("\n", "\\linebreak\\phantom{}")
     s = s.replace("\t", 4 * " ")

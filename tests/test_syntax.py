@@ -159,6 +159,11 @@ def test_latex_verbatim():
         r"\texttt{~\textbackslash{}emph\{\$a\textasciicircum{}2~+~~b\_i\$\}\linebreak"
         r"\phantom{}~~~x\textbackslash{}~}"
     )
+    s = latex_verbatim(r"    h2~p::before {content:'\2193';}")
+    assert s == (
+        r"\texttt{~~~~h2\raisebox{0.5ex}{\texttildelow}p::before~"
+        r"\{content:\textquotesingle{}\textbackslash{}2193\textquotesingle{};\}}"
+    )
 
 
 def test_write_verbatim():
