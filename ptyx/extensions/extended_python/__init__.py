@@ -24,7 +24,10 @@ An example:
     ...........................
     """
 
-from re import sub, DOTALL
+from re import sub, DOTALL, compile
+
+
+PYTHON_DELIMITER = compile("\n[ \t]*\\.{4,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\.{4,}[ \t]*\n")
 
 
 def parse_extended_python_code(code):
@@ -108,7 +111,7 @@ def main(text, compiler):
     # Python code
     # ............
     return sub(
-        "\n[ \t]*\\.{4,}[ \t]*\n(?P<content>.*?)\n[ \t]*\\.{4,}[ \t]*\n",
+        PYTHON_DELIMITER,
         parse,
         text,
         flags=DOTALL,
