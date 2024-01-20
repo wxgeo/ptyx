@@ -50,6 +50,7 @@ line-length = 110
 
 [tool.tox]
 legacy_tox_ini = """
+
 [tox]
 skipsdist = true
 isolated_build = True
@@ -59,7 +60,7 @@ envlist = py311
 allowlist_externals = poetry
 commands =
     poetry install -v
-    poetry run ruff ptyx
-    poetry run pytest tests
+    poetry run ruff ptyx tests
     poetry run mypy ptyx tests
+    poetry run pytest tests
 """

@@ -20,7 +20,10 @@ def test_syntax_tree():
 """.strip()
     assert s.syntax_tree.display(color=False) == tree
 
-    text = "#IF{a>0}some text here#ELIF{b>0}some more text#ELSE variable value is #variable not #{variable+1} !#END"
+    text = (
+        "#IF{a>0}some text here#ELIF{b>0}some more text"
+        "#ELSE variable value is #variable not #{variable+1} !#END"
+    )
     s.generate_tree(text)
     tree = """
 + Node ROOT

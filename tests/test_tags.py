@@ -122,7 +122,10 @@ def test_IF_ELIF_ELSE():
 
 
 def test_MACRO(compiler):
-    code = r"#MACRO{a0}#IF{a==0}$a=0$#ELSE$a\neq 0$#END#END_MACRO#{a=0;}Initially #CALL{a0}#{a=2;}, but now #CALL{a0}."
+    code = (
+        r"#MACRO{a0}#IF{a==0}$a=0$#ELSE$a\neq 0$#END#END_MACRO"
+        "#{a=0;}Initially #CALL{a0}#{a=2;}, but now #CALL{a0}."
+    )
     assert parse(code) == r"Initially $a=0$, but now $a\neq 0$."
 
 

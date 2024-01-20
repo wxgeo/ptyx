@@ -17,3 +17,8 @@ build: version
 
 publish: build
 	poetry publish
+	
+fix:
+	poetry run black .
+	poetry run ruff --fix ptyx tests
+
