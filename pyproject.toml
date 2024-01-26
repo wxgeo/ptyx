@@ -62,5 +62,5 @@ commands =
     poetry install -v
     poetry run ruff ptyx tests
     poetry run mypy ptyx tests
-    poetry run pytest tests
+    poetry run pytest tests ptyx/extensions
 """

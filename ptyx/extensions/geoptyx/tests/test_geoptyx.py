@@ -1,21 +1,23 @@
 """
-QUESTIONS
+GEOPTYX
 
-This extension offers a new syntaw to write tests and answers.
+This extension offers support for Geophar library.
 """
-
+import pytest
 
 from ptyx.latex_generator import Compiler
 
 
+@pytest.mark.xfail(reason="ImportError generated, since Geophar is an optional dependency.")
 def test_CALC():
     test = r"$#CALC{\dfrac{2}{3}+1}=#RESULT$ et $#CALC[a]{\dfrac{2}{3}-1}=#a$"
     c = Compiler()
-    latex = c.parse("#LOAD{geophyx}" + test)
+    latex = c.parse(code="#LOAD{geoptyx}" + test)
     print(latex)
     assert latex == r"$\dfrac{2}{3}+1=\frac{5}{3}$ et $\dfrac{2}{3}-1=- \frac{1}{3}$"
 
 
+@pytest.mark.xfail(reason="ImportError generated, since Geophar is an optional dependency.")
 def test_TABVAR():
     test = (
         "$#{a=2;}\\alpha=#{alpha=3},\\beta=#{beta=5}\n\n"
@@ -33,5 +35,5 @@ def test_TABVAR():
 % x;f(x):(-oo;) >> (3;5) << (+oo;)
 % f(x)=2*(x-3)^2+5\n$"""
     c = Compiler()
-    latex = c.parse("#LOAD{geophyx}" + test)
+    latex = c.parse(code="#LOAD{geoptyx}" + test)
     assert latex == result

@@ -26,6 +26,7 @@ An example:
 
 from re import sub, DOTALL
 
+from ptyx.utilities import extract_verbatim_tag_content, restore_verbatim_tag_content
 
 PYTHON_DELIMITER = "\n[ \t]*\\.{4,}[ \t]*\n"
 
@@ -102,7 +103,9 @@ def parse_extended_python_code(code):
     return "\n".join(python_code)
 
 
-def main(text, compiler):
+def main(code, compiler):
+    code, verbatim_contents = extract_verbatim_tag_content(code)
+
     def parse(m):
         content = m.group("content")
         return "\n#PYTHON\n%s\n#END_PYTHON\n" % parse_extended_python_code(content)
@@ -110,9 +113,11 @@ def main(text, compiler):
     # ............
     # Python code
     # ............
-    return sub(
+    code = sub(
         f"{PYTHON_DELIMITER}(?P<content>.*?){PYTHON_DELIMITER}",
         parse,
-        text,
+        code,
         flags=DOTALL,
     )
+    code = restore_verbatim_tag_content(code, verbatim_contents)
+    return code

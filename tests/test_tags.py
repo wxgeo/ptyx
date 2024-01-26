@@ -290,6 +290,7 @@ Last, $a=7$ still."""
 
 
 def test_VERBATIM_tag():
+    # VERBATIM test 1 (python code)
     code = r"""
 #VERBATIM
 def pi2():
@@ -298,6 +299,19 @@ def pi2():
 """
     assert parse(code) == (
         r'\texttt{def~pi2():\linebreak\phantom{}~~~~return~"\$\textbackslash{}pi\textasciicircum{}2\$"}' "\n"
+    )
+
+    # VERBATIM test 2 (css)
+    code = r"""What is the purpose of 
+
+#VERBATIM
+* {
+  padding: 0;
+}
+#END"""
+    assert (
+        parse(code) == "What is the purpose of \n"
+        r"\texttt{*~\{\linebreak\phantom{}~~padding:~0;\linebreak\phantom{}\}}"
     )
 
 

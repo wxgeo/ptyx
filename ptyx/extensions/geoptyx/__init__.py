@@ -5,7 +5,7 @@ Geophar binding for pTyX.
 
 This extension enables to use geophar drawing inside pTyX files.
 
-To load it, use `#LOAD{geophyx}`.
+To load it, use `#LOAD{geoptyx}`.
 
 It adds the following commands to pTyX:
 

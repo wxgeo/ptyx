@@ -1,7 +1,12 @@
 import pytest
 
 from ptyx.printers import sympy2latex
-from ptyx.utilities import find_closing_bracket, round_away_from_zero
+from ptyx.utilities import (
+    find_closing_bracket,
+    round_away_from_zero,
+    extract_verbatim_tag_content,
+    restore_verbatim_tag_content,
+)
 
 
 def test_find_closing_bracket():
@@ -54,3 +59,13 @@ def test_sympy2latex():
     assert sympy2latex(-0.0) == "0"
     # Issue with sympy 1.7+
     assert sympy2latex("hello") == "hello"
+
+
+def test_extract_verbatim_tag_content():
+    code = (
+        "hello\n#VERBATIM\ndef f(x):\n  return x+1\n#END\nguten Tag\n#VERBATIM\na = 5\n#END_VERBATIM\nbonjour"
+    )
+    new_code, substitutions = extract_verbatim_tag_content(code)
+    assert substitutions == ["#VERBATIM\ndef f(x):\n  return x+1\n#END", "#VERBATIM\na = 5\n#END_VERBATIM"]
+    assert new_code == "hello\n#VERBATIM\n#END\nguten Tag\n#VERBATIM\n#END\nbonjour"
+    assert restore_verbatim_tag_content(new_code, substitutions) == code

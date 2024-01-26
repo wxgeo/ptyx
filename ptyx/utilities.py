@@ -3,6 +3,9 @@ from math import ceil, floor, isnan, isinf
 from typing import Sequence, Any
 
 
+RE_VERBATIM_BLOCK = r"#VERBATIM\W.*?#END(?:_VERBATIM)?"
+
+
 def round_away_from_zero(val, ndigits=0) -> float:
     """Round using round-away-from-zero strategy for halfway cases.
 
@@ -239,3 +242,26 @@ def latex_verbatim(s: str) -> str:
     s = s.replace("\t", 4 * " ")
     s = s.replace(" ", "~")
     return rf"\texttt{{{s}}}"
+
+
+def extract_verbatim_tag_content(code: str) -> tuple[str, list[str]]:
+    """Return the string with verbatim tag content replaced by `\n`, and a list of verbatim contents.
+
+    In the list of verbatim contents, the #VERBATIM and #END tags are included.
+    """
+    substitutions = []
+
+    def substitute(m: re.Match) -> str:
+        substitutions.append(m.group(0))
+        return "#VERBATIM\n#END"
+
+    return re.sub(RE_VERBATIM_BLOCK, substitute, code, flags=re.DOTALL), substitutions
+
+
+def restore_verbatim_tag_content(code: str, substitutions: list[str]) -> str:
+    """Reverse `extract_verbatim_tag_content()` operation."""
+
+    def substitute(_: re.Match) -> str:
+        return substitutions.pop(0)
+
+    return re.sub(RE_VERBATIM_BLOCK, substitute, code, flags=re.DOTALL)

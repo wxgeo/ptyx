@@ -33,11 +33,11 @@ e, f, g, h, = many(4, randint, a=-9, b=-2)
 a, = many(1, randint, a=3, b=7)
 u, v, = many(2, randint, a=-5, b=-2)
 p, = many(1, randchoice, items=[2,3,5,7,11,13,17,19])
-#END
+#END_PYTHON
 some text
 #PYTHON
 a, b, c, = many(3, srandfrac)
-#END
+#END_PYTHON
 
 """
     assert main(text, None) == text2
@@ -67,7 +67,7 @@ def f():
         if c > d:
             break
 f()
-#END
+#END_PYTHON
 Some text too.
 """
     assert main(text, None) == text2
@@ -81,3 +81,18 @@ def test_change_delimiter():
     code = "\n***\nprint('hello')\n***\n***"
     code2 = code.replace("***", "#PYTHON", 1).replace("***", "#END_PYTHON", 1)
     assert ext.main(code, None) == code2
+
+
+def test_preserve_verbatim():
+    text = r"""Complete python code:
+#VERBATIM
+def factorial(n):
+    if n == 0:
+        ............
+    else:
+        ............
+#END
+
+Hint: (n+1)!=(n+1)*n!.
+"""
+    assert main(text, None) == text
