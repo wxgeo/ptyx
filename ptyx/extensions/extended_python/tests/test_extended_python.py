@@ -2,8 +2,8 @@
 EXTENDED PYTHON
 
 """
-import re
 
+import ptyx.extensions.extended_python
 from ptyx.extensions.extended_python import main
 
 
@@ -73,18 +73,17 @@ Some text too.
     assert main(text, None) == text2
 
 
-def test_change_delimiter():
-    import ptyx.extensions.extended_python as ext
+def test_change_delimiter(monkeypatch):
+    assert isinstance(ptyx.extensions.extended_python.PYTHON_DELIMITER, str)
 
-    assert isinstance(ext.PYTHON_DELIMITER, str)
-    ext.PYTHON_DELIMITER = re.escape("\n***\n")
+    monkeypatch.setattr(ptyx.extensions.extended_python, "PYTHON_DELIMITER", r"^\*\*\*$")
     code = "\n***\nprint('hello')\n***\n***"
-    code2 = code.replace("***", "#PYTHON", 1).replace("***", "#END_PYTHON", 1)
-    assert ext.main(code, None) == code2
+    new_code = code.replace("***", "#PYTHON", 1).replace("***", "#END_PYTHON", 1)
+    assert main(code, None) == new_code
 
 
 def test_preserve_verbatim():
-    text = r"""Complete python code:
+    code = r"""Complete python code:
 #VERBATIM
 def factorial(n):
     if n == 0:
@@ -95,4 +94,23 @@ def factorial(n):
 
 Hint: (n+1)!=(n+1)*n!.
 """
-    assert main(text, None) == text
+    assert main(code, None) == code  # code unchanged
+
+
+def test_no_linebreak_before_first_delimiter():
+    code = """...................
+x = 5
+................."""
+    new_code = """#PYTHON
+x = 5
+#END_PYTHON"""
+    assert main(code, None) == new_code
+
+
+def test_missing_linebreak():
+    for code in (
+        "...................x = 5\n.................",
+        "...................\nx = 5.................",
+        "a...................\nx = 5\n.................",
+    ):
+        assert main(code, None) == code  # code unchanged

@@ -24,11 +24,11 @@ An example:
     ...........................
     """
 
-from re import sub, DOTALL
+from re import sub, DOTALL, MULTILINE
 
 from ptyx.utilities import extract_verbatim_tag_content, restore_verbatim_tag_content
 
-PYTHON_DELIMITER = "\n[ \t]*\\.{4,}[ \t]*\n"
+PYTHON_DELIMITER = "^[ \t]*\\.{4,}[ \t]*$"
 
 
 def parse_extended_python_code(code):
@@ -108,7 +108,7 @@ def main(code, compiler):
 
     def parse(m):
         content = m.group("content")
-        return "\n#PYTHON\n%s\n#END_PYTHON\n" % parse_extended_python_code(content)
+        return f"#PYTHON{parse_extended_python_code(content)}#END_PYTHON"
 
     # ............
     # Python code
@@ -117,7 +117,7 @@ def main(code, compiler):
         f"{PYTHON_DELIMITER}(?P<content>.*?){PYTHON_DELIMITER}",
         parse,
         code,
-        flags=DOTALL,
+        flags=DOTALL | MULTILINE,
     )
     code = restore_verbatim_tag_content(code, verbatim_contents)
     return code
