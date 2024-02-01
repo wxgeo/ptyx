@@ -182,6 +182,18 @@ write("$b_i=#a$", parse=True, verbatim=True)
     assert latex == "\\texttt{\\$b\\_i=27\\$}\n"
 
 
+def test_matrix_latex():
+    c = Compiler()
+    # Default matrix environment should be pmatrix.
+    latex = c.parse(code=r"#{Matrix([[1,2],[3,4]])}")
+    assert latex == r"\begin{pmatrix}1 & 2\\3 & 4\end{pmatrix}"
+    latex = c.parse(code=r"#{latex(Matrix([[1,2],[3,4]]))}")
+    assert latex == r"\begin{pmatrix}1 & 2\\3 & 4\end{pmatrix}"
+    # Use matrix instead of pmatrix environment.
+    latex = c.parse(code=r"#{latex(Matrix([[1,2],[3,4]]), mat_str='matrix')}")
+    assert latex == r"\begin{matrix}1 & 2\\3 & 4\end{matrix}"
+
+
 def main():
     for varname, content in globals().items():
         if varname.startswith("test_") and isinstance(content, types.FunctionType):

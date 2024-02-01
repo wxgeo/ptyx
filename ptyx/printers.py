@@ -161,7 +161,7 @@ def custom_latex(expr, **settings):
     return CustomLatexPrinter(settings).doprint(expr)
 
 
-def sympy2latex(expr, flags: EvalFlags = None) -> str:
+def sympy2latex(expr, flags: EvalFlags = None, **sympy_flags) -> str:
     """Convert a sympy expression to LaTeX code."""
     if flags is None:
         flags = EvalFlags()
@@ -179,7 +179,8 @@ def sympy2latex(expr, flags: EvalFlags = None) -> str:
         if latex == "-0":
             latex = "0"
     else:
-        latex = custom_latex(expr, mode="plain")
+        sympy_flags = {"mode": "plain"} | sympy_flags
+        latex = custom_latex(expr, **sympy_flags)
 
     if isinstance(expr, float) or (sympy and isinstance(expr, Basic)):
         # In french, german... a comma is used as floating point.
