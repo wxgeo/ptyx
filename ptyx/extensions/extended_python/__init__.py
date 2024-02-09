@@ -23,12 +23,14 @@ An example:
     let a, b in 2..20 with a > 2*b
     ...........................
     """
-
 from re import sub, DOTALL, MULTILINE
 
 from ptyx.utilities import extract_verbatim_tag_content, restore_verbatim_tag_content
 
 PYTHON_DELIMITER = "^[ \t]*\\.{4,}[ \t]*$"
+
+
+# def _convert_let_directive(m: re.Match) -> str:
 
 
 def parse_extended_python_code(code):
@@ -88,18 +90,28 @@ def parse_extended_python_code(code):
         if not all(name.isidentifier() for name in names):
             raise SyntaxError(f"Line {line!r} not understood.")
 
-        line = "%s, = many(%s, %s)" % (", ".join(names), len(names), ", ".join(args))
+        # Append a final `,` after variables, since one should always do tuple unpacking!
+        joined_names = ", ".join(names) + ","
+        joined_args = ", ".join(args)
+        function_call = f"many({len(names)}, {joined_args})"
         if condition:
-            sublines = [f"{indent}while True:"]
-            indent += 4 * " "
-            sublines.append(indent + line)
-            sublines.append(f"{indent}if {condition}:")
-            indent += 4 * " "
-            sublines.append(f"{indent}break")
-            python_code[line_number] = "\n".join(sublines)
-
+            # Loop while condition is false.
+            # It's better to do it in one line, to not change line numbering when debugging.
+            # Ideally, we should do this:
+            #  line = f"while ((({joined_names}) := {function_call} or True) and not ({condition})): pass"
+            # However, tuple unpacking is not allowed in walrus operator for now:
+            # https://github.com/python/cpython/issues/87309
+            # So, we'll have to create a temporary variable:
+            # let's call it `_tmp_ptyx_var` to avoid name collisions.
+            # Then, we will affect all its values to each variable.
+            affectation = f"_tmp_ptyx_var := {function_call}, "
+            affectation += ", ".join(f"{name} := _tmp_ptyx_var[{i}]" for i, name in enumerate(names))
+            line = f"while ((({affectation}) or True) and not ({condition})): pass"
         else:
-            python_code[line_number] = indent + line
+            line = f"{joined_names} = {function_call}"
+
+        # Restore indentation eventually.
+        python_code[line_number] = indent + line
     return "\n".join(python_code)
 
 

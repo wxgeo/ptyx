@@ -9,6 +9,7 @@ Created on Sat Oct 23 15:09:44 2021
 import re
 from typing import Tuple, Optional, List, Dict, Union, TypeVar, Iterable, Set, Any
 
+from ptyx.errors import PtyxSyntaxError, PythonExpressionError
 from ptyx.utilities import find_closing_bracket, term_color
 
 Tag = str
@@ -49,14 +50,14 @@ class Node:
     #   return self.children[0]
 
     def arg(self, i: int) -> Any:
-        """Return argument number i content, which may be a Node, or some text (str)."""
+        """Return argument number `i` content, which may be a Node, or some text (str)."""
         child = self.children[i]
         if getattr(child, "name", None) != i:
             raise ValueError(f"Incorrect argument number for node {child!r}.")
         assert isinstance(child, Node), repr(child)
         children_number = len(child.children)
         if children_number > 1:
-            raise ValueError(
+            raise PtyxSyntaxError(
                 f"Don't use pTyX code inside {self.name} argument number {i + 1}.\n"
                 "------------------\n"
                 f"{child.display()}\n"
@@ -67,7 +68,7 @@ class Node:
                 # EVAL isn't a real tag name: if a variable `#myvar` is found
                 # somewhere, it is parsed as an `#EVAL` tag with `myvar` as argument.
                 # So, a lonely `#` is parsed as an `#EVAL` with no argument at all.
-                raise ValueError("Error! There is a lonely '#' somewhere !")
+                raise PtyxSyntaxError("Error! There is a lonely '#' somewhere !")
             print("Warning: %s argument number %s is empty." % (self.name, i + 1))
             return ""
 
@@ -110,6 +111,19 @@ class Node:
         if isinstance(val, int):
             return term_color(str(val), "blue")
         return str(val)
+
+    def eval_arg(self, i: int, context: dict[str, Any]) -> Any:
+        """Raw evaluation of argument number `i` in context.
+
+        This argument must contain valid python code.
+
+        If an exception occurs, a `PythonExpressionError` is raised, with some information.
+        """
+        python_code = self.arg(i)
+        try:
+            return eval(python_code, context)
+        except Exception as e:
+            raise PythonExpressionError(python_code=python_code, ptyx_tag=str(self.name)) from e
 
 
 class SyntaxTreeGenerator:
@@ -389,7 +403,7 @@ class SyntaxTreeGenerator:
             if tag == "PYTHON":
                 end = text.find("#END_PYTHON", position)
                 if end == -1:
-                    raise SyntaxError("#PYTHON tag must be close with a #END_PYTHON tag.")
+                    raise PtyxSyntaxError("#PYTHON tag must be close with a #END_PYTHON tag.")
                 # Create and enter new node.
                 node = node.add_child(Node(tag))
                 # Some specific parsing is done however:
@@ -437,7 +451,11 @@ class SyntaxTreeGenerator:
                 try:
                     code_args_number, raw_args_number, closing_tags = self.tags[node.name]
                 except ValueError:
-                    raise RuntimeError("Tag %s is not correctly defined." % node.name)
+                    raise RuntimeError(
+                        f"Tag {node.name} is not correctly defined."
+                        " This is a problem in pTyX itself, and not in your document."
+                        " Please report it."
+                    )
                 for arg_num in range(code_args_number + raw_args_number):
                     try:
                         # - Tolerate spaces before bracket.
@@ -461,7 +479,7 @@ class SyntaxTreeGenerator:
                                 end += 1
                             new_pos = end
                     except IndexError:
-                        raise RuntimeError("Missing argument for tag %s !" % tag)
+                        raise PtyxSyntaxError("Missing argument for tag %s !" % tag)
                     # Each argument of a command is a node itself.
                     # Nodes corresponding to arguments have no name,
                     # but are numbered instead.

@@ -2,9 +2,16 @@
 EXTENDED PYTHON
 
 """
+import pytest
+from ptyx.latex_generator import Compiler
 
 import ptyx.extensions.extended_python
 from ptyx.extensions.extended_python import main
+
+
+@pytest.fixture
+def compiler():
+    return Compiler()
 
 
 def test_extended_python():
@@ -54,23 +61,32 @@ f()
 ................................
 Some text too.
 """
-    text2 = """
+    affect1 = "(_tmp_ptyx_var := many(2, srandint), a := _tmp_ptyx_var[0], b := _tmp_ptyx_var[1])"
+    affect2 = "(_tmp_ptyx_var := many(2, randint, a=2, b=5), c := _tmp_ptyx_var[0], d := _tmp_ptyx_var[1])"
+    text2 = f"""
 Some text.
 #PYTHON
 def f():
-    while True:
-        a, b, = many(2, srandint)
-        if a*b % 2 == 0:
-            break
-    while True:
-        c, d, = many(2, randint, a=2, b=5)
-        if c > d:
-            break
+    while (({affect1} or True) and not (a*b % 2 == 0)): pass
+    while (({affect2} or True) and not (c > d)): pass
 f()
 #END_PYTHON
 Some text too.
 """
     assert main(text, None) == text2
+
+
+def test_let_with_compilation(compiler):
+    code = """
+#LOAD{extended_python}#SEED{55}
+........
+for i in range(100):
+    let a, b in -10..10 with a < b
+    assert a < b
+........ 
+OK
+"""
+    assert compiler.parse(code=code).strip() == "OK"
 
 
 def test_change_delimiter(monkeypatch):

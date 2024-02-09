@@ -1,11 +1,13 @@
 import pytest
 
 from ptyx.printers import sympy2latex
+from ptyx.randfunc import randchoice, srandchoice, randfrac
 from ptyx.utilities import (
     find_closing_bracket,
     round_away_from_zero,
     extract_verbatim_tag_content,
     restore_verbatim_tag_content,
+    latex_verbatim,
 )
 
 
@@ -69,3 +71,29 @@ def test_extract_verbatim_tag_content():
     assert substitutions == ["#VERBATIM\ndef f(x):\n  return x+1\n#END", "#VERBATIM\na = 5\n#END_VERBATIM"]
     assert new_code == "hello\n#VERBATIM\n#END\nguten Tag\n#VERBATIM\n#END\nbonjour"
     assert restore_verbatim_tag_content(new_code, substitutions) == code
+
+
+def test_latex_verbatim():
+    s = latex_verbatim(r" \emph{$a^2 +  b_i$}" "\n" r"   x\ ")
+    assert s == (
+        r"\texttt{~\textbackslash{}emph\{\$a\textasciicircum{}2~+~~b\_i\$\}\linebreak"
+        r"\phantom{}~~~x\textbackslash{}~}"
+    )
+    s = latex_verbatim(r"    h2~p::before {content:'\2193';}")
+    assert s == (
+        r"\texttt{~~~~h2\raisebox{0.5ex}{\texttildelow}p::before~"
+        r"\{content:\textquotesingle{}\textbackslash{}2193\textquotesingle{};\}}"
+    )
+
+
+def test_randchoice():
+    for i in range(1000):
+        assert randchoice(0, 1, exclude=[0]) == 1
+        assert srandchoice(0, 1, exclude=[0, 1]) == -1
+        assert randchoice([0, 1, 2], exclude=[0]) in [1, 2]
+        assert srandchoice([0, 1, 2], exclude=[0, 1]) in [-1, -2, 2]
+
+
+def test_randfrac():
+    for i in range(1000):
+        assert randfrac(2, 7, den=6).q == 6

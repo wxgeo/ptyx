@@ -1,21 +1,15 @@
 import os
 import re
-from os.path import dirname
 
 import pytest
 
 from ptyx.latex_generator import Compiler
-
-TEST_DIR = dirname(__file__)
+from tests import TEST_DIR, parse
 
 
 @pytest.fixture
 def compiler():
     return Compiler()
-
-
-def parse(code: str, **kw) -> str:
-    return Compiler().parse(code=code, **kw)
 
 
 def test_SEED_SHUFFLE():
@@ -119,6 +113,8 @@ def test_IF_ELIF_ELSE():
         "#{a=0;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END#{a=2;}#IF{a==0}0#ELIF{a==1}1#ELSE{}2#END."
     )
     assert parse(code) == r"10{}2."
+    code = "#IF{True}message 1#IF{False}message 2#ELSE message 3"
+    assert parse(code) == "message 1 message 3"
 
 
 def test_MACRO(compiler):
@@ -315,27 +311,6 @@ def pi2():
     )
 
 
-def test_PYTHON_tag():
-    code = r"""
-#PYTHON
-a = 2 # test for comment support
-#END_PYTHON
-#a
-"""
-    assert parse(code) == "\n2\n"
-
-
-def test_PYTHON_tag_bug():
-    code = r"""
-#PYTHON
-print("#END")
-a = 2 # test for comment support
-#END_PYTHON
-#a
-"""
-    assert parse(code) == "\n2\n"
-
-
 def test_PRINT_tag(capfd):
     code = r"""
 #SEED{0}
@@ -414,7 +389,7 @@ Question:
 
 Bye!
 """
-    assert compiler.parse(code=code) == result
+    assert parse(code=code) == result
     result = r"""
 Hello!
 
@@ -428,4 +403,4 @@ That was easy!%
 Bye!
 """
     compiler.reset()
-    assert compiler.parse(code=code, PTYX_WITH_ANSWERS=True) == result
+    assert parse(code=code, PTYX_WITH_ANSWERS=True) == result

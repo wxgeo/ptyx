@@ -8,6 +8,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List, TypedDict, Any
 
+from ptyx.errors import PtyxRuntimeError, PythonBlockError, PythonExpressionError, PtyxExtensionNotFound
 from ptyx.extensions import CompilerExtension
 
 import ptyx.randfunc as randfunc
@@ -338,7 +339,7 @@ class LatexGenerator:
             self._parse_children(node.children[0].children)
 
     def _parse_IF_tag(self, node: Node):
-        test = eval(node.arg(0), self.context)
+        test = node.eval_arg(0, self.context)
         if test:
             self._parse_children(node.children[1:])
         return test
@@ -358,12 +359,12 @@ class LatexGenerator:
         self._parse_children(node.children)
 
     def _parse_IFNUM_tag(self, node: Node):
-        if eval(node.arg(0), self.context) == self.NUM:
+        if node.eval_arg(0, self.context) == self.NUM:
             assert isinstance(node.children[1], Node), repr(node)
             self._parse_children(node.children[1].children)
 
     def _parse_CASE_tag(self, node: Node):
-        test = eval(node.arg(0), self.context) == self.NUM
+        test = node.eval_arg(0, self.context) == self.NUM
         if test:
             self._parse_children(node.children[1:])
         return test
@@ -379,22 +380,6 @@ class LatexGenerator:
         # INCLUDE tag is used to insert code in isolated mode **before** syntax tree is built.
         pass
 
-    @staticmethod
-    def _format_python_code_snippet(python_code) -> List[str]:
-        """Return a list of prettified lines of python code, ready to be printed."""
-        msg = ["", "%s %s Executing following python code:" % (chr(9474), chr(9998))]
-        lines = [""] + python_code.split("\n") + [""]
-        zfill = len(str(len(lines)))
-        msg.extend(
-            "%s %s %s %s" % (chr(9474), str(i).zfill(zfill), chr(9474), line) for i, line in enumerate(lines)
-        )
-        n = max(len(s) for s in msg)
-        msg.insert(1, chr(9581) + n * chr(9472))
-        msg.insert(3, chr(9500) + n * chr(9472))
-        msg.append(chr(9584) + n * chr(9472))
-        assert isinstance(python_code, str)
-        return msg
-
     def _parse_PYTHON_tag(self, node: Node):
         assert len(node.children) == 1
         python_code = node.children[0]
@@ -406,12 +391,11 @@ class LatexGenerator:
         pass
 
     def _parse_ASSERT_tag(self, node: Node):
-        code = node.arg(0)
-        test = eval(code, self.context)
+        test = node.eval_arg(0, self.context)
         if not test:
             print("Error in assertion (NUM=%s):" % self.NUM)
             print("***")
-            print(code)
+            print(node.arg(0))
             print("***")
             assert test
 
@@ -436,14 +420,15 @@ class LatexGenerator:
             elif arg == "rand":
                 self.flags.pick_action = PickItemAction.RAND_CHOICE
             else:
-                raise ValueError(f"Unknown flag {arg!r} in `#[{node.options}]{node.arg(0)}`.")
+                raise PtyxRuntimeError(f"Unknown flag {arg!r} in `#[{node.options}]{node.arg(0)}`.")
         code = node.arg(0)
         assert isinstance(code, str), type(code)
+        tag, code = self._get_python_code_tag(code)
         try:
             txt = self._eval_and_format_python_expr(code)
-        except Exception:
-            print("ERROR: Can't evaluate this: " + repr(code))
-            raise
+        except Exception as e:
+            # print("ERROR: Can't evaluate this: " + repr(code))
+            raise PythonExpressionError(python_code=code, flags=node.options, label=tag) from e
         # Tags must be cleared *before* calling .write(txt), since .write(txt)
         # add '+', '-' and '\times ' before txt if corresponding flags are set,
         # and ._eval_and_format_python_expr() has already do this.
@@ -569,7 +554,7 @@ class LatexGenerator:
                     node.display(),
                     rf"\n{item!r} is not an {target!r} node !",
                 ]
-                raise RuntimeError("\n".join(log))
+                raise PtyxRuntimeError("\n".join(log))
         item = randfunc.randchoice(items)
         self._parse_children(children[:i] + [item], **kw)
         # print('\n------------')
@@ -677,14 +662,30 @@ class LatexGenerator:
 
     @staticmethod
     def _exec(code, context):
-        """exec is encapsulated in this function so as to avoid problems
+        """exec is encapsulated in this function to avoid problems
         with free variables in nested functions."""
         exec(code, context)
+
+    @staticmethod
+    def _get_python_code_tag(code: str) -> tuple[str, str]:
+        tag = ""
+        if code.startswith(":"):
+            if (i := code.find(":", 1)) != -1:
+                tag = code[1:i]
+                code = code[i + 1 :]
+        return tag, code
 
     def _exec_python_code(self, code: str, context: dict):
         code = code.replace("\r", "")
         code = code.rstrip().lstrip("\n")
-        msg = self._format_python_code_snippet(code)
+        # Python code snippets can be tagged by using a prefix of the form `:label:`.
+        # If an error is raised, the label will be added to the CompilationError instance.
+        # This is useful for IDE, to display the faulty piece of code.
+        # The IDE can insert a label in each python code snippet.
+        # The python code will be transparently executed, yet if an error is raised,
+        # the IDE will catch it, read its label to see which code snippet failed,
+        # and eventually get the line number and offset to highlight faulty code.
+        tag, code = self._get_python_code_tag(code)
         # Indentation test
         initial_indent = len(code) - len(code.lstrip(" "))
         if initial_indent:
@@ -693,14 +694,7 @@ class LatexGenerator:
         try:
             self._exec(code, context)
         except Exception as e:  # noqa
-            for tb in traceback.extract_tb(e.__traceback__):
-                if tb.name == "<module>" and isinstance(tb.lineno, int):
-                    i = tb.lineno + 4
-                    msg[i] = f"\u001b[33m{msg[i]}\u001b[0m"
-                    break
-            e.msg = "\n".join(msg)  # type: ignore
-            raise
-
+            raise PythonBlockError(python_code=code, label=tag) from e
         return code
 
     def _eval_python_expr(self, code: str):
@@ -1002,7 +996,7 @@ class Compiler:
                         break
                 else:
                     traceback.print_exc()
-                    raise ImportError(f"Extension {extension_name} not found.")
+                    raise PtyxExtensionNotFound(f"Extension {extension_name} not found.")
             try:
                 # This extension may define a function `extend_compiler()` to customize the compiler.
                 extensions_dict: CompilerExtension = getattr(extensions[extension_name], "extend_compiler")()
@@ -1131,14 +1125,14 @@ class Compiler:
         try:
             gen.parse_node(tree)
         except Exception as e:
-            print("\n*** Error occurred while generating code. ***")
-            print("This is current compiler state for debugging purpose:")
+            print("\n*** Error occurred while generating LaTeX code. ***")
+            print("This was last generated LaTeX code for debugging purpose:")
             print(80 * "-")
             print("... " + "".join(gen.context["PTYX_LATEX"][-10:]))
             print(80 * "-")
             print("")
-            if hasattr(e, "msg"):
-                print(e.msg)
+            if hasattr(e, "pretty_report"):
+                print(e.pretty_report)
             raise
         latex = gen.read()
         # if "API_VERSION" not in gen.context:
@@ -1163,7 +1157,7 @@ class Compiler:
         of the pTyX file located at `path`."""
         self.reset()
         if path is None and code is None:
-            raise ValueError(
+            raise TypeError(
                 "You must provide either the pTyX code or the path to a pTyX file:\n"
                 'compiler.load(code="...") or compiler.load(path="/path/to/file.ptyx")'
             )

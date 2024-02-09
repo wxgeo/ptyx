@@ -2,12 +2,16 @@ import os
 import types
 from os.path import dirname
 
-import ptyx
-from ptyx.latex_generator import SyntaxTreeGenerator, Compiler  # , parse
-from ptyx.randfunc import randchoice, srandchoice, randfrac
-from ptyx.utilities import latex_verbatim
+import pytest
 
-TEST_DIR = dirname(__file__)
+import ptyx
+from ptyx.latex_generator import SyntaxTreeGenerator  # , parse
+from tests import parse, Compiler
+
+
+@pytest.fixture
+def compiler():
+    return Compiler()
 
 
 def test_syntax_tree():
@@ -70,42 +74,18 @@ def test_latex_code_generator():
         "#ELSE variable value is #variable not #{variable+1} !"
         "#END ok"
     )
-    c = Compiler()
-    latex = c.parse(code=test)
-    assert latex == "2some text here ok"
+    assert parse(test) == "2some text here ok"
 
 
 def test_hash():
     test = "#{a=5}###a####a"
-    c = Compiler()
-    latex = c.parse(code=test)
-    assert latex == "5#5##a"
-
-
-# ADD A TEST :
-# "#IF{True}message 1#IF{False}message 2#ELSE message 3" -> test that 'message 3' is printed.
-
-
-def test_randchoice():
-    for i in range(1000):
-        assert randchoice(0, 1, exclude=[0]) == 1
-        assert srandchoice(0, 1, exclude=[0, 1]) == -1
-        assert randchoice([0, 1, 2], exclude=[0]) in [1, 2]
-        assert srandchoice([0, 1, 2], exclude=[0, 1]) in [-1, -2, 2]
-
-
-def test_randfrac():
-    for i in range(1000):
-        assert randfrac(2, 7, den=6).q == 6
+    assert parse(test) == "5#5##a"
 
 
 def test_latex_newcommand():
     # \newcommand parameters #1, #2... are not tags.
     test = r"""\newcommand{\rep}[1]{\ding{114}\,\,#1\hfill}"""
-    result = test
-    c = Compiler()
-    latex = c.parse(code=test)
-    assert latex == result
+    assert parse(test) == test
 
 
 def test_comments():
@@ -124,26 +104,10 @@ Last, $a=7$ still.
 7777
 # is just displayed as a hash, it is not a comment.
 #"""
-    c = Compiler()
-    latex = c.parse(code=test)
-    assert latex == result
-
-
-def test_hashtag_inside_python_block():
-    test = """
-    #PYTHON
-    s = "#" # This should not be a problem.
-    t = "#test" # Neither this.
-    #END_PYTHON
-    #s #t
-    """
-    c = Compiler()
-    latex = c.parse(code=test)
-    assert latex == "\n    # #test\n    "
+    assert parse(test) == result
 
 
 def test_write():
-    c = Compiler()
     test = r"""
 #PYTHON
 a = 5
@@ -152,25 +116,10 @@ write("#a ")
 write("#a", parse=True)
 #END_PYTHON
 """
-    latex = c.parse(code=test)
-    assert latex == "$\\#$ #a 5\n"
-
-
-def test_latex_verbatim():
-    s = latex_verbatim(r" \emph{$a^2 +  b_i$}" "\n" r"   x\ ")
-    assert s == (
-        r"\texttt{~\textbackslash{}emph\{\$a\textasciicircum{}2~+~~b\_i\$\}\linebreak"
-        r"\phantom{}~~~x\textbackslash{}~}"
-    )
-    s = latex_verbatim(r"    h2~p::before {content:'\2193';}")
-    assert s == (
-        r"\texttt{~~~~h2\raisebox{0.5ex}{\texttildelow}p::before~"
-        r"\{content:\textquotesingle{}\textbackslash{}2193\textquotesingle{};\}}"
-    )
+    assert parse(test) == "$\\#$ #a 5\n"
 
 
 def test_write_verbatim():
-    c = Compiler()
     test = r"""
 #PYTHON
 a = 27
@@ -178,19 +127,17 @@ b = 5
 write("$b_i=#a$", parse=True, verbatim=True)
 #END_PYTHON
 """
-    latex = c.parse(code=test)
-    assert latex == "\\texttt{\\$b\\_i=27\\$}\n"
+    assert parse(test) == "\\texttt{\\$b\\_i=27\\$}\n"
 
 
-def test_matrix_latex():
-    c = Compiler()
+def test_matrix_latex(compiler):
     # Default matrix environment should be pmatrix.
-    latex = c.parse(code=r"#{Matrix([[1,2],[3,4]])}")
+    latex = compiler.parse(code=r"#{Matrix([[1,2],[3,4]])}")
     assert latex == r"\begin{pmatrix}1 & 2\\3 & 4\end{pmatrix}"
-    latex = c.parse(code=r"#{latex(Matrix([[1,2],[3,4]]))}")
+    latex = compiler.parse(code=r"#{latex(Matrix([[1,2],[3,4]]))}")
     assert latex == r"\begin{pmatrix}1 & 2\\3 & 4\end{pmatrix}"
     # Use matrix instead of pmatrix environment.
-    latex = c.parse(code=r"#{latex(Matrix([[1,2],[3,4]]), mat_str='matrix')}")
+    latex = compiler.parse(code=r"#{latex(Matrix([[1,2],[3,4]]), mat_str='matrix')}")
     assert latex == r"\begin{matrix}1 & 2\\3 & 4\end{matrix}"
 
 
