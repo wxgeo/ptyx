@@ -205,7 +205,7 @@ class SyntaxTreeGenerator:
     # (Should this be a syntax feature ?
     # It sounds nice, but how should we deal with the `@` then ?).
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Add ability to update the set of closing tags for instances of
         # SyntaxTreeGenerator.
         # It is used by extensions to define new closing tags,
@@ -213,18 +213,18 @@ class SyntaxTreeGenerator:
         self._found_tags: Set[Tag] = set()
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         """Full reset."""
         self.tags = dict(self.tags)
         self.update_tags()
-        self.syntax_tree = None
+        self.syntax_tree: Node | None = None
 
     @staticmethod
-    def only_closing(tag):
+    def only_closing(tag: str) -> bool:
         """Return `True` if tag is only a closing tag, `False` else."""
         return tag == "END" or tag.startswith("END_")
 
-    def update_tags(self):
+    def update_tags(self) -> None:
         """Automatically add closing tags, then generate sorted list."""
         missing = set()
         for name, syntax in self.tags.items():
@@ -250,7 +250,7 @@ class SyntaxTreeGenerator:
         text = re.sub("( # .+)|(^# .+\n)", "", text, flags=re.MULTILINE)
         return text
 
-    def generate_tree(self, text):
+    def generate_tree(self, text: str) -> Node:
         """Pre-parse pTyX code and generate a syntax tree.
 
         :param text: some pTyX code.
@@ -264,7 +264,7 @@ class SyntaxTreeGenerator:
         # Remove all comments from text.
         text = self.remove_comments(text)
         self._generate_tree(self.syntax_tree, text)
-        self.syntax_tree.tags = self._found_tags
+        self.syntax_tree.tags = self._found_tags  # type: ignore
         return self.syntax_tree
 
     def _generate_tree(self, node, text):

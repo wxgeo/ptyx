@@ -200,7 +200,7 @@ class LatexGenerator:
         children: Iterable[Union[str, Node]],
         function: Optional[Union[Callable, Iterable[Callable]]] = None,
         **options,
-    ):
+    ) -> None:
         """Parse all children nodes.
 
         Resulting LaTeX code will be appended to `self.context['PTYX_LATEX']`.
@@ -503,7 +503,7 @@ class LatexGenerator:
         # Finally, we flatten `groups` list to obtain the following:
         # ['QUESTION', 'OTHER', 'ANOTHER', 'QUESTION', 'OTHER']
         # 1. Generate groups
-        groups = []
+        groups: list[list[Node | str]] = []
         for item in items:
             if isinstance(item, Node) and item.name == target:
                 groups.append([item])
@@ -524,10 +524,10 @@ class LatexGenerator:
         # print('state hash is %s' % hash(random.getstate()))
         # print('------------\n')
 
-    def _parse_SHUFFLE_tag(self, node: Node):
+    def _parse_SHUFFLE_tag(self, node: Node) -> None:
         self._shuffle_and_parse_children(node)
 
-    def _parse_ITEM_tag(self, node: Node):
+    def _parse_ITEM_tag(self, node: Node) -> None:
         self._parse_children(node.children)
 
     def _parse_SEED_tag(self, node: Node):
@@ -1139,7 +1139,7 @@ class Compiler:
         #     print("Warning: no API version specified. This may be an old pTyX file.")
         return latex
 
-    def add_new_tags(self, *tags: Tuple[str, Tuple]) -> None:
+    def add_new_tags(self, *tags: tuple[str, tuple[int, int, list[str] | None]]) -> None:
         """Add ability for extensions to extend syntax, adding new tags."""
         for name, syntax in tags:
             self.syntax_tree_generator.tags[name] = syntax
@@ -1201,8 +1201,3 @@ class Compiler:
     @property
     def loaded_extensions(self) -> List[str]:
         return list(self._state["loaded_extensions"].keys())
-
-
-# compiler = Compiler()
-#
-# parse = compiler.parse
