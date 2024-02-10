@@ -1,6 +1,6 @@
 import pytest
 
-from ptyx.errors import PythonBlockError, PythonExpressionError, PtyxSyntaxError
+from ptyx.errors import PythonBlockError, PythonExpressionError, PtyxSyntaxError, ErrorInformation
 from tests import parse
 
 
@@ -55,3 +55,27 @@ def test_invalid_syntax():
     error = exc_info.value
     assert isinstance(error.__cause__, TypeError)
     assert error.python_code == ""
+
+
+def test_PythonBlockError():
+    # Test that accurate error information is gathered.
+    # 1. Test a syntax error.
+    with pytest.raises(PythonBlockError) as exc_info:
+        code = "\na = 5\nb = ?\nc = 3\n"
+        try:
+            exec(code)
+        except Exception as e:
+            raise PythonBlockError(python_code=code) from e
+    assert exc_info.value.info == ErrorInformation("invalid syntax", 3, 3, 5, 6)
+
+    # 2. Test a runtime error.
+    with pytest.raises(PythonBlockError) as exc_info:
+        code = "\na = 5\nb = 1/0\nc = 3\n"
+        try:
+            exec(code)
+        except Exception as e:
+            raise PythonBlockError(python_code=code) from e
+    assert exc_info.value.info == ErrorInformation("division by zero", 3, 3, 4, 7)
+
+    # The faulty line must be colored in yellow in the report:
+    assert exc_info.value.pretty_report.split("\n")[6] == "\x1b[33m│ 3 │ b = 1/0\x1b[0m"

@@ -23,7 +23,10 @@ An example:
     let a, b in 2..20 with a > 2*b
     ...........................
     """
-from re import sub, DOTALL, MULTILINE
+from re import sub, DOTALL, MULTILINE, Match
+from typing import Protocol
+
+from ptyx.latex_generator import Compiler
 
 from ptyx.utilities import extract_verbatim_tag_content, restore_verbatim_tag_content
 
@@ -115,21 +118,40 @@ def parse_extended_python_code(code):
     return "\n".join(python_code)
 
 
-def main(code, compiler):
+class PythonBlockParser(Protocol):
+    def __call__(self, *, start: str, end: str, content: str) -> str:
+        ...
+
+
+def parse_code_block(code: str, parser: PythonBlockParser) -> str:
+    """Parse a python code block, delimited by `.....` lines by default.
+
+    Function `parser` must define 3 keyword-only arguments, `start`, `end`
+    and `content`, corresponding to the block start and end delimiters,
+    and to the block content itself.
+    """
+
+    def parse(m: Match) -> str:
+        return parser(start=m.group("start"), end=m.group("end"), content=m.group("content"))
+
+    return sub(
+        f"(?P<start>{PYTHON_DELIMITER})(?P<content>.*?)(?P<end>{PYTHON_DELIMITER})",
+        parse,
+        code,
+        flags=DOTALL | MULTILINE,
+    )
+
+
+def main(code: str, compiler: Compiler = None) -> str:
     code, verbatim_contents = extract_verbatim_tag_content(code)
 
-    def parse(m):
-        content = m.group("content")
+    def parse(*, start: str, end: str, content: str) -> str:
         return f"#PYTHON{parse_extended_python_code(content)}#END_PYTHON"
 
     # ............
     # Python code
     # ............
-    code = sub(
-        f"{PYTHON_DELIMITER}(?P<content>.*?){PYTHON_DELIMITER}",
-        parse,
-        code,
-        flags=DOTALL | MULTILINE,
-    )
+    # noinspection PyTypeChecker
+    code = parse_code_block(code, parser=parse)
     code = restore_verbatim_tag_content(code, verbatim_contents)
     return code

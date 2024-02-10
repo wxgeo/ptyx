@@ -1,6 +1,7 @@
+from dataclasses import dataclass
 import traceback
 
-from ptyx.shell import yellow
+from ptyx.shell import yellow, red
 
 
 class PtyxDocumentCompilationError(RuntimeError):
@@ -68,6 +69,21 @@ class PythonExpressionError(PythonCodeError):
         return msg
 
 
+@dataclass
+class ErrorInformation:
+    """Standardized information about errors.
+
+    This is motivated by the lack of a common interface between syntax errors
+    and runtime errors in python.
+    """
+
+    message: str
+    row: int | None
+    end_row: int | None
+    col: int | None
+    end_col: int | None
+
+
 class PythonBlockError(PythonCodeError):
     """Error raised when something wrong occurred during the execution of an embedded block of python code.
 
@@ -80,23 +96,29 @@ class PythonBlockError(PythonCodeError):
     """
 
     @property
+    def info(self) -> ErrorInformation:
+        error = self.__cause__
+        if isinstance(error, SyntaxError) and error.filename == "<string>":
+            return ErrorInformation(error.msg, error.lineno, error.end_lineno, error.offset, error.end_offset)
+        elif error is not None:
+            for tb in traceback.extract_tb(error.__traceback__):
+                if tb.name in ("<module>", "<string>") and isinstance(tb.lineno, int):
+                    return ErrorInformation(str(error), tb.lineno, tb.end_lineno, tb.colno, tb.end_colno)
+        return ErrorInformation("", None, None, None, None)
+
+    @property
     def pretty_report(self) -> str:
         if self.python_code is None:
             return "<No python code found>"
         msg = format_python_code_snippet(self.python_code)
-        e = self.__cause__
-        if isinstance(e, SyntaxError) and e.filename == "<string>":
-            assert e.lineno is not None
-            i = e.lineno + 4
-            msg[i] = yellow(msg[i])
-            msg.append(f"\n{yellow(e.msg)}")
-        else:
-            assert e is not None
-            for tb in traceback.extract_tb(e.__traceback__):
-                if tb.name in ("<module>", "<string>") and isinstance(tb.lineno, int):
-                    i = tb.lineno + 4
-                    msg[i] = yellow(msg[i])
-                    break
+        error_info = self.info
+        i = error_info.row
+        assert i is not None
+        i += 3  # 3 lines for the header of the box.
+        # Color in yellow the faulty line.
+        msg[i] = yellow(msg[i])
+        # Append the error message after the information box.
+        msg.append(f"\n{red('[ERROR] ')}{yellow(error_info.message.capitalize() + '.')}")
         return "\n".join(msg)
 
 
@@ -106,7 +128,8 @@ def format_python_code_snippet(python_code: str) -> list[str]:
     lines = [""] + python_code.split("\n") + [""]
     zfill = len(str(len(lines)))
     msg.extend(
-        "%s %s %s %s" % (chr(9474), str(i).zfill(zfill), chr(9474), line) for i, line in enumerate(lines)
+        "%s %s %s %s" % (chr(9474), str(i).zfill(zfill), chr(9474), line)
+        for i, line in enumerate(lines[1:], start=1)
     )
     n = max(len(s) for s in msg)
     msg.insert(1, chr(9581) + n * chr(9472))

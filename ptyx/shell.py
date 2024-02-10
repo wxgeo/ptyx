@@ -29,6 +29,11 @@ def yellow(to_print: Any) -> str:
     return f"{ANSI_YELLOW}{to_print}{ANSI_RESET}"
 
 
+def red(to_print: Any) -> str:
+    """Convert `to_print` as string and put it in red in shell."""
+    return f"{ANSI_RED}{to_print}{ANSI_RESET}"
+
+
 def custom_print(msg: str, color: str, label: str, bold=False, **kw) -> None:
     n = shell_colors[color]
     print(f"\33[3{n}m[\33[9{n}{';1' if bold else ''}m{label}\33[0m\33[3{n}m]\33[0m " + msg, **kw)
