@@ -12,6 +12,7 @@ from typing import Optional, Iterable, Sequence, NewType
 
 import fitz
 
+from ptyx.shell import print_error
 from ptyx.sys_info import CPU_PHYSICAL_CORES
 from ptyx.compilation_options import DEFAULT_OPTIONS, CompilationOptions
 from ptyx.config import param
@@ -26,11 +27,11 @@ DocId = NewType("DocId", int)
 PageCount = NewType("PageCount", int)
 
 
-def append_suffix(path: Path, suffix) -> Path:
-    """>>> append_suffix(Path("/home/user/file"), "-corr")
-    Path("/home/user/file-corr")
-    """
-    return path.with_name(path.name + suffix)
+# def append_suffix(path: Path, suffix) -> Path:
+#     """>>> append_suffix(Path("/home/user/file"), "-corr")
+#     Path("/home/user/file-corr")
+#     """
+#     return path.with_name(path.name + suffix)
 
 
 @dataclass
@@ -58,7 +59,8 @@ class SingleFileCompilationInfo:
 class MultipleFilesCompilationInfo:
     """Class returned when compiling a LaTeX file to PDF."""
 
-    basename: Path
+    compilation_dir: Path
+    basename: str
     info_dict: dict[DocId, SingleFileCompilationInfo] = field(default_factory=dict)
 
     @property
@@ -79,7 +81,7 @@ class MultipleFilesCompilationInfo:
 
     @property
     def directory(self) -> Path:
-        return self.basename.parent
+        return self.compilation_dir
 
     def __len__(self):
         return len(self.info_dict)
@@ -87,7 +89,9 @@ class MultipleFilesCompilationInfo:
     def __getitem__(self, item: DocId | slice):
         if isinstance(item, slice):
             info_dict = {key: self.info_dict[key] for key in list(self.info_dict)[item]}
-            return MultipleFilesCompilationInfo(basename=self.basename, info_dict=info_dict)
+            return MultipleFilesCompilationInfo(
+                compilation_dir=self.compilation_dir, basename=self.basename, info_dict=info_dict
+            )
         else:
             return self.info_dict[item]
 
@@ -172,6 +176,7 @@ def execute(command: str) -> str:
 
 def make_files(
     ptyx_file: Path,
+    output_basename: str = None,
     number_of_documents: int = None,
     correction: bool = False,
     doc_ids_selection: Iterable[int] = None,
@@ -181,7 +186,10 @@ def make_files(
     """Generate the tex and pdf files.
 
     Arguments:
-    - `input_name`: the path of the .pyx file.
+    - `ptyx_file`: the path of the .ptyx file.
+    - `output_basename`: the basename of the output file.
+       For example, if `output_basename` is "doc", the latex file will be named "doc.tex",
+        and the pdf file "doc.pdf".
     - `correction`: if True, include the solutions of the exercises
     - `number_of_documents`: the number of documents to generate (default: 1)
     - `doc_ids_selection` is used to manually set the documents ids when correction is set to `True`.
@@ -194,6 +202,10 @@ def make_files(
     Return a MultipleFilesCompilationInfo instance, which contains all LaTeX errors
     detected during pdftex compilation.
     """
+
+    if ptyx_file.suffix != ".ptyx":
+        print_error(f"Invalid file extension, should be .ptyx: '{ptyx_file}'.")
+        sys.exit(1)
 
     context = options.context
     context["PTYX_WITH_ANSWERS"] = correction
@@ -223,15 +235,13 @@ def make_files(
     compilation_dir.mkdir(parents=True, exist_ok=True)
 
     # Set output base name
-    output_basename = compilation_dir / ptyx_file.stem
-    if ptyx_file.suffix != ".ptyx":
-        # Avoid potential name conflict between input and output.
-        output_basename = append_suffix(output_basename, "_")
-    if correction:
-        output_basename = append_suffix(output_basename, "-corr")
+    if output_basename is None:
+        output_basename = ptyx_file.stem
+        if correction:
+            output_basename += "-corr"
 
     # Information to collect
-    all_compilation_info = MultipleFilesCompilationInfo(output_basename)
+    all_compilation_info = MultipleFilesCompilationInfo(compilation_dir, output_basename)
     # compilation_info: Dict[int, Path] = {}
     # nums: List[int] = []
     # filenames: List[Path] = []
@@ -259,7 +269,9 @@ def make_files(
                 # Overwrite default numeration, since correction numeration must match first pass.
                 doc_id = DocId(doc_ids_selection.pop(0))
             context.update(PTYX_NUM=doc_id)
-            filename = append_suffix(output_basename, f"-{doc_id}") if target > 1 else output_basename
+            filename = compilation_dir / (
+                f"{output_basename}-{doc_id}.tex" if target > 1 else f"{output_basename}.tex"
+            )
             # 2. Compile to LaTeX.
             print(context)
             latex_files[doc_id] = generate_latex_file(filename, compiler, context)
@@ -312,7 +324,7 @@ def make_files(
                     # to see if it contains enough documents.
                     # (There's no need to have a look on the others dicts, since they haven't changed...)
                     all_compilation_info = pages_per_document.setdefault(
-                        info.page_count, MultipleFilesCompilationInfo(output_basename)
+                        info.page_count, MultipleFilesCompilationInfo(compilation_dir, output_basename)
                     )
 
             all_compilation_info.info_dict[doc_id] = info
@@ -344,8 +356,9 @@ def make_files(
     assert len(all_compilation_info) == target, len(all_compilation_info)
     filenames = all_compilation_info.pdf_paths
 
-    # Join different versions in a single pdf, and compress if asked to do so.
-    join_files(output_basename, filenames, options)
+    # If needed, join different versions in a single pdf, and compress if asked to do so.
+    # (Ghostscript is needed for compression.)
+    join_files_if_needed(compilation_dir / f"{output_basename}.pdf", filenames, options)
 
     if options.generate_batch_for_windows_printing:
         bat_file_name = ptyx_file.parent / ("print_corr.bat" if correction else "print.bat")
@@ -353,7 +366,7 @@ def make_files(
             bat_file.write(param["win_print_command"] + " ".join(f'"{f.name}.pdf"' for f in filenames))
 
     # Copy pdf file/files to parent directory.
-    _copy_file_to_parent("pdf", filenames, ptyx_file, output_basename, options)
+    _link_file_to_parent("pdf", filenames, ptyx_file, compilation_dir, output_basename, options)
 
     # Remove `.compile` folder if asked to.
     if options.remove:
@@ -362,38 +375,54 @@ def make_files(
     return all_compilation_info
 
 
-def _copy_file_to_parent(
-    ext: str, filenames: list[Path], input_name: Path, output_basename: Path, options: CompilationOptions
+def _force_hardlink_to(link: Path, target: Path) -> None:
+    link.unlink(missing_ok=True)
+    link.hardlink_to(target)
+
+
+def _link_file_to_parent(
+    ext: str,
+    filenames: list[Path],
+    input_name: Path,
+    compilation_dir: Path,
+    output_basename: str,
+    options: CompilationOptions,
 ) -> None:
-    assert ext[0] != "."
-    ext = f".{ext}"
-    name = output_basename.with_suffix(ext)
-    if name.is_file():
+    """Create a hardlink to files in parent."""
+    # TODO: this code needs to be rewritten, or at least reviewed.
+    if ext[0] != ".":
+        ext = f".{ext}"
+    if (target := (compilation_dir / output_basename).with_suffix(ext)).is_file():
         # There is only one file (only one document was generated,
         # or they were several documents, but they were joined into a single document).
-        shutil.copy(name, input_name.parent)
+        # shutil.copy(target, input_name.parent)
+        _force_hardlink_to(input_name.parent / target.name, target)
     elif options.names_list:
         # Rename files according to the given names' list.
         assert len(options.names_list) == len(filenames)
         for filename, stem in zip(filenames, options.names_list):
             new_name = filename.with_stem(stem).name
-            shutil.copy(filename.with_suffix(ext), input_name.parent / new_name)
+            # shutil.copy(filename.with_suffix(ext), input_name.parent / new_name)
+            _force_hardlink_to(input_name.parent / new_name, filename.with_suffix(ext))
     else:
         # Copy files without changing names.
         for filename in filenames:
-            shutil.copy(filename.with_suffix(ext), input_name.parent)
+            # shutil.copy(filename.with_suffix(ext), input_name.parent)
+            target = filename.with_suffix(ext)
+            _force_hardlink_to(input_name.parent / target.name, target)
 
 
 def generate_latex_file(
-    output_name: Path,
+    texfile_path: Path,
     compiler: Compiler,
     context: Optional[dict] = None,
     log=True,
 ) -> Path:
     """Generate latex from ptyx source file."""
+    assert texfile_path.suffix == ".tex", texfile_path
     if log:
         # Output is redirected to a `.log` file.
-        logfile: Optional[Path] = append_suffix(output_name, "-python.log")
+        logfile: Optional[Path] = texfile_path.parent / f"{texfile_path.stem}-python.log"
         print("\nLog file:", logfile, "\n")
     else:
         logfile = None
@@ -405,7 +434,6 @@ def generate_latex_file(
         context.setdefault("PTYX_NUM", 1)
         latex = compiler.get_latex(**context)
 
-        texfile_path = output_name.with_suffix(".tex")
         with open(texfile_path, "w") as texfile:
             texfile.write(latex)
         return texfile_path
@@ -426,7 +454,7 @@ def compile_ptyx_file(
     Note that when output format is Pdf, a LaTeX file will also be generated in the same directory.
     """
     compiler = Compiler(path=ptyx_file)
-    latex_file = generate_latex_file(output_name, compiler=compiler, context=context)
+    latex_file = generate_latex_file(output_name.with_suffix(".tex"), compiler=compiler, context=context)
     return compile_latex_to_pdf(latex_file, quiet=quiet) if output_name.suffix == ".pdf" else None
 
 
@@ -481,6 +509,7 @@ def compile_latex_to_pdf(
 
     Return a SingleFileCompilationInfo instance.
     """
+    assert filename.suffix == ".tex", filename
     # By default, pdflatex use current directory as destination folder.
     # However, much of the time, we want destination folder to be the one
     # where the tex file was found.
@@ -519,16 +548,16 @@ def _extract_page_number(pdflatex_log: str) -> PageCount:
     return PageCount(int(m.group(1)) if m is not None else -1)
 
 
-def join_files(
+def join_files_if_needed(
     pdf_name: Path,
-    pdf_list: Sequence[Path | str],
+    pdf_list: Sequence[Path],
     options: CompilationOptions,
 ):
     """Join different versions in a single pdf, then compress it if asked to do so.
 
     For compression, ghostscript must be installed.
     """
-    pdf_name = pdf_name.with_suffix(".pdf")
+    assert pdf_name.suffix == ".pdf", pdf_name
 
     if options.compress or options.cat:
         # Nota: don't exclude the case `number == 1`,
@@ -549,7 +578,7 @@ def join_files(
         _reorder_pdf(pdf_name, options.reorder_pages)
 
 
-def _join_pdf_files(output_basename: Path | str, pdfnames: Sequence[Path | str]) -> None:
+def _join_pdf_files(output_basename: Path, pdfnames: Sequence[Path]) -> None:
     """Join all the generated pdf files into one file."""
     # pdf: Document
     if len(pdfnames) == 0:
