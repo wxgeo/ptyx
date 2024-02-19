@@ -72,6 +72,10 @@ def test_make_files(tmp_path):
     assert not pdf_path.is_file()
     make_files(ptyx_path, compiler=compiler, options=CompilationOptions(cat=True))
     assert pdf_path.is_file()
+    # Test a new compilation without removing generated files.
+    # Use `compress` option this time, so Ghostscript needs to be installed.
+    make_files(ptyx_path, compiler=compiler, options=CompilationOptions(compress=True))
+    assert pdf_path.is_file()
 
 
 def make_files_no_pdf(tmp_path):
