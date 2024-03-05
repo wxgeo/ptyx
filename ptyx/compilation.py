@@ -507,6 +507,9 @@ def compile_latex_to_pdf(
 ) -> SingleFileCompilationInfo:
     """Compile the latex file.
 
+    - `filename` is the latex file to compile.
+    - `dest` is the destination folder, where the pdf file will be generated.
+
     Return a SingleFileCompilationInfo instance.
     """
     assert filename.suffix == ".tex", filename

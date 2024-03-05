@@ -1,4 +1,7 @@
+import pickle
+
 import pytest
+from ptyx.latex_generator import Compiler
 
 from ptyx.errors import PythonBlockError, PythonExpressionError, PtyxSyntaxError, ErrorInformation
 from tests import parse
@@ -79,3 +82,20 @@ def test_PythonBlockError():
 
     # The faulty line must be colored in yellow in the report:
     assert exc_info.value.pretty_report.split("\n")[6] == "\x1b[33m│ 3 │ b = 1/0\x1b[0m"
+
+
+def test_PythonBlockError_pickling():
+    code = "#PYTHON\nt = (4\n#END_PYTHON"
+    try:
+        compiler = Compiler()
+        compiler.parse(code=code)
+        assert False  # A PythonBlockError should have been raised!
+    except BaseException as e:
+        # Pickle error before accessing its information (because PythonBlockError has a cache,
+        # so we have to test that the cache is automatically updated before pickling. If we access
+        # information first, it would update the cache and the test would be less exhaustive).
+        pickled_err = pickle.loads(pickle.dumps(e))
+        assert isinstance(e, PythonBlockError)
+        assert isinstance(pickled_err, PythonBlockError)
+        assert e.info.message == "'(' was never closed"
+        assert pickled_err.info.message == "'(' was never closed"

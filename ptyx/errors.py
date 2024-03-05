@@ -4,6 +4,21 @@ import traceback
 from ptyx.shell import yellow, red
 
 
+@dataclass
+class ErrorInformation:
+    """Standardized information about errors.
+
+    This is motivated by the lack of a common interface between syntax errors
+    and runtime errors in python.
+    """
+
+    message: str = ""
+    row: int | None = None
+    end_row: int | None = None
+    col: int | None = None
+    end_col: int | None = None
+
+
 class PtyxDocumentCompilationError(RuntimeError):
     """Error raised when a pTyX document can't be compiled.
 
@@ -32,15 +47,39 @@ class PtyxRuntimeError(PtyxDocumentCompilationError):
 class PythonCodeError(PtyxDocumentCompilationError):
     """Error raised when something wrong occurred during the execution of embedded python code.
 
-    Specific arguments:
+    Specific (optional) arguments:
         - python_code: the code whose execution failed.
-        - label: a label referencing the code snippet, to retrieve
+        - label: a label referencing the code snippet, to retrieve it.
     """
 
     def __init__(self, *args, python_code: str = None, label=None):
         super().__init__(*args)
         self.python_code = python_code
         self.label = label
+        # When transferring an error from one process to another (using multiprocessing.Queue for example),
+        # the error must be pickled. By default,
+        self._info: ErrorInformation | None = None
+
+    def __getstate__(self):
+        # Update self._info cache before getting state for pickling.
+        _ = self.info
+        return super().__getstate__()
+
+    @property
+    def info(self) -> ErrorInformation:
+        if self._info is None:
+            self._info = self._collect_info()
+        return self._info
+
+    def _collect_info(self) -> ErrorInformation:
+        error = self.__cause__
+        if isinstance(error, SyntaxError) and error.filename == "<string>":
+            return ErrorInformation(error.msg, error.lineno, error.end_lineno, error.offset, error.end_offset)
+        elif error is not None:
+            for tb in traceback.extract_tb(error.__traceback__):
+                if tb.name in ("<module>", "<string>") and isinstance(tb.lineno, int):
+                    return ErrorInformation(str(error), tb.lineno, tb.end_lineno, tb.colno, tb.end_colno)
+        return ErrorInformation()
 
 
 class PythonExpressionError(PythonCodeError):
@@ -69,21 +108,6 @@ class PythonExpressionError(PythonCodeError):
         return msg
 
 
-@dataclass
-class ErrorInformation:
-    """Standardized information about errors.
-
-    This is motivated by the lack of a common interface between syntax errors
-    and runtime errors in python.
-    """
-
-    message: str
-    row: int | None
-    end_row: int | None
-    col: int | None
-    end_col: int | None
-
-
 class PythonBlockError(PythonCodeError):
     """Error raised when something wrong occurred during the execution of an embedded block of python code.
 
@@ -95,16 +119,8 @@ class PythonBlockError(PythonCodeError):
         #END_BLOCK
     """
 
-    @property
-    def info(self) -> ErrorInformation:
-        error = self.__cause__
-        if isinstance(error, SyntaxError) and error.filename == "<string>":
-            return ErrorInformation(error.msg, error.lineno, error.end_lineno, error.offset, error.end_offset)
-        elif error is not None:
-            for tb in traceback.extract_tb(error.__traceback__):
-                if tb.name in ("<module>", "<string>") and isinstance(tb.lineno, int):
-                    return ErrorInformation(str(error), tb.lineno, tb.end_lineno, tb.colno, tb.end_colno)
-        return ErrorInformation("", None, None, None, None)
+    def __init__(self, *args, python_code: str = None, label=None):
+        super().__init__(*args, python_code=python_code, label=label)
 
     @property
     def pretty_report(self) -> str:
@@ -113,10 +129,10 @@ class PythonBlockError(PythonCodeError):
         msg = format_python_code_snippet(self.python_code)
         error_info = self.info
         i = error_info.row
-        assert i is not None
-        i += 3  # 3 lines for the header of the box.
-        # Color in yellow the faulty line.
-        msg[i] = yellow(msg[i])
+        if i is not None:
+            i += 3  # 3 lines for the header of the box.
+            # Color in yellow the faulty line.
+            msg[i] = yellow(msg[i])
         # Append the error message after the information box.
         msg.append(f"\n{red('[ERROR] ')}{yellow(error_info.message.capitalize() + '.')}")
         return "\n".join(msg)
