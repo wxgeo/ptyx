@@ -66,6 +66,12 @@ def test_syntax_tree():
     assert s.syntax_tree.display(color=False) == tree
 
 
+def test_brackets_bug():
+    s = SyntaxTreeGenerator()
+    code = 'AFN~: #{tikz(r">I:\Sigma;0--1 / (1)")}.'
+    s.generate_tree(code)
+
+
 def test_latex_code_generator():
     test = (
         "#{variable=3;b=1;}#{a=2}"

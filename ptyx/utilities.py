@@ -73,6 +73,8 @@ def find_closing_bracket(text: str, start: int = 0, brackets: str = "{}", detect
 
         result = m.group()
         i = m.start()
+        if i > 0:
+            escape_string_char = False
 
         if result == open_bracket:
             if string_type is None:

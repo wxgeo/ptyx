@@ -31,6 +31,15 @@ def test_find_closing_bracket_escape_char():
     assert find_closing_bracket("{'}\\\\\\''}", 1) == 8
 
 
+def test_find_closing_bracket_bug():
+    assert (
+        find_closing_bracket(
+            text='AFN~: #{tikz(r">I:\\Sigma;0--1 / (1)")}.', start=8, brackets="{}", detect_strings=True
+        )
+        == 37
+    )
+
+
 def test_round():
     assert round_away_from_zero(1.775, 2) == 1.78
 
