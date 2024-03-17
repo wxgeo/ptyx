@@ -4,6 +4,11 @@ import traceback
 from ptyx.shell import yellow, red
 
 
+def _cap(s: str) -> str:
+    """Capitalize the first letter of string `s`."""
+    return s[:1].upper() + s[1:]
+
+
 @dataclass
 class ErrorInformation:
     """Standardized information about errors.
@@ -134,7 +139,7 @@ class PythonBlockError(PythonCodeError):
             # Color in yellow the faulty line.
             msg[i] = yellow(msg[i])
         # Append the error message after the information box.
-        msg.append(f"\n{red('[ERROR] ')}{yellow(error_info.message.capitalize() + '.')}")
+        msg.append(f"\n{red('[ERROR] ')}{yellow(_cap(error_info.message) + '.')}")
         return "\n".join(msg)
 
 

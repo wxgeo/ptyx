@@ -84,6 +84,38 @@ def test_PythonBlockError():
     assert exc_info.value.pretty_report.split("\n")[6] == "\x1b[33m│ 3 │ b = 1/0\x1b[0m"
 
 
+def test_PythonBlockError_full_pretty_report():
+    with pytest.raises(PythonBlockError) as exc_info:
+        # (Use case sensitive code, to prevent notably regressions
+        # for a previous bug concerning upper/lower case).
+        code = "\nl = []\nif len(L) > 1:\n    print(l[1])"
+        try:
+            exec(code)
+        except Exception as e:
+            raise PythonBlockError(python_code=code) from e
+    assert exc_info.value.info == ErrorInformation(
+        message="name 'L' is not defined", row=3, end_row=3, col=7, end_col=8
+    )
+
+    # The faulty line must be colored in yellow in the report:
+    assert exc_info.value.pretty_report == "\n".join(
+        [
+            "",
+            "╭────────────────────────────────────",
+            "│ ✎ Executing following python code:",
+            "├────────────────────────────────────",
+            "│ 1 │ ",
+            "│ 2 │ l = []",
+            "\x1b[33m│ 3 │ if len(L) > 1:\x1b[0m",
+            "│ 4 │     print(l[1])",
+            "│ 5 │ ",
+            "╰────────────────────────────────────",
+            "",
+            "\x1b[31m[ERROR] \x1b[0m\x1b[33mName 'L' is not defined.\x1b[0m",
+        ]
+    )
+
+
 def test_PythonBlockError_pickling():
     code = "#PYTHON\nt = (4\n#END_PYTHON"
     try:
