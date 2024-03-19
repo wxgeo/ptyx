@@ -25,7 +25,7 @@ sphinx-rtd-theme = "^1.0.0"
 myst-parser = "^0.18.0"
 # Version 7.29+ are buggy !
 python-semantic-release = "7.28.1"
-ruff = "^0.2.1"
+ruff = "^0.3.1"
 
 [tool.poetry.scripts]
 ptyx = 'ptyx.script:ptyx'
@@ -60,7 +60,7 @@ envlist = py311
 allowlist_externals = poetry
 commands =
     poetry install -v
-    poetry run ruff ptyx tests
+    poetry run ruff check ptyx tests
     poetry run mypy ptyx tests
     poetry run pytest tests ptyx/extensions
 """
