@@ -599,6 +599,9 @@ def _compress_pdf(pdf_name: Path) -> None:
     """Compress pdf using Ghostscript (which must have been installed previously)."""
     temp_dir = tempfile.mkdtemp()
     compressed_pdf_name = os.path.join(temp_dir, "compresse.pdf")
+    # TODO: use subprocess.run (with PIPE)
+    # https://stackoverflow.com/questions/13332268/how-to-use-subprocess-command-with-pipes
+    # Command `command`: https://www.ibm.com/docs/en/aix/7.3?topic=c-command-command
     command = f"""command pdftops \
                 -paper match \
                 -nocrop \
@@ -607,7 +610,7 @@ def _compress_pdf(pdf_name: Path) -> None:
                 -level3 \
                 -q \
                 "{pdf_name}" - \
-                | command ps2pdf14 \
+                | command ps2pdf \
                 -dEmbedAllFonts=true \
                 -dUseFlateCompression=true \
                 -dProcessColorModel=/DeviceCMYK \
@@ -615,10 +618,9 @@ def _compress_pdf(pdf_name: Path) -> None:
                 -dOptimize=true \
                 -dPDFSETTINGS=/prepress \
                 - "{compressed_pdf_name}" """
-    os.system(command)
+    exit_status = os.system(command)
     old_size = os.path.getsize(pdf_name)
-    new_size = os.path.getsize(compressed_pdf_name)
-    if new_size < old_size:
+    if exit_status == 0 and (new_size := os.path.getsize(compressed_pdf_name)) < old_size:
         shutil.copyfile(compressed_pdf_name, pdf_name)
         print(f"Compression ratio: {old_size / new_size:.2f}")
     else:

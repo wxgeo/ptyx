@@ -1,5 +1,5 @@
 from ast import literal_eval
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Literal, Any, get_origin
 from argparse import Namespace
 
@@ -28,6 +28,7 @@ class CompilationOptions:
 
     @classmethod
     def load(cls, options: Namespace) -> "CompilationOptions":
+        """Generate a `CompilationOptions` instance from pTyX command line arguments (`argparse` options)."""
         kwargs = vars(options)
 
         # -------------------------
@@ -82,5 +83,8 @@ class CompilationOptions:
 
         return cls(**kwargs)
 
+    def updated(self, **update: dict[str, Any]) -> "CompilationOptions":
+        # https://github.com/python/typing/issues/1495
+        return CompilationOptions(**(asdict(self) | update))
 
 DEFAULT_OPTIONS = CompilationOptions()
