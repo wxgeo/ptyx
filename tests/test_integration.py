@@ -38,7 +38,7 @@ def test_basic_test():
         assert (compile_directory / (filename.stem + ext)).is_file()
 
 
-def test_compile_ptyx_file(tmp_path):
+def test_compile_ptyx_file(tmp_path) -> None:
     print(tmp_path)
     ptyx_path: Path = tmp_path / "test.ptyx"
     with open(ptyx_path, "w", encoding="utf8") as f:
@@ -56,7 +56,7 @@ def test_compile_ptyx_file(tmp_path):
     assert pdf_path.is_file()
 
 
-def test_make_files(tmp_path):
+def test_make_files(tmp_path) -> None:
     print(tmp_path)
     ptyx_path: Path = tmp_path / "test.ptyx"
     with open(ptyx_path, "w", encoding="utf8") as f:
@@ -78,7 +78,7 @@ def test_make_files(tmp_path):
     assert pdf_path.is_file()
 
 
-def make_files_no_pdf(tmp_path):
+def make_files_no_pdf(tmp_path) -> None:
     print(tmp_path)
     ptyx_path: Path = tmp_path / "test.ptyx"
     with open(ptyx_path, "w", encoding="utf8") as f:

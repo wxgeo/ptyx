@@ -182,7 +182,7 @@ def make_files(
     doc_ids_selection: Iterable[int] = None,
     compiler: Compiler = None,
     options: CompilationOptions = DEFAULT_OPTIONS,
-) -> MultipleFilesCompilationInfo:
+) -> tuple[MultipleFilesCompilationInfo, Compiler]:
     """Generate the tex and pdf files.
 
     Arguments:
@@ -277,7 +277,7 @@ def make_files(
             latex_files[doc_id] = generate_latex_file(filename, compiler, context)
 
         if options.no_pdf:
-            return all_compilation_info
+            return all_compilation_info, compiler
 
         # --------------------------------
         # Compile to pdf using parallelism
@@ -372,7 +372,7 @@ def make_files(
     if options.remove:
         shutil.rmtree(compilation_dir)
 
-    return all_compilation_info
+    return all_compilation_info, compiler
 
 
 def _force_hardlink_to(link: Path, target: Path) -> None:

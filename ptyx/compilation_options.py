@@ -83,7 +83,7 @@ class CompilationOptions:
 
         return cls(**kwargs)
 
-    def updated(self, **update: dict[str, Any]) -> "CompilationOptions":
+    def updated(self, **update: Any) -> "CompilationOptions":
         # https://github.com/python/typing/issues/1495
         return CompilationOptions(**(asdict(self) | update))
 

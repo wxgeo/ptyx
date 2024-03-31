@@ -37,6 +37,7 @@ from ptyx.config import param
 
 if TYPE_CHECKING:
     from ptyx.compilation import MultipleFilesCompilationInfo
+    from ptyx.latex_generator import Compiler
 
 if sys.version_info.major == 2:
     raise RuntimeError("Python 2 not supported, please update to latest python 3 version!")
@@ -216,7 +217,7 @@ class PtyxArgumentParser(argparse.ArgumentParser):
         return options
 
 
-def ptyx(parser=PtyxArgumentParser()):
+def ptyx(parser=PtyxArgumentParser()) -> None:
     """Main pTyX procedure."""
 
     # First, parse all arguments (filenames, options...)
@@ -229,28 +230,29 @@ def ptyx(parser=PtyxArgumentParser()):
         exit(0)
 
     from ptyx.compilation import make_files
-    from ptyx.latex_generator import Compiler
+
+    # from ptyx.latex_generator import Compiler
 
     # Time to act ! Let's compile all ptyx files...
     # ---------------------------------------------
 
     all_info: MultipleFilesCompilationInfo | None = None
+    compiler: "Compiler"
 
     for input_name in options.filenames:
         # Read pTyX file.
         print(f"Reading {input_name}...")
-        input_name = Path(input_name).expanduser().resolve()
+        input_path = Path(input_name).expanduser().resolve()
 
         # Parse #INCLUDE tags, load extensions if needed, read seed.
         # Then generate syntax tree.
         # The syntax tree is generated only once, and will then be used
         # for all the following compilations.
-        compiler = Compiler(path=input_name)
-        make = partial(make_files, compiler=compiler, options=options)
+        make = partial(make_files, options=options)
         # print(compiler.state['syntax_tree'].display())
 
         # Compile and generate output files (tex or pdf)
-        all_info = make(input_name)
+        all_info, compiler = make(input_path)
 
         # TODO: DO NOT USE GLOBAL VARIABLE `compiler` anymore!
         #  Instead, generate a new Compiler instance each time.
@@ -273,13 +275,13 @@ def ptyx(parser=PtyxArgumentParser()):
         if not options.no_correction:
             answer_tags = ("ANS", "ANSWER", "ASK", "ASK_ONLY")
 
-            tags = compiler.syntax_tree.tags
+            tags = compiler.syntax_tree.tags  # type: ignore
             if any(tag in tags for tag in answer_tags):
-                all_info = make(input_name, correction=True, doc_ids_selection=all_info.doc_ids)
+                all_info, compiler = make(input_path, correction=True, doc_ids_selection=all_info.doc_ids)
 
     if options.view and all_info is not None:
         if options.cat or options.compress:
-            pdf_path = all_info.basename.with_suffix(".pdf")
+            pdf_path = (all_info.compilation_dir / all_info.basename).with_suffix(".pdf")
         else:
             pdf_path = all_info.pdf_paths[0]
         subprocess.run(["xdg-open", pdf_path])
