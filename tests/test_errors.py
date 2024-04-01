@@ -86,7 +86,7 @@ def test_PythonBlockError():
 
 def test_PythonBlockError_full_pretty_report():
     with pytest.raises(PythonBlockError) as exc_info:
-        # (Use case sensitive code, to prevent notably regressions
+        # (Use case-sensitive code, to prevent notably regressions
         # for a previous bug concerning upper/lower case).
         code = "\nl = []\nif len(L) > 1:\n    print(l[1])"
         try:

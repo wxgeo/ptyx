@@ -17,6 +17,7 @@ from ptyx.sys_info import CPU_PHYSICAL_CORES
 from ptyx.compilation_options import DEFAULT_OPTIONS, CompilationOptions
 from ptyx.config import param
 from ptyx.latex_generator import Compiler
+from ptyx.utilities import force_hardlink_to
 
 ANSI_RED = "\u001B[31m"
 ANSI_REVERSE_RED = "\u001B[41m"
@@ -375,11 +376,6 @@ def make_files(
     return all_compilation_info, compiler
 
 
-def _force_hardlink_to(link: Path, target: Path) -> None:
-    link.unlink(missing_ok=True)
-    link.hardlink_to(target)
-
-
 def _link_file_to_parent(
     ext: str,
     filenames: list[Path],
@@ -396,20 +392,20 @@ def _link_file_to_parent(
         # There is only one file (only one document was generated,
         # or they were several documents, but they were joined into a single document).
         # shutil.copy(target, input_name.parent)
-        _force_hardlink_to(input_name.parent / target.name, target)
+        force_hardlink_to(input_name.parent / target.name, target)
     elif options.names_list:
         # Rename files according to the given names' list.
         assert len(options.names_list) == len(filenames)
         for filename, stem in zip(filenames, options.names_list):
             new_name = filename.with_stem(stem).name
             # shutil.copy(filename.with_suffix(ext), input_name.parent / new_name)
-            _force_hardlink_to(input_name.parent / new_name, filename.with_suffix(ext))
+            force_hardlink_to(input_name.parent / new_name, filename.with_suffix(ext))
     else:
         # Copy files without changing names.
         for filename in filenames:
             # shutil.copy(filename.with_suffix(ext), input_name.parent)
             target = filename.with_suffix(ext)
-            _force_hardlink_to(input_name.parent / target.name, target)
+            force_hardlink_to(input_name.parent / target.name, target)
 
 
 def generate_latex_file(

@@ -1,5 +1,6 @@
 import re
 from math import ceil, floor, isnan, isinf
+from pathlib import Path
 from typing import Sequence, Any
 
 
@@ -267,3 +268,9 @@ def restore_verbatim_tag_content(code: str, substitutions: list[str]) -> str:
         return substitutions.pop(0)
 
     return re.sub(RE_VERBATIM_BLOCK, substitute, code, flags=re.DOTALL)
+
+
+def force_hardlink_to(link: Path, target: Path) -> None:
+    """Create a hardlink `link` to target `target`, even if `link` already exist."""
+    link.unlink(missing_ok=True)
+    link.hardlink_to(target)
