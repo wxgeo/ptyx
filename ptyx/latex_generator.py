@@ -697,7 +697,7 @@ class LatexGenerator:
             raise PythonBlockError(python_code=code, label=tag) from e
         return code
 
-    def _eval_python_expr(self, code: str):
+    def _eval_python_expr(self, code: str) -> object:
         context = self.context
         if not code:
             return ""
@@ -758,7 +758,7 @@ class LatexGenerator:
             code = code.rstrip(";")
             display_result = False
 
-        result = ""
+        result: object = ""
         for subcode in advanced_split(code, ";", brackets=()):
             result = self._eval_python_expr(subcode)
         # Note that only last result will be displayed.
