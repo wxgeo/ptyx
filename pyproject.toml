@@ -10,22 +10,22 @@ keywords = ["python", "tikz", "latex", "pdf", "exam", "mcq", "student"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-numpy = "^1.23.0"
+numpy = "^2.1.3"
 sympy = "^1.10.1"
-psutil = "^5.9.4"
-pymupdf = "^1.21.1"
+psutil = ">=5.9.4"
+pymupdf = ">=1.21.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.1"
 mypy = "^1.0.1"
-black = "^22.1.0"
+black = "^24.10.0"
 tox = "^4.14"
 sphinx-autodoc-typehints = "^1.19.5"
 sphinx-rtd-theme = "^1.0.0"
 myst-parser = "^0.18.0"
 # Version 7.29+ are buggy !
 python-semantic-release = "7.28.1"
-ruff = "^0.3.1"
+ruff = "^0.7.2"
 
 [tool.poetry.scripts]
 ptyx = 'ptyx.script:ptyx'

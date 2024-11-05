@@ -87,4 +87,5 @@ class CompilationOptions:
         # https://github.com/python/typing/issues/1495
         return CompilationOptions(**(asdict(self) | update))
 
+
 DEFAULT_OPTIONS = CompilationOptions()

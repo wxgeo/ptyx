@@ -23,6 +23,7 @@ An example:
     let a, b in 2..20 with a > 2*b
     ...........................
     """
+
 from re import sub, DOTALL, MULTILINE, Match
 from typing import Protocol
 
@@ -119,8 +120,7 @@ def parse_extended_python_code(code):
 
 
 class PythonBlockParser(Protocol):
-    def __call__(self, *, start: str, end: str, content: str) -> str:
-        ...
+    def __call__(self, *, start: str, end: str, content: str) -> str: ...
 
 
 def parse_code_block(code: str, parser: PythonBlockParser) -> str:

@@ -2,6 +2,7 @@
 EXTENDED PYTHON
 
 """
+
 import pytest
 from ptyx.latex_generator import Compiler
 

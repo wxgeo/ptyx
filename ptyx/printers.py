@@ -1,6 +1,7 @@
 """
 A variant of sympy latex printer, based on wxgeometrie one.
 """
+
 from ptyx.internal_types import EvalFlags
 
 

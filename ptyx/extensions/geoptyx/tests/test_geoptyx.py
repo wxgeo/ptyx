@@ -3,6 +3,7 @@ GEOPTYX
 
 This extension offers support for Geophar library.
 """
+
 import pytest
 
 from ptyx.latex_generator import Compiler
