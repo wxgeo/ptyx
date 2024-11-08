@@ -2,7 +2,7 @@ import random
 import functools
 from collections import namedtuple
 from math import gcd
-from typing import Callable, Iterable, Sequence, TypeVar
+from typing import Iterable, Sequence, TypeVar
 
 from numpy import array
 from ptyx.sys_info import SYMPY_AVAILABLE
@@ -11,10 +11,10 @@ from ptyx.config import param
 
 
 if SYMPY_AVAILABLE:
-    S: Callable
     from sympy import S, Integer
 
     INTEGERS_TYPES: tuple[type, ...] = (int, Integer)
+
 else:
 
     def S(val):

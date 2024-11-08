@@ -43,6 +43,14 @@ implicit_optional = true
 warn_unused_ignores = true
 strict_equality = true
 
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+filterwarnings = [
+    'ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning',
+]
+
 [tool.black]
 line-length = 110
 

@@ -54,7 +54,7 @@ class CompilationOptions:
                 type_ = value.type
             # Test for conformity
             if type_ == Literal:
-                assert kwargs[key] in value.type.__args__, kwargs[key]
+                assert kwargs[key] in value.type.__args__, kwargs[key]  # type: ignore
             else:
                 assert isinstance(type_, type), (key, repr(type_))
                 assert isinstance(kwargs[key], type_), (key, repr(kwargs[key]), repr(type_))

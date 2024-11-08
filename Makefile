@@ -20,5 +20,5 @@ publish: build
 	
 fix:
 	poetry run black .
-	poetry run ruff --fix ptyx tests
+	poetry run ruff check --fix ptyx tests
 
