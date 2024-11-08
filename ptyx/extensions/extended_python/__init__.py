@@ -1,10 +1,9 @@
 r"""
-QUESTIONS
+EXTENDED PYTHON
 
 This extension add some useful shortcuts to Python scripts.
 
 An example:
-
 
     ...........................
     let a, b
@@ -22,6 +21,16 @@ An example:
     let p in 2,3,5,7,11,13,17,19
     let a, b in 2..20 with a > 2*b
     ...........................
+
+
+    IMPORTANT!
+    This syntax extension does only support one line statements!
+    After conversion, each "extended python" one-line statement
+    must result in a pure python one-line statement too!
+    This makes parsing a lot easier and faster,
+    and enables to extend python checking tools much more easily too
+    (line numbers don't change after parsing, only columns, which
+    is only a minor inconvenient!)
     """
 
 from re import sub, DOTALL, MULTILINE, Match
@@ -37,90 +46,118 @@ PYTHON_DELIMITER = "^[ \t]*\\.{4,}[ \t]*$"
 # def _convert_let_directive(m: re.Match) -> str:
 
 
-def parse_extended_python_code(code):
-    """Convert 'extend python' code to pure python code."""
-    python_code = code.split("\n")
-    for line_number, line in enumerate(python_code):
-        if not line.lstrip().startswith("let "):
-            continue
-        indent = (len(line) - len(line.lstrip())) * " "
-        line = line.strip()[4:]
-        i = line.find(" with ")
-        if i != -1:
-            condition = line[i + 6 :]
-            line = line[:i]
-        else:
-            condition = None
-        if " in " in line:
-            names, val = line.split(" in ")
-            # parse val
-            if ".." in val:
-                a, b = val.split("..")
-                if a.startswith("+-") or a.startswith("-+"):
-                    a = a[2:]
-                    f = "srandint"
-                else:
-                    f = "randint"
-                args = [f, "a=%s" % a.strip(), "b=%s" % b.strip()]
+def parse_extended_python_code(code: str) -> str:
+    """Convert 'extended python' code to pure python code.
+
+    Known issue:
+    -----------
+    If the parsed python code defines a literal multiline string
+    with a line starting with "let" (or " let", "  let"...),
+    everything in this line will be parsed like extended python code.
+    This will result in an altered string, and maybe broken python code.
+    """
+
+    def f(m: Match) -> str:
+        print("Extended python code detected: ", m.group(0))
+        return parse_extended_python_line(m.group(0))
+
+    return sub("^ *let .+$", f, code, flags=MULTILINE)
+
+
+def parse_extended_python_line(original_line: str) -> str:
+    """Convert one line of 'extended python' code to pure python code.
+
+    `SyntaxError` is raised if the line can not be parsed.
+    """
+    line = original_line.lstrip()
+    # An extended python line always starts with "let ".
+    if not line.startswith("let "):
+        return original_line
+    # Memorize indent to restore it later.
+    indent = (len(original_line) - len(line)) * " "
+    # Remove "let " from the start of the line.
+    line = line[4:].strip()
+    # Now, let's handle the special `let ... with <condition>` syntax, to get `<condition>`.
+    i = line.find(" with ")
+    if i != -1:
+        condition = line[i + 6 :]
+        line = line[:i]
+    else:
+        condition = None
+    # Handle `let <varname> in <values>` syntax.
+    if " in " in line:
+        names, val = line.split(" in ")
+        # Parse <values>, which may be a range, like `-7..10`, or a list of values, like `2,3,5,7,11`.
+        if ".." in val:
+            a, b = val.split("..")
+            if a.startswith("+-") or a.startswith("-+"):
+                a = a[2:]
+                f = "srandint"
             else:
-                f = "randchoice"
-                args = [f, "items=[%s]" % val.strip()]
-
+                f = "randint"
+            args = [f, "a=%s" % a.strip(), "b=%s" % b.strip()]
         else:
-            if not line:
-                raise SyntaxError("lonely `let`.")
-            if line.endswith("+-") or line.endswith("-+"):
-                # let a, b +-
-                args = ["srandint"]
-                names = line[:-2]
-            elif line.endswith("+"):
-                # let a, b +
-                args = ["randint"]
-                names = line[:-1]
-            elif line.endswith("-"):
-                # let a, b -
-                args = ["randint", "a=-9", "b=-2"]
-                names = line[:-1]
-            elif line.endswith("/"):
-                # let a, b /
-                args = ["srandfrac"]
-                names = line[:-1]
-            else:
-                # let a, b
-                args = ["srandint"]
-                names = line
-
-        names = [name.strip() for name in names.split(",")]
-        if not all(name.isidentifier() for name in names):
-            raise SyntaxError(f"Line {line!r} not understood.")
-
-        # Append a final `,` after variables, since one should always do tuple unpacking!
-        joined_names = ", ".join(names) + ","
-        joined_args = ", ".join(args)
-        function_call = f"many({len(names)}, {joined_args})"
-        if condition:
-            # Loop while condition is false.
-            # It's better to do it in one line, to not change line numbering when debugging.
-            # Ideally, we should do this:
-            #  line = f"while ((({joined_names}) := {function_call} or True) and not ({condition})): pass"
-            # However, tuple unpacking is not allowed in walrus operator for now:
-            # https://github.com/python/cpython/issues/87309
-            # So, we'll have to create a temporary variable:
-            # let's call it `_tmp_ptyx_var` to avoid name collisions.
-            # Then, we will affect all its values to each variable.
-            affectation = f"_tmp_ptyx_var := {function_call}, "
-            affectation += ", ".join(f"{name} := _tmp_ptyx_var[{i}]" for i, name in enumerate(names))
-            line = f"while ((({affectation}) or True) and not ({condition})): pass"
+            f = "randchoice"
+            args = [f, "items=[%s]" % val.strip()]
+    # If no values are specified, use default ones.
+    else:
+        if not line:
+            raise SyntaxError("lonely `let`.")
+        if line.endswith("+-") or line.endswith("-+"):
+            # let a, b +-
+            args = ["srandint"]
+            names = line[:-2]
+        elif line.endswith("+"):
+            # let a, b +
+            args = ["randint"]
+            names = line[:-1]
+        elif line.endswith("-"):
+            # let a, b -
+            args = ["randint", "a=-9", "b=-2"]
+            names = line[:-1]
+        elif line.endswith("/"):
+            # let a, b /
+            args = ["srandfrac"]
+            names = line[:-1]
         else:
-            line = f"{joined_names} = {function_call}"
+            # let a, b
+            args = ["srandint"]
+            names = line
 
-        # Restore indentation eventually.
-        python_code[line_number] = indent + line
-    return "\n".join(python_code)
+    names_list = [name.strip() for name in names.split(",")]
+    if not all(name.isidentifier() for name in names_list):
+        raise SyntaxError(f"Line {line!r} not understood.")
+
+    # Append a final `,` after variables, since one should always do tuple unpacking!
+    joined_names = ", ".join(names_list) + ","
+    joined_args = ", ".join(args)
+    function_call = f"many({len(names_list)}, {joined_args})"
+    if condition:
+        # Loop while condition is false.
+        # It's better to do it in one line, to not change line numbering when debugging.
+        # Ideally, we should do this:
+        #  line = f"while ((({joined_names}) := {function_call} or True) and not ({condition})): pass"
+        # However, tuple unpacking is not allowed in walrus operator for now:
+        # https://github.com/python/cpython/issues/87309
+        # So, we'll have to create a temporary variable:
+        # let's call it `_tmp_ptyx_var` to avoid name collisions.
+        # Then, we will affect all its values to each variable.
+        affectation = f"_tmp_ptyx_var := {function_call}, "
+        affectation += ", ".join(f"{name} := _tmp_ptyx_var[{i}]" for i, name in enumerate(names_list))
+        line = f"while ((({affectation}) or True) and not ({condition})): pass"
+    else:
+        line = f"{joined_names} = {function_call}"
+
+    # We must keep the statement on only one line,
+    # to not change the line number for debugging tools!
+    assert "\n" not in line
+    # Restore indentation eventually.
+    return indent + line
 
 
 class PythonBlockParser(Protocol):
-    def __call__(self, *, start: str, end: str, content: str) -> str: ...
+    def __call__(self, *, start: str, end: str, content: str) -> str:
+        ...
 
 
 def parse_code_block(code: str, parser: PythonBlockParser) -> str:
