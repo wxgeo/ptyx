@@ -1,5 +1,5 @@
 """
-Geophyx
+Geoptyx
 
 Geophar binding for pTyX.
 
@@ -47,7 +47,7 @@ from ptyx.latex_generator import LatexGenerator
 # ------------------
 
 
-class GeophyxLatexGenerator(LatexGenerator):
+class GeoptyxLatexGenerator(LatexGenerator):
     def _parse_CALC_tag(self, node):
         args, kw = self._parse_options(node)
         assert len(args) <= 1 and len(kw) == 0
@@ -130,7 +130,7 @@ def extend_compiler() -> CompilerExtension:
         "TABVAL": (0, 0, ["@END_TABVAL", "@END"]),
         "TABVAR": (0, 0, ["@END_TABVAR", "@END"]),
     }
-    return {"latex_generator": GeophyxLatexGenerator, "tags": tags}
+    return {"latex_generator": GeoptyxLatexGenerator, "tags": tags}
 
 
 def main(code, compiler):
