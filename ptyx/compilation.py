@@ -1,5 +1,4 @@
-import itertools
-import multiprocessing
+import concurrent.futures
 import os
 import re
 import shutil
@@ -8,7 +7,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Iterable, Sequence, NewType
+from typing import Optional, Iterable, Sequence, NewType, Callable
 
 import fitz
 
@@ -83,6 +82,9 @@ class MultipleFilesCompilationInfo:
     @property
     def directory(self) -> Path:
         return self.compilation_dir
+
+    def sort(self) -> None:
+        self.info_dict = {doc_id: self.info_dict[doc_id] for doc_id in sorted(self.info_dict)}
 
     def __len__(self):
         return len(self.info_dict)
@@ -183,6 +185,7 @@ def make_files(
     doc_ids_selection: Iterable[int] = None,
     compiler: Compiler = None,
     options: CompilationOptions = DEFAULT_OPTIONS,
+    on_each_compilation: Callable[[int, int], None] | None = None,
 ) -> tuple[MultipleFilesCompilationInfo, Compiler]:
     """Generate the tex and pdf files.
 
@@ -254,105 +257,104 @@ def make_files(
 
     assert target is not None
 
-    while len(all_compilation_info) < target:
-        # ------------------------
-        # Generate the LaTeX files
-        # ------------------------
-        # (Note that the actual number of generated files may be more than that,
-        # because by default we aim to have documents with the same number of pages.)
-        latex_files: dict[DocId, Path] = {}
-        for _ in range(target - len(all_compilation_info)):
-            # 1. Generate context.
-            if doc_ids_selection is None:
-                # Restart from previous doc_id value (don't reset it!)
-                doc_id = DocId(doc_id + 1)
-            else:
-                # Overwrite default numeration, since correction numeration must match first pass.
-                doc_id = DocId(doc_ids_selection.pop(0))
-            context.update(PTYX_NUM=doc_id)
-            filename = compilation_dir / (
-                f"{output_basename}-{doc_id}.tex" if target > 1 else f"{output_basename}.tex"
-            )
-            # 2. Compile to LaTeX.
-            print(context)
-            latex_files[doc_id] = generate_latex_file(filename, compiler, context)
-
-        if options.no_pdf:
-            return all_compilation_info, compiler
-
-        # --------------------------------
-        # Compile to pdf using parallelism
-        # --------------------------------
+    cpu_cores_to_use = (
         # Use only the physical cores, not the virtual ones !
-        # with Pool(CPU_PHYSICAL_CORES) as pool:
-        #     infos_list = pool.starmap(make_file, tasks)
+        options.cpu_cores
+        if options.cpu_cores >= 1
+        else min(CPU_PHYSICAL_CORES, target)
+    )
+    with concurrent.futures.ProcessPoolExecutor(max_workers=cpu_cores_to_use) as executor:
+        while len(all_compilation_info) < target:
+            # ------------------------
+            # Generate the LaTeX files
+            # ------------------------
+            # (Note that the actual number of generated files may be more than that,
+            # because by default we aim to have documents with the same number of pages.)
+            futures: dict[concurrent.futures.Future, DocId] = {}
+            for _ in range(target - len(all_compilation_info)):
+                # 1. Generate context.
+                if doc_ids_selection is None:
+                    # Restart from previous doc_id value (don't reset it!)
+                    doc_id = DocId(doc_id + 1)
+                else:
+                    # Overwrite default numeration, since correction numeration must match first pass.
+                    doc_id = DocId(doc_ids_selection.pop(0))
+                context.update(PTYX_NUM=doc_id)
+                filename = compilation_dir / (
+                    f"{output_basename}-{doc_id}.tex" if target > 1 else f"{output_basename}.tex"
+                )
+                # 2. Compile to LaTeX.
+                print(context)
+                latex_file: Path = generate_latex_file(filename, compiler, context)
+                if not options.no_pdf:
+                    # Compile to pdf using parallelism.
+                    # Tasks are added to executor, and executed in parallel.
+                    future = executor.submit(compile_latex_to_pdf, latex_file, None, quiet=options.quiet)
+                    futures[future] = doc_id
 
-        cpu_cores_to_use = (
-            options.cpu_cores if options.cpu_cores >= 1 else min(CPU_PHYSICAL_CORES, len(latex_files))
-        )
-        args = [(path, None, options.quiet) for path in latex_files.values()]
+            if options.no_pdf:
+                return all_compilation_info, compiler
 
-        if cpu_cores_to_use > 1:
-            with multiprocessing.get_context("forkserver").Pool(cpu_cores_to_use) as pool:
-                compile_info_list: list[SingleFileCompilationInfo] = pool.starmap(compile_latex_to_pdf, args)
-        else:
-            compile_info_list = list(itertools.starmap(compile_latex_to_pdf, args))
+            # ---------------
+            # Analyze results
+            # ---------------
+            for future in concurrent.futures.as_completed(futures):
+                info: SingleFileCompilationInfo = future.result()
+                doc_id = futures[future]
+                if doc_ids_selection is None:
+                    # 3. Test if the new generated file satisfies all options constraints.
+                    if options.set_number_of_pages not in (0, info.page_count):
+                        # Pages number is set manually, and don't match.
+                        print(f"Warning: skipping {info.src} (incorrect page number) !")
+                        continue
+                    elif options.same_number_of_pages or options.same_number_of_pages_compact:
+                        # Determine automatically the best fixed page count.
+                        # This is a bit subtle. We want all compiled documents to have
+                        # the same pages number, yet we don't want to set it manually.
+                        # So, we compile documents and memorize their size.
+                        # We'll group compilation results by the length of the resulting document.
+                        # We'll keep one dictionary {document id: Path}  for each size of document.
+                        # At each loop, if the compiled document is of size n,
+                        # we update the dictionary of all the n-sized documents with the document ID
+                        # and its path.
+                        # Before beginning the next loop, the dictionary size will be checked,
+                        # to see if it contains enough documents.
+                        # (There's no need to have a look on the others dicts, since they haven't changed...)
+                        all_compilation_info = pages_per_document.setdefault(
+                            info.page_count, MultipleFilesCompilationInfo(compilation_dir, output_basename)
+                        )
 
-        # pages_numbers: list[int] = [info.page_count for info in compile_info_list]
+                all_compilation_info.info_dict[doc_id] = info
+                doc_id = DocId(doc_id + 1)
+                if options.same_number_of_pages_compact:
+                    # In compact mode, we try to minimize the number of pages of the generated documents.
+                    # To not increase too drastically the time of compilation, we adopt the following heuristic:
+                    # we'll use the shorter documents, if their frequency exceed 25% of the total documents.
+                    total = sum(len(compil_info.doc_ids) for compil_info in pages_per_document.values())
+                    for page_count in sorted(pages_per_document):
+                        if len(pages_per_document[page_count].doc_ids) > total / 4:
+                            all_compilation_info = pages_per_document[page_count]
+                            break
+                    else:
+                        # Exceptionally, if the length of each document is highly variable, each page count value
+                        # may occur less than 25%. Then, we'll select the most frequent page count.
+                        for compil_info in pages_per_document.values():
+                            if len(compil_info.doc_ids) > len(all_compilation_info.doc_ids):
+                                all_compilation_info = compil_info
 
-        # ---------------
-        # Analyze results
-        # ---------------
-        info: SingleFileCompilationInfo
-        for doc_id, info in zip(latex_files, compile_info_list):
-            if doc_ids_selection is None:
-                # 3. Test if the new generated file satisfies all options constraints.
-                if options.set_number_of_pages not in (0, info.page_count):
-                    # Pages number is set manually, and don't match.
-                    print(f"Warning: skipping {info.src} (incorrect page number) !")
-                    continue
-                elif options.same_number_of_pages or options.same_number_of_pages_compact:
-                    # Determine automatically the best fixed page count.
-                    # This is a bit subtle. We want all compiled documents to have
-                    # the same pages number, yet we don't want to set it manually.
-                    # So, we compile documents and memorize their size.
-                    # We'll group compilation results by the length of the resulting document.
-                    # We'll keep one dictionary {document id: Path}  for each size of document.
-                    # At each loop, if the compiled document is of size n,
-                    # we update the dictionary of all the n-sized documents with the document ID
-                    # and its path.
-                    # Before beginning the next loop, the dictionary size will be checked,
-                    # to see if it contains enough documents.
-                    # (There's no need to have a look on the others dicts, since they haven't changed...)
-                    all_compilation_info = pages_per_document.setdefault(
-                        info.page_count, MultipleFilesCompilationInfo(compilation_dir, output_basename)
-                    )
+                elif options.same_number_of_pages:
+                    for compil_info in pages_per_document.values():
+                        if len(compil_info.doc_ids) > len(all_compilation_info.doc_ids):
+                            all_compilation_info = compil_info
 
-            all_compilation_info.info_dict[doc_id] = info
-            doc_id = DocId(doc_id + 1)
-        if options.same_number_of_pages_compact:
-            # In compact mode, we try to minimize the number of pages of the generated documents.
-            # To not increase too drastically the time of compilation, we adopt the following heuristic:
-            # we'll use the shorter documents, if their frequency exceed 25% of the total documents.
-            total = sum(len(compil_info.doc_ids) for compil_info in pages_per_document.values())
-            for page_count in sorted(pages_per_document):
-                if len(pages_per_document[page_count].doc_ids) > total / 4:
-                    all_compilation_info = pages_per_document[page_count]
-                    break
-            else:
-                # Exceptionally, if the length of each document is highly variable, each page count value
-                # may occur less than 25%. Then, we'll select the most frequent page count.
-                for compil_info in pages_per_document.values():
-                    if len(compil_info.doc_ids) > len(all_compilation_info.doc_ids):
-                        all_compilation_info = compil_info
+                if on_each_compilation is not None:
+                    on_each_compilation(len(all_compilation_info), target)
 
-            if len(all_compilation_info) > target:
-                all_compilation_info = all_compilation_info[:target]
+    # Sort generated documents by id, before joining them together.
+    all_compilation_info.sort()
 
-        elif options.same_number_of_pages:
-            for compil_info in pages_per_document.values():
-                if len(compil_info.doc_ids) > len(all_compilation_info.doc_ids):
-                    all_compilation_info = compil_info
+    if len(all_compilation_info) > target:
+        all_compilation_info = all_compilation_info[:target]
 
     assert len(all_compilation_info) == target, len(all_compilation_info)
     filenames = all_compilation_info.pdf_paths
