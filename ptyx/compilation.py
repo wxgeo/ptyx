@@ -6,8 +6,9 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from pathlib import Path
-from typing import Optional, Iterable, Sequence, NewType, Callable
+from typing import Optional, Iterable, Sequence, NewType, Callable, Any
 
 import fitz
 
@@ -32,6 +33,21 @@ PageCount = NewType("PageCount", int)
 #     Path("/home/user/file-corr")
 #     """
 #     return path.with_name(path.name + suffix)
+
+
+class CompilationState(Enum):
+    COMPILING_PDF = auto()
+    FINALIZING = auto()
+    COMPLETED = auto()
+
+
+@dataclass
+class CompilationProgress:
+    """This class is used to provide feedback about the compilation progress."""
+
+    count: int
+    target: int
+    state: CompilationState
 
 
 @dataclass
@@ -185,7 +201,7 @@ def make_files(
     doc_ids_selection: Iterable[int] = None,
     compiler: Compiler = None,
     options: CompilationOptions = DEFAULT_OPTIONS,
-    on_each_compilation: Callable[[int, int], None] | None = None,
+    feedback: Callable[[CompilationProgress], Any] | None = None,
 ) -> tuple[MultipleFilesCompilationInfo, Compiler]:
     """Generate the tex and pdf files.
 
@@ -202,6 +218,9 @@ def make_files(
        when generating several documents with different parameters from
        the same source pTyX file.
     - `options`: a `CompilationOptions` instance, used to pass compilation options.
+    - `feedback`: a function called each time the compilation state changed, typically
+       used to display compilation progress. It will receive a `CompilationProgress` instance
+       as argument. (No return is expected.)
 
     Return a MultipleFilesCompilationInfo instance, which contains all LaTeX errors
     detected during pdftex compilation.
@@ -347,8 +366,14 @@ def make_files(
                         if len(compil_info.doc_ids) > len(all_compilation_info.doc_ids):
                             all_compilation_info = compil_info
 
-                if on_each_compilation is not None:
-                    on_each_compilation(len(all_compilation_info), target)
+                if feedback is not None:
+                    feedback(
+                        CompilationProgress(
+                            count=len(all_compilation_info),
+                            target=target,
+                            state=CompilationState.COMPILING_PDF,
+                        )
+                    )
 
     # Sort generated documents by id, before joining them together.
     all_compilation_info.sort()
@@ -359,6 +384,14 @@ def make_files(
     assert len(all_compilation_info) == target, len(all_compilation_info)
     filenames = all_compilation_info.pdf_paths
 
+    if feedback is not None:
+        feedback(
+            CompilationProgress(
+                count=len(all_compilation_info),
+                target=target,
+                state=CompilationState.FINALIZING,
+            )
+        )
     # If needed, join different versions in a single pdf, and compress if asked to do so.
     # (Ghostscript is needed for compression.)
     join_files_if_needed(compilation_dir / f"{output_basename}.pdf", filenames, options)
@@ -374,7 +407,14 @@ def make_files(
     # Remove `.compile` folder if asked to.
     if options.remove:
         shutil.rmtree(compilation_dir)
-
+    if feedback is not None:
+        feedback(
+            CompilationProgress(
+                count=len(all_compilation_info),
+                target=target,
+                state=CompilationState.COMPLETED,
+            )
+        )
     return all_compilation_info, compiler
 
 

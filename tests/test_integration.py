@@ -66,7 +66,7 @@ def test_make_files(tmp_path) -> None:
     compiler = Compiler()
     compiler.parse(path=ptyx_path)
     pdf_path = ptyx_path.with_suffix(".pdf")
-    make_files(ptyx_path, compiler=compiler, number_of_documents=2)
+    make_files(ptyx_path, number_of_documents=2, compiler=compiler)
     assert (tmp_path / "test-1.pdf").is_file()
     assert (tmp_path / "test-2.pdf").is_file()
     assert not pdf_path.is_file()
