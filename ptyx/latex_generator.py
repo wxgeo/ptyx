@@ -1,3 +1,4 @@
+import os.path
 import random
 import re
 import traceback
@@ -939,7 +940,15 @@ class Compiler:
 
     def read_file(self, path: Union[Path, str]) -> None:
         """Feed compiler with given file code."""
-        self._state["path"] = Path(path).expanduser().resolve()
+        # We must use `os.path.abspath()` here:
+        #   - `Path.absolute()` would not normalize the path,
+        #      i.e. ".." and "." are not interpreted,
+        #      obsfucating any bug report.
+        #   - `Path.resolve()` or `os.path.realpath()` would
+        #      resolve symlinks, and so change the folder where
+        #      all the files are generated as a side effect.
+        path = Path(os.path.abspath(os.path.expanduser(path)))
+        self._state["path"] = path
         with open(path, "r") as input_file:
             self._state["input"] = input_file.read()
 
@@ -949,7 +958,7 @@ class Compiler:
         file_path = self.file_path
         return Path.cwd() if file_path is None else file_path.parent
 
-    def _resolve_path(self, path: Union[str, Path]) -> Path:
+    def _resolve_input_file_path(self, path: Union[str, Path]) -> Path:
         """Interpret `path` relatively to input ptyx file."""
         if isinstance(path, str):
             path = Path(path.strip())
@@ -962,7 +971,7 @@ class Compiler:
         """Parse all #INCLUDE tags, then include corresponding files content."""
 
         def include(match):
-            path = self._resolve_path(match.group(1))
+            path = self._resolve_input_file_path(match.group(1))
             with open(path) as file:
                 return f"\n#APART\n{file.read()}#END_APART\n"
 
