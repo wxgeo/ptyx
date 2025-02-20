@@ -123,7 +123,9 @@ class Node:
         try:
             return eval(python_code, context)
         except Exception as e:
-            raise PythonExpressionError(python_code=python_code, ptyx_tag=str(self.name)) from e
+            raise PythonExpressionError(
+                python_code=python_code, ptyx_tag=str(self.name), context=context
+            ) from e
 
 
 class SyntaxTreeGenerator:
@@ -176,6 +178,8 @@ class SyntaxTreeGenerator:
         "FREEZE_RANDOM_STATE": (0, 0, []),
         "IFNUM": (1, 1, None),
         "INCLUDE": (0, 1, None),
+        "INCLUDE_START": (2, 0, None),
+        "INCLUDE_END": (0, 0, None),
         "CALL": (0, 1, None),
         "MACRO": (0, 1, ["@END", "@END_MACRO"]),
         "PICK": (0, 0, ["@END", "@END_PICK"]),

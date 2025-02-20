@@ -49,3 +49,6 @@ class EvalFlags:
     result_is_exact: bool | None = None
     pick_action: PickItemAction = PickItemAction.NONE
     suppress_next_eval: bool = False
+
+
+PtyxTraceback = list[tuple[str | None, int | None]]

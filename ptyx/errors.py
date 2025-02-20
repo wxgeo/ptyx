@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 import traceback
+from typing import Any
+
+from ptyx.internal_types import PtyxTraceback
 
 from ptyx.shell import yellow, red
 
@@ -57,13 +60,20 @@ class PythonCodeError(PtyxDocumentCompilationError):
         - label: a label referencing the code snippet, to retrieve it.
     """
 
-    def __init__(self, *args, python_code: str = None, label=None):
+    def __init__(
+        self,
+        *args,
+        python_code: str = None,
+        label=None,
+        context: dict[str, Any] | None = None,
+    ):
         super().__init__(*args)
         self.python_code = python_code
         self.label = label
         # When transferring an error from one process to another (using multiprocessing.Queue for example),
         # the error must be pickled. By default,
         self._info: ErrorInformation | None = None
+        self.ptyx_traceback: PtyxTraceback | None = context.get("PTYX_TRACEBACK") if context else None
 
     def __getstate__(self):
         # Update self._info cache before getting state for pickling.
@@ -95,8 +105,16 @@ class PythonExpressionError(PythonCodeError):
         #{a=0;b=1/a}
     """
 
-    def __init__(self, *args, python_code: str = None, flags: str = None, label=None, ptyx_tag: str = ""):
-        super().__init__(*args, python_code=python_code, label=label)
+    def __init__(
+        self,
+        *args,
+        python_code: str = None,
+        flags: str = None,
+        label=None,
+        context: dict[str, Any] | None = None,
+        ptyx_tag: str = "",
+    ):
+        super().__init__(*args, python_code=python_code, label=label, context=context)
         self.flags = flags
         self.ptyx_tag = ptyx_tag
 
@@ -124,14 +142,21 @@ class PythonBlockError(PythonCodeError):
         #END_BLOCK
     """
 
-    def __init__(self, *args, python_code: str = None, label=None):
-        super().__init__(*args, python_code=python_code, label=label)
+    def __init__(
+        self,
+        *args,
+        python_code: str = None,
+        label: str = None,
+        context: dict[str, Any] | None = None,
+    ):
+        super().__init__(*args, python_code=python_code, label=label, context=context)
 
     @property
     def pretty_report(self) -> str:
         if self.python_code is None:
             return "<No python code found>"
-        msg = format_python_code_snippet(self.python_code)
+        msg = [f"File {self.ptyx_traceback[-1][0]}"] if self.ptyx_traceback else []
+        msg.extend(format_python_code_snippet(self.python_code))
         error_info = self.info
         i = error_info.row
         if i is not None:

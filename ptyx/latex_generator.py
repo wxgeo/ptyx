@@ -16,7 +16,7 @@ import ptyx.randfunc as randfunc
 from ptyx import __version__
 from ptyx.config import param
 from ptyx.context import GLOBAL_CONTEXT
-from ptyx.internal_types import NiceOp, PickItemAction, EvalFlags
+from ptyx.internal_types import NiceOp, PickItemAction, EvalFlags, PtyxTraceback
 from ptyx.sys_info import SYMPY_AVAILABLE
 
 from ptyx.syntax_tree import Node, SyntaxTreeGenerator, Tag, TagSyntax
@@ -106,10 +106,13 @@ class LatexGenerator:
         # extensions).
         self.cache = {}
 
-    def clear(self):
+    def clear(self, main_file: Path | None = None) -> None:
         self.macros = {}
         self.context = GLOBAL_CONTEXT.copy()
-        self.context["PTYX_LATEX"] = []
+        # PTYX_LATEX will contain a list of generated LaTeX code parts, to be eventually concatenated.
+        self.context["PTYX_LATEX"]: list[str] = []  # type: ignore
+        # This is used to keep a track of included files, to be able to generate a traceback when debugging.
+        self.context["PTYX_TRACEBACK"]: PtyxTraceback = [(str(main_file), None)]  # type: ignore
         self.backups = []
         self.last_eval_position = LastEvaluatedExpressionInfo()
         # When write() is called from inside a #PYTHON ... #END code block,
@@ -119,14 +122,14 @@ class LatexGenerator:
         # Now, one should use write(..., parse=True) if needed, which is much saner.
         self.context["write"] = self.write
         # Internal flags
-        self.flags = EvalFlags(eval_as_float=self.context.get("ALL_FLOATS"))
+        self.flags = EvalFlags(eval_as_float=self.context.get("ALL_FLOATS", False))
 
     def reset(self):
         """To overwrite."""
         self.clear()
 
     def set_new_context(self, base_context: Optional[Dict] = None) -> dict[str, Any]:
-        """Set a new context of evaluation for code, except for PTYX_LATEX value."""
+        """Set a new context of evaluation for code, except for PTYX_* variables."""
         old_context = self.context
         if base_context is None:
             base_context = GLOBAL_CONTEXT
@@ -300,10 +303,26 @@ class LatexGenerator:
         # Backup local variables and reset context.
         context_backup = self.context
         self.set_new_context()
-        # Interprete code
+        # Interpret code
         self._parse_children(node.children)
         # Restore local variables and update generated LaTeX code.
         self.set_new_context(context_backup)
+
+    @staticmethod
+    def _prettify_path(path: Path | str | None = None) -> str:
+        if path is None:
+            return "?"
+        path = Path(path)
+        return str(path.parent / f"\u001b[36m{path.name}\u001b[0m").replace("#", "##")
+
+    def _parse_INCLUDE_START_tag(self, node: Node):
+        file_path = node.arg(0)
+        position = node.arg(1)
+        self.context["PTYX_TRACEBACK"].append((file_path, int(position) if position else None))
+        print(f"\u001b[36mIMPORTING\u001b[0m '{self._prettify_path(file_path)}'")
+
+    def _parse_INCLUDE_END_tag(self, node: Node):
+        self.context["PTYX_TRACEBACK"].pop()
 
     def _parse_PTYX_VERSION_tag(self, node: Node):
         def version_tuple(version_: str):
@@ -402,7 +421,7 @@ class LatexGenerator:
 
     def _parse_EVAL_tag(self, node: Node):
         if self.flags.suppress_next_eval:
-            self.flags = EvalFlags(eval_as_float=self.context.get("ALL_FLOATS"))  # type: ignore
+            self.flags = EvalFlags(eval_as_float=self.context.get("ALL_FLOATS", False))
             return
         args, kw = self._parse_options(node)
         for arg in args:
@@ -429,12 +448,14 @@ class LatexGenerator:
             txt = self._eval_and_format_python_expr(code)
         except Exception as e:
             # print("ERROR: Can't evaluate this: " + repr(code))
-            raise PythonExpressionError(python_code=code, flags=node.options, label=tag) from e
+            raise PythonExpressionError(
+                python_code=code, flags=node.options, label=tag, context=self.context
+            ) from e
         # Tags must be cleared *before* calling .write(txt), since .write(txt)
         # add '+', '-' and '\times ' before txt if corresponding flags are set,
         # and ._eval_and_format_python_expr() has already do this.
         self.flags = EvalFlags(
-            eval_as_float=self.context.get("ALL_FLOATS"),  # type: ignore
+            eval_as_float=self.context.get("ALL_FLOATS", False),
             suppress_next_eval=self.flags.suppress_next_eval,
         )
         self.last_eval_position.position = len(self.context["PTYX_LATEX"])
@@ -695,7 +716,7 @@ class LatexGenerator:
         try:
             self._exec(code, context)
         except Exception as e:  # noqa
-            raise PythonBlockError(python_code=code, label=tag) from e
+            raise PythonBlockError(python_code=code, label=tag, context=self.context) from e
         return code
 
     def _eval_python_expr(self, code: str) -> object:
@@ -970,10 +991,10 @@ class Compiler:
     def _include_subfiles(self, code: str) -> str:
         """Parse all #INCLUDE tags, then include corresponding files content."""
 
-        def include(match):
+        def include(match: re.Match) -> str:
             path = self._resolve_input_file_path(match.group(1))
             with open(path) as file:
-                return f"\n#APART\n{file.read()}#END_APART\n"
+                return f"\n#APART#INCLUDE_START{{{path}}}{{{match.start(1)}}}\n{file.read()}#END_APART#INCLUDE_END\n"
 
         # noinspection RegExpRedundantEscape
         return re.sub(r"#INCLUDE\{([^}]+)\}", include, code)
@@ -1127,7 +1148,7 @@ class Compiler:
         if tree is None:
             raise RuntimeError("`Compiler.generate_syntax_tree()` must be run first.")
         gen = self.latex_generator
-        gen.clear()
+        gen.clear(main_file=self._state["path"])
         gen.context.update(context)
         seed = self._state["seed"] + gen.NUM
         randfunc.set_seed(seed)
