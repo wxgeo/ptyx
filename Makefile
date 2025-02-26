@@ -22,3 +22,5 @@ fix:
 	poetry run black .
 	poetry run ruff check --fix ptyx tests
 
+lock:
+	git commit poetry.lock -m "dev: update poetry.lock"
