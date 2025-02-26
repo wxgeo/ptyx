@@ -36,8 +36,9 @@ PageCount = NewType("PageCount", int)
 
 
 class CompilationState(Enum):
-    COMPILING_PDF = auto()
-    FINALIZING = auto()
+    STARTED = auto()
+    GENERATING_DOCS = auto()
+    MERGING_DOCS = auto()
     COMPLETED = auto()
 
 
@@ -45,7 +46,8 @@ class CompilationState(Enum):
 class CompilationProgress:
     """This class is used to provide feedback about the compilation progress."""
 
-    count: int
+    generated_latex_docs: int
+    compiled_pdf_docs: int
     target: int
     state: CompilationState
 
@@ -201,7 +203,7 @@ def make_files(
     doc_ids_selection: Iterable[int] = None,
     compiler: Compiler = None,
     options: CompilationOptions = DEFAULT_OPTIONS,
-    feedback: Callable[[CompilationProgress], Any] | None = None,
+    feedback_func: Callable[[CompilationProgress], Any] | None = None,
 ) -> tuple[MultipleFilesCompilationInfo, Compiler]:
     """Generate the tex and pdf files.
 
@@ -218,7 +220,7 @@ def make_files(
        when generating several documents with different parameters from
        the same source pTyX file.
     - `options`: a `CompilationOptions` instance, used to pass compilation options.
-    - `feedback`: a function called each time the compilation state changed, typically
+    - `feedback_func`: a function called each time the compilation state changed, typically
        used to display compilation progress. It will receive a `CompilationProgress` instance
        as argument. (No return is expected.)
 
@@ -250,6 +252,23 @@ def make_files(
         doc_ids_selection = list(doc_ids_selection)  # Important: make a copy!
         target = len(doc_ids_selection)
     assert isinstance(target, int)
+
+    def feedback(generated_latex_docs: int, compiled_pdf_docs: int, state: CompilationState) -> None:
+        if feedback_func is not None:
+            feedback_func(
+                CompilationProgress(
+                    generated_latex_docs=generated_latex_docs,
+                    compiled_pdf_docs=compiled_pdf_docs,
+                    target=target,
+                    state=state,
+                )
+            )
+
+    feedback(
+        generated_latex_docs=0,
+        compiled_pdf_docs=0,
+        state=CompilationState.STARTED,
+    )
 
     # Create an empty `.compile/{input_name}` subfolder.
     compilation_dir = ptyx_file.parent / ".compile" / ptyx_file.stem
@@ -290,7 +309,8 @@ def make_files(
             # (Note that the actual number of generated files may be more than that,
             # because by default we aim to have documents with the same number of pages.)
             futures: dict[concurrent.futures.Future, DocId] = {}
-            for _ in range(target - len(all_compilation_info)):
+            number_of_missing_docs: int = target - len(all_compilation_info)
+            for new_latex_docs_count in range(number_of_missing_docs):
                 # 1. Generate context.
                 if doc_ids_selection is None:
                     # Restart from previous doc_id value (don't reset it!)
@@ -305,6 +325,11 @@ def make_files(
                 # 2. Compile to LaTeX.
                 print(context)
                 latex_file: Path = generate_latex_file(filename, compiler, context)
+                feedback(
+                    generated_latex_docs=len(all_compilation_info) + new_latex_docs_count,
+                    compiled_pdf_docs=len(all_compilation_info),
+                    state=CompilationState.GENERATING_DOCS,
+                )
                 if not options.no_pdf:
                     # Compile to pdf using parallelism.
                     # Tasks are added to executor, and executed in parallel.
@@ -348,7 +373,7 @@ def make_files(
                 if options.same_number_of_pages_compact:
                     # In compact mode, we try to minimize the number of pages of the generated documents.
                     # To not increase too drastically the time of compilation, we adopt the following heuristic:
-                    # we'll use the shorter documents, if their frequency exceed 25% of the total documents.
+                    # we'll use the shortest documents, if their frequency exceed 25% of the total documents.
                     total = sum(len(compil_info.doc_ids) for compil_info in pages_per_document.values())
                     for page_count in sorted(pages_per_document):
                         if len(pages_per_document[page_count].doc_ids) > total / 4:
@@ -366,14 +391,11 @@ def make_files(
                         if len(compil_info.doc_ids) > len(all_compilation_info.doc_ids):
                             all_compilation_info = compil_info
 
-                if feedback is not None:
-                    feedback(
-                        CompilationProgress(
-                            count=len(all_compilation_info),
-                            target=target,
-                            state=CompilationState.COMPILING_PDF,
-                        )
-                    )
+                feedback(
+                    generated_latex_docs=target,
+                    compiled_pdf_docs=len(all_compilation_info),
+                    state=CompilationState.GENERATING_DOCS,
+                )
 
     # Sort generated documents by id, before joining them together.
     all_compilation_info.sort()
@@ -384,14 +406,12 @@ def make_files(
     assert len(all_compilation_info) == target, len(all_compilation_info)
     filenames = all_compilation_info.pdf_paths
 
-    if feedback is not None:
-        feedback(
-            CompilationProgress(
-                count=len(all_compilation_info),
-                target=target,
-                state=CompilationState.FINALIZING,
-            )
-        )
+    feedback(
+        generated_latex_docs=target,
+        compiled_pdf_docs=target,
+        state=CompilationState.MERGING_DOCS,
+    )
+
     # If needed, join different versions in a single pdf, and compress if asked to do so.
     # (Ghostscript is needed for compression.)
     join_files_if_needed(compilation_dir / f"{output_basename}.pdf", filenames, options)
@@ -407,14 +427,11 @@ def make_files(
     # Remove `.compile` folder if asked to.
     if options.remove:
         shutil.rmtree(compilation_dir)
-    if feedback is not None:
-        feedback(
-            CompilationProgress(
-                count=len(all_compilation_info),
-                target=target,
-                state=CompilationState.COMPLETED,
-            )
-        )
+    feedback(
+        generated_latex_docs=target,
+        compiled_pdf_docs=target,
+        state=CompilationState.COMPLETED,
+    )
     return all_compilation_info, compiler
 
 
