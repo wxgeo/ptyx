@@ -13,14 +13,26 @@ class TermColors(IntEnum):
     WHITE = 7
 
 
-def yellow(to_print: object) -> str:
+def bold(to_print: object):
+    """Convert `to_print` as string and put it in bold in shell. Preserve any previously set color."""
+    # Warning: to disable bold, use 22, not 21 (as wrongly documented in many websites...)
+    # nor 0 (it would reset color too)
+    return f"\033[1m{to_print}\033[22m"
+
+
+def yellow(to_print: object, bold=False) -> str:
     """Convert `to_print` as string and put it in yellow in shell."""
-    return term_color(to_print, color=TermColors.YELLOW)
+    return term_color(to_print, color=TermColors.YELLOW, bold=bold)
 
 
-def red(to_print: object) -> str:
+def red(to_print: object, bold=False) -> str:
     """Convert `to_print` as string and put it in red in shell."""
-    return term_color(to_print, color=TermColors.RED)
+    return term_color(to_print, color=TermColors.RED, bold=bold)
+
+
+def green(to_print: object, bold=False) -> str:
+    """Convert `to_print` as string and put it in red in shell."""
+    return term_color(to_print, color=TermColors.GREEN, bold=bold)
 
 
 def custom_print(msg: str, color: TermColors, title: str, bold=False, **kw) -> None:
@@ -46,7 +58,7 @@ def print_info(msg: str) -> None:
 
 def term_color(
     string: object,
-    color: TermColors,
+    color: TermColors | None = None,
     bold: bool = False,
     dim: bool = False,
     italic: bool = False,
@@ -68,7 +80,7 @@ def term_color(
         (3 if italic else None),
         (4 if underline else None),
         (7 if highlight else None),
-        (40 if reverse else 30) + color,
+        ((40 if reverse else 30) + color) if color else None,
     ]
     codes = ";".join(str(code) for code in formatting if code is not None)
     return f"\033[{codes}m{string}\033[0m"
