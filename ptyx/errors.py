@@ -4,7 +4,7 @@ from typing import Any
 
 from ptyx.internal_types import PtyxTraceback
 
-from ptyx.shell import yellow, red
+from ptyx.pretty_print import yellow, red, pretty_box
 
 
 def _cap(s: str) -> str:
@@ -170,16 +170,4 @@ class PythonBlockError(PythonCodeError):
 
 def format_python_code_snippet(python_code: str) -> list[str]:
     """Return a list of prettified lines of python code, ready to be printed."""
-    msg = ["", "%s %s Executing following python code:" % (chr(9474), chr(9998))]
-    lines = [""] + python_code.split("\n") + [""]
-    zfill = len(str(len(lines)))
-    msg.extend(
-        "%s %s %s %s" % (chr(9474), str(i).zfill(zfill), chr(9474), line)
-        for i, line in enumerate(lines[1:], start=1)
-    )
-    n = max(len(s) for s in msg)
-    msg.insert(1, chr(9581) + n * chr(9472))
-    msg.insert(3, chr(9500) + n * chr(9472))
-    msg.append(chr(9584) + n * chr(9472))
-    assert isinstance(python_code, str)
-    return msg
+    return pretty_box(python_code, title="Executing following python code:")

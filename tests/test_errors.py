@@ -81,7 +81,9 @@ def test_PythonBlockError():
     assert exc_info.value.info == ErrorInformation("division by zero", 3, 3, 4, 7)
 
     # The faulty line must be colored in yellow in the report:
-    assert exc_info.value.pretty_report.split("\n")[6] == "\x1b[33m│ 3 │ b = 1/0\x1b[0m"
+    assert (
+        exc_info.value.pretty_report.split("\n")[6] == "\x1b[33m│ 3 │ b = 1/0                        │\x1b[0m"
+    )
 
 
 def test_PythonBlockError_full_pretty_report():
@@ -101,15 +103,14 @@ def test_PythonBlockError_full_pretty_report():
     assert exc_info.value.pretty_report == "\n".join(
         [
             "",
-            "╭────────────────────────────────────",
-            "│ ✎ Executing following python code:",
-            "├────────────────────────────────────",
-            "│ 1 │ ",
-            "│ 2 │ l = []",
-            "\x1b[33m│ 3 │ if len(L) > 1:\x1b[0m",
-            "│ 4 │     print(l[1])",
-            "│ 5 │ ",
-            "╰────────────────────────────────────",
+            "╭────────────────────────────────────╮",
+            "│ ✎ Executing following python code: │",
+            "├────────────────────────────────────┤",
+            "│ 1 │                                │",
+            "│ 2 │ l = []                         │",
+            "\x1b[33m│ 3 │ if len(L) > 1:                 │\x1b[0m",
+            "│ 4 │     print(l[1])                │",
+            "╰────────────────────────────────────╯",
             "",
             "\x1b[31m[ERROR] \x1b[0m\x1b[33mName 'L' is not defined.\x1b[0m",
         ]

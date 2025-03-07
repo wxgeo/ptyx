@@ -12,7 +12,7 @@ from typing import Optional, Iterable, Sequence, NewType, Callable, Any
 
 import fitz
 
-from ptyx.shell import print_error
+from ptyx.pretty_print import print_error
 from ptyx.sys_info import CPU_PHYSICAL_CORES
 from ptyx.compilation_options import DEFAULT_OPTIONS, CompilationOptions
 from ptyx.config import param

@@ -10,7 +10,8 @@ import re
 from typing import Tuple, Optional, List, Dict, Union, TypeVar, Iterable, Set, Any
 
 from ptyx.errors import PtyxSyntaxError, PythonExpressionError
-from ptyx.utilities import find_closing_bracket, term_color
+from ptyx.utilities import find_closing_bracket
+from ptyx.pretty_print import term_color, TermColors
 
 Tag = str
 TagSyntax = Tuple[int, int, Optional[List[str]]]
@@ -86,7 +87,7 @@ class Node:
                     if len(text) > 30:
                         text = text[:25] + " [...]'"
                 if color:
-                    text = term_color(text, "green")
+                    text = term_color(text, TermColors.GREEN)
                 texts.append("%s  - text: %s" % (indent * " ", text))
         return "\n".join(texts)
 
@@ -107,9 +108,9 @@ class Node:
         if not color:
             return str(val)
         if isinstance(val, str):
-            return term_color(val, "yellow")
+            return term_color(val, TermColors.YELLOW)
         if isinstance(val, int):
-            return term_color(str(val), "blue")
+            return term_color(str(val), TermColors.BLUE)
         return str(val)
 
     def eval_arg(self, i: int, context: dict[str, Any]) -> Any:
@@ -150,6 +151,7 @@ class SyntaxTreeGenerator:
     # in {val=="}"}, the bracket closing the tag is the second `}`, not the first one !
 
     tags: Dict[Tag, TagSyntax] = {
+        "ALERT": (2, 0, None),
         "ANS": (0, 0, ["@END", "@END_ANS"]),
         "ANSWER": (0, 1, None),
         "APART": (0, 0, ["@END", "@END_APART"]),

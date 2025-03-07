@@ -9,6 +9,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List, TypedDict, Any
 
+from ptyx.pretty_print import pretty_box, yellow
+
 from ptyx.errors import PtyxRuntimeError, PythonBlockError, PythonExpressionError, PtyxExtensionNotFound
 from ptyx.extensions import CompilerExtension
 
@@ -681,6 +683,9 @@ class LatexGenerator:
 
     def _parse_PRINT_tag(self, node: Node) -> None:
         print(node.arg(0))
+
+    def _parse_ALERT_tag(self, node: Node) -> None:
+        print(yellow(",".join(pretty_box(node.arg(1), title=node.arg(0)))))
 
     @staticmethod
     def _exec(code, context):

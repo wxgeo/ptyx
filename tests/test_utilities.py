@@ -1,7 +1,7 @@
 import pytest
 
+from ptyx.pretty_print import TermColors, term_color
 from ptyx.printers import sympy2latex
-from ptyx.randfunc import randchoice, srandchoice, randfrac
 from ptyx.utilities import (
     find_closing_bracket,
     round_away_from_zero,
@@ -95,14 +95,10 @@ def test_latex_verbatim():
     )
 
 
-def test_randchoice():
-    for i in range(1000):
-        assert randchoice(0, 1, exclude=[0]) == 1
-        assert srandchoice(0, 1, exclude=[0, 1]) == -1
-        assert randchoice([0, 1, 2], exclude=[0]) in [1, 2]
-        assert srandchoice([0, 1, 2], exclude=[0, 1]) in [-1, -2, 2]
-
-
-def test_randfrac():
-    for i in range(1000):
-        assert randfrac(2, 7, den=6).q == 6
+def test_term_color():
+    assert (
+        term_color(
+            " hello ", TermColors.RED, bold=True, italic=True, reverse=True, highlight=True, underline=True
+        )
+        == "\x1b[1;3;4;7;41m hello \x1b[0m"
+    )

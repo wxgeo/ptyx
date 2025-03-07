@@ -190,36 +190,6 @@ def numbers_to_floats(expr: Any, integers: bool = False, ndigits: int = None) ->
     return expr
 
 
-def term_color(string, color, **kw):
-    """On Linux, format string for terminal printing.
-
-    Available keywords: bold, dim, italic, underline and hightlight.
-
-    >>> term_color('hello world !', 'blue', bold=True, underline=True)
-    '\x1b[4;1;34mhello world !\x1b[0m'
-    """
-    colors = {
-        "gray": 30,
-        "red": 31,
-        "green": 32,
-        "yellow": 33,
-        "blue": 34,
-        "purple": 35,
-        "cyan": 36,
-        "white": 37,
-    }
-    styles = {"bold": 1, "dim": 2, "italic": 3, "underline": 4, "highlight": 7}
-    if color not in colors:
-        raise KeyError("Color %s is unknown. Available colors: %s." % (repr(color), list(colors.keys())))
-    formatting = []
-    for style, code in styles.items():
-        appply_style = kw.get(style)
-        if appply_style is not None:
-            formatting.append(str(code) if appply_style else str(20 + code))
-    formatting.append(str(colors[color]))
-    return "\033[%sm%s\033[0m" % (";".join(formatting), string)
-
-
 def latex_verbatim(s: str) -> str:
     """Try to emulate verbatim (which is not allowed inside a macro argument in LaTeX).
 
