@@ -68,7 +68,7 @@ def test_syntax_tree():
 
 def test_brackets_bug():
     s = SyntaxTreeGenerator()
-    code = 'AFN~: #{tikz(r">I:\Sigma;0--1 / (1)")}.'
+    code = 'AFN~: #{tikz(r">I:\\Sigma;0--1 / (1)")}.'
     s.generate_tree(code)
 
 
@@ -95,6 +95,9 @@ def test_latex_newcommand():
 
 
 def test_comments():
+    # Comments lines must result in blank lines, and not be completely removed.
+    # Removing comment lines completely would changes code line numbers, and
+    # result in erroneous tracebacks.
     test = """# Let's test comments.
 First, $a=#{a=7}$ # This is a comment
 # This is another comment
@@ -105,11 +108,16 @@ Last, $a=#a$ still.
 # before parsing).
 ## is just displayed as a hash, it is not a comment.
 # # is comment though."""
-    result = """First, $a=7$
+    result = """
+First, $a=7$
+
+
+
 Last, $a=7$ still.
 7777
+
 # is just displayed as a hash, it is not a comment.
-#"""
+"""
     assert parse(test) == result
 
 

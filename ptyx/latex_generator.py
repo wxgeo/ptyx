@@ -318,7 +318,9 @@ class LatexGenerator:
         return str(path.parent / f"\u001b[36m{path.name}\u001b[0m").replace("#", "##")
 
     def _parse_INCLUDE_START_tag(self, node: Node):
+        # The file being included:
         file_path = node.arg(0)
+        # The position (in the raw parent file) where the included file was inserted:
         position = node.arg(1)
         self.context["PTYX_TRACEBACK"].append((file_path, int(position) if position else None))
         print(f"\u001b[36mIMPORTING\u001b[0m '{self._prettify_path(file_path)}'")
@@ -999,7 +1001,7 @@ class Compiler:
         def include(match: re.Match) -> str:
             path = self._resolve_input_file_path(match.group(1))
             with open(path) as file:
-                return f"\n#APART#INCLUDE_START{{{path}}}{{{match.start(1)}}}\n{file.read()}#END_APART#INCLUDE_END\n"
+                return f"\n#APART#INCLUDE_START{{{path}}}{{{match.start()}}}\n{file.read()}#END_APART#INCLUDE_END\n"
 
         # noinspection RegExpRedundantEscape
         return re.sub(r"#INCLUDE\{([^}]+)\}", include, code)
@@ -1105,6 +1107,9 @@ class Compiler:
         if code is None:
             raise RuntimeError("Compiler.read_code() or Compiler.read_file() must be run first.")
         remove_comments = self.syntax_tree_generator.remove_comments
+        # TODO: do not remove comments before resolving imports, since this prevent tracebacks from providing
+        #  accurate positions.
+        #  Instead, self._include_subfiles() should be improved to ignore imports in lines starting with a #.
         # Remove comments first, so one can comment a file inclusion for example.
         code = remove_comments(code)
         assert isinstance(code, str)

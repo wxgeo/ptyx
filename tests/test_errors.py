@@ -69,7 +69,7 @@ def test_PythonBlockError():
             exec(code)
         except Exception as e:
             raise PythonBlockError(python_code=code) from e
-    assert exc_info.value.info == ErrorInformation("invalid syntax", 3, 3, 5, 6)
+    assert exc_info.value.info == ErrorInformation("SyntaxError", "invalid syntax", 3, 3, 5, 6)
 
     # 2. Test a runtime error.
     with pytest.raises(PythonBlockError) as exc_info:
@@ -78,11 +78,24 @@ def test_PythonBlockError():
             exec(code)
         except Exception as e:
             raise PythonBlockError(python_code=code) from e
-    assert exc_info.value.info == ErrorInformation("division by zero", 3, 3, 4, 7)
+    assert exc_info.value.info == ErrorInformation("ZeroDivisionError", "division by zero", 3, 3, 4, 7)
 
     # The faulty line must be colored in yellow in the report:
     assert (
         exc_info.value.pretty_report.split("\n")[6] == "\x1b[33m│ 3 │ b = 1/0                        │\x1b[0m"
+    )
+
+    # 3. Test when python code contain comments.
+    with pytest.raises(PythonBlockError) as exc_info:
+        code = "\na = 5\n# Some comment\nb = 1/0\nc = 3\n"
+        try:
+            exec(code)
+        except Exception as e:
+            raise PythonBlockError(python_code=code) from e
+
+    # The faulty line must be colored in yellow in the report:
+    assert (
+        exc_info.value.pretty_report.split("\n")[7] == "\x1b[33m│ 4 │ b = 1/0                        │\x1b[0m"
     )
 
 
@@ -96,7 +109,7 @@ def test_PythonBlockError_full_pretty_report():
         except Exception as e:
             raise PythonBlockError(python_code=code) from e
     assert exc_info.value.info == ErrorInformation(
-        message="name 'L' is not defined", row=3, end_row=3, col=7, end_col=8
+        type="NameError", message="name 'L' is not defined", row=3, end_row=3, col=7, end_col=8
     )
 
     # The faulty line must be colored in yellow in the report:
@@ -112,7 +125,7 @@ def test_PythonBlockError_full_pretty_report():
             "│ 4 │     print(l[1])                │",
             "╰────────────────────────────────────╯",
             "",
-            "\x1b[31m[ERROR] \x1b[0m\x1b[33mName 'L' is not defined.\x1b[0m",
+            "\x1b[31m[ERROR] \x1b[0m\x1b[33mNameError: Name 'L' is not defined.\x1b[0m",
         ]
     )
 

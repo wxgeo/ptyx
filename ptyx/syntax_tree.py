@@ -251,9 +251,9 @@ class SyntaxTreeGenerator:
 
     @staticmethod
     def remove_comments(text: str) -> str:
-        # If the comment is at the end of a line, don't remove the end of line.
-        # However, if the full line is a comment, remove the end of line (\n).
-        text = re.sub("( # .+)|(^# .+\n)", "", text, flags=re.MULTILINE)
+        # Don't remove the end of the lines, since this would result in invalid tracebacks,
+        # since the line numbers would be changed.
+        text = re.sub("( # .+)|(^# .+)", "", text, flags=re.MULTILINE)
         return text
 
     def generate_tree(self, text: str) -> Node:

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import traceback
 from typing import Any
 
@@ -20,11 +20,13 @@ class ErrorInformation:
     and runtime errors in python.
     """
 
+    type: str = ""
     message: str = ""
     row: int | None = None
     end_row: int | None = None
     col: int | None = None
     end_col: int | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 class PtyxDocumentCompilationError(RuntimeError):
@@ -89,11 +91,25 @@ class PythonCodeError(PtyxDocumentCompilationError):
     def _collect_info(self) -> ErrorInformation:
         error = self.__cause__
         if isinstance(error, SyntaxError) and error.filename == "<string>":
-            return ErrorInformation(error.msg, error.lineno, error.end_lineno, error.offset, error.end_offset)
+            return ErrorInformation(
+                type(error).__name__,
+                error.msg,
+                error.lineno,
+                error.end_lineno,
+                error.offset,
+                error.end_offset,
+            )
         elif error is not None:
             for tb in traceback.extract_tb(error.__traceback__):
                 if tb.name in ("<module>", "<string>") and isinstance(tb.lineno, int):
-                    return ErrorInformation(str(error), tb.lineno, tb.end_lineno, tb.colno, tb.end_colno)
+                    return ErrorInformation(
+                        type(error).__name__,
+                        str(error),
+                        tb.lineno,
+                        tb.end_lineno,
+                        tb.colno,
+                        tb.end_colno,
+                    )
         return ErrorInformation()
 
 
@@ -164,7 +180,8 @@ class PythonBlockError(PythonCodeError):
             # Color in yellow the faulty line.
             msg[i] = yellow(msg[i])
         # Append the error message after the information box.
-        msg.append(f"\n{red('[ERROR] ')}{yellow(_cap(error_info.message) + '.')}")
+        content = f"{error_info.type}: {_cap(error_info.message)}."
+        msg.append(f"\n{red('[ERROR] ')}{yellow(content)}")
         return "\n".join(msg)
 
 

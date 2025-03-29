@@ -255,7 +255,12 @@ def randchoice(items, *others, **kw):
         items = list(items) + [-1 * item for item in items]
     if "exclude" in kw:
         items = [val for val in items if val not in kw["exclude"]]
-    val = random.choice(items)
+    try:
+        val = random.choice(items)
+    except KeyError:
+        raise ValueError(
+            f"Invalid argument type: {type(items).__name__}. Hint: try to convert argument to list"
+        )
     if isinstance(val, (int, float, complex)):
         val = S(val)
     return val
