@@ -35,9 +35,9 @@ dev = [
     "black>=24.10.0,<25",
     "sphinx-autodoc-typehints>=1.19.5,<2",
     "sphinx-rtd-theme>=1.0.0,<2",
-    "myst-parser>=0.18.0,<0.19",
+    "myst-parser>=1.0,<2",
     "python-semantic-release==7.28.1",
-    "ruff>=0.7.2,<0.8",
+    "ruff>=0.9.1,<0.10",
     "rust-just>=1.43.0",
 ]
 
