@@ -25,16 +25,20 @@ pytest:
     
 test: ruff mypy pytest
 
+push:
+    git push
+    git push --tags
+    
 version:
     {{uv}} run semantic-release --noop version
 
 update-version:
     {{uv}} run semantic-release version
 	
-build: update-version
+build-new-version: update-version
     {{uv}} build
     
-publish: build
+publish: build-new-version
     {{uv}} publish
 	
 fix:
