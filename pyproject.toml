@@ -1,41 +1,52 @@
-[tool.poetry]
+[project]
 name = "ptyx"
-version = "29.2.0"
+version = "30.0.0"
 description = "pTyX is a python precompiler for LaTeX."
-authors = ["Nicolas Pourcelot <nicolas.pourcelot@gmail.com>"]
-repository = "https://github.com/wxgeo/ptyx"
-license = "GPL-3.0-or-later"
+authors = [{ name = "Nicolas Pourcelot", email = "nicolas.pourcelot@gmail.com" }]
+requires-python = ">=3.10"
 readme = "README.md"
-keywords = ["python", "tikz", "latex", "pdf", "exam", "mcq", "student"]
+license = "GPL-3.0-or-later"
+keywords = [
+    "python",
+    "tikz",
+    "latex",
+    "pdf",
+    "exam",
+    "mcq",
+    "student",
+]
+dependencies = [
+    "numpy>=2.1.3,<3",
+    "sympy>=1.10.1,<2",
+    "psutil>=5.9.4",
+    "pymupdf>=1.21.1",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-numpy = "^2.1.3"
-sympy = "^1.10.1"
-psutil = ">=5.9.4"
-pymupdf = ">=1.21.1"
+[project.urls]
+Repository = "https://github.com/wxgeo/ptyx"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.2.1"
-mypy = "^1.0.1"
-black = "^24.10.0"
-tox = "^4.14"
-sphinx-autodoc-typehints = "^1.19.5"
-sphinx-rtd-theme = "^1.0.0"
-myst-parser = "^0.18.0"
-# Version 7.29+ are buggy !
-python-semantic-release = "7.28.1"
-ruff = "^0.7.2"
+[project.scripts]
+ptyx = "ptyx.script:ptyx"
 
-[tool.poetry.scripts]
-ptyx = 'ptyx.script:ptyx'
+[dependency-groups]
+dev = [
+    "pytest>=7.2.1,<8",
+    "mypy>=1.0.1,<2",
+    "black>=24.10.0,<25",
+    "sphinx-autodoc-typehints>=1.19.5,<2",
+    "sphinx-rtd-theme>=1.0.0,<2",
+    "myst-parser>=0.18.0,<0.19",
+    "python-semantic-release==7.28.1",
+    "ruff>=0.7.2,<0.8",
+    "rust-just>=1.43.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.semantic_release]
 version_variable = "pyproject.toml:version"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
 
 [tool.mypy]
 ignore_missing_imports = true
@@ -59,19 +70,3 @@ line-length = 110
 [tool.ruff]
 line-length = 110
 
-[tool.tox]
-legacy_tox_ini = """
-
-[tox]
-skipsdist = true
-isolated_build = True
-envlist = py311
-
-[testenv]
-allowlist_externals = poetry
-commands =
-    poetry install -v
-    poetry run ruff check ptyx tests
-    poetry run mypy ptyx tests
-    poetry run pytest tests ptyx/extensions
-"""
