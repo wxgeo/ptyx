@@ -1,3 +1,4 @@
+.pypirc
 .mypy_cache/
 .pytest_cache/
 .idea/
@@ -27,3 +28,4 @@ extensions/autoqcm/test_complet/
 build/
 dist/
 ptyx.egg-info/
+tests/git-ignored/
