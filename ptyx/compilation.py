@@ -294,6 +294,7 @@ def make_files(
     doc_id: DocId = DocId(options.start - 1)
 
     assert target is not None
+    assert CPU_PHYSICAL_CORES is not None
 
     cpu_cores_to_use = (
         # Use only the physical cores, not the virtual ones !

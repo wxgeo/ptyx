@@ -156,8 +156,7 @@ def parse_extended_python_line(original_line: str) -> str:
 
 
 class PythonBlockParser(Protocol):
-    def __call__(self, *, start: str, end: str, content: str) -> str:
-        ...
+    def __call__(self, *, start: str, end: str, content: str) -> str: ...
 
 
 def parse_code_block(code: str, parser: PythonBlockParser) -> str:
