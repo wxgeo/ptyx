@@ -36,7 +36,7 @@ dev = [
     "sphinx-autodoc-typehints>=1.19.5,<2",
     "sphinx-rtd-theme>=1.0.0,<2",
     "myst-parser>=1.0,<2",
-    "python-semantic-release==7.28.1",
+    "python-semantic-release>=10",
     "ruff>=0.9.1,<0.10",
     "rust-just>=1.43.0",
 ]
@@ -46,7 +46,15 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.semantic_release]
-version_variable = "pyproject.toml:version"
+version_toml = ["pyproject.toml:project.version"]
+build_command = """
+    uv lock --upgrade-package "$PACKAGE_NAME"
+    git add uv.lock
+    uv build
+"""
+
+[semantic_release.remote.token]
+env = "GH_TOKEN"
 
 [tool.mypy]
 ignore_missing_imports = true
