@@ -36,6 +36,7 @@ update-version:
     {{uv}} run semantic-release version
 	
 build-new-version: update-version
+    rm -rf dist/
     {{uv}} build
     
 publish: build-new-version
