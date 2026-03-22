@@ -29,3 +29,4 @@ build/
 dist/
 ptyx.egg-info/
 tests/git-ignored/
+doc/_build/
