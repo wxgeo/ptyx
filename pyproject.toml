@@ -48,7 +48,7 @@ build_command = """
     uv build
 """
 
-[semantic_release.remote.token]
+[tool.semantic_release.remote.token]
 env = "GH_TOKEN"
 
 [tool.mypy]
