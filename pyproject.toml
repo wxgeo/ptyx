@@ -1,6 +1,6 @@
 [project]
 name = "ptyx"
-version = "30.0.0"
+version = "30.1.0"
 description = "pTyX is a python precompiler for LaTeX."
 authors = [{ name = "Nicolas Pourcelot", email = "nicolas.pourcelot@gmail.com" }]
 requires-python = ">=3.10"
