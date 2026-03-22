@@ -30,3 +30,4 @@ except ImportError:
     CPU_PHYSICAL_CORES = (os.cpu_count() or 1) // 2
 if not CPU_PHYSICAL_CORES:
     CPU_PHYSICAL_CORES = 1
+assert isinstance(CPU_PHYSICAL_CORES, int)
