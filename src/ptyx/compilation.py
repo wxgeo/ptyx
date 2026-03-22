@@ -19,9 +19,9 @@ from ptyx.config import param
 from ptyx.latex_generator import Compiler
 from ptyx.utilities import force_hardlink_to
 
-ANSI_RED = "\u001B[31m"
-ANSI_REVERSE_RED = "\u001B[41m"
-ANSI_RESET = "\u001B[0m"
+ANSI_RED = "\u001b[31m"
+ANSI_REVERSE_RED = "\u001b[41m"
+ANSI_RESET = "\u001b[0m"
 
 
 DocId = NewType("DocId", int)
@@ -302,9 +302,7 @@ def make_files(
 
     cpu_cores_to_use = (
         # Use only the physical cores, not the virtual ones !
-        options.cpu_cores
-        if options.cpu_cores >= 1
-        else min(CPU_PHYSICAL_CORES, target)
+        options.cpu_cores if options.cpu_cores >= 1 else min(CPU_PHYSICAL_CORES, target)
     )
     with concurrent.futures.ProcessPoolExecutor(max_workers=cpu_cores_to_use) as executor:
         while len(all_compilation_info) < target:

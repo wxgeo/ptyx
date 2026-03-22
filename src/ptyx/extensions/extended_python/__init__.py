@@ -31,7 +31,7 @@ An example:
     and enables to extend python checking tools much more easily too
     (line numbers don't change after parsing, only columns, which
     is only a minor inconvenient!)
-    """
+"""
 
 from re import sub, DOTALL, MULTILINE, Match
 from typing import Protocol

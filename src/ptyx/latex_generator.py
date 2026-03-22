@@ -756,7 +756,7 @@ class LatexGenerator:
                 # sympy.sympify() can't parse attributes and methods inside
                 # code for now (AttributeError is raised then).
                 result = eval(code, context)
-                print("Warning: sympy can't parse %s. " "Switching to standard evaluation mode." % repr(code))
+                print("Warning: sympy can't parse %s. Switching to standard evaluation mode." % repr(code))
             except Exception:
                 # print sorted(context.keys())
                 print("Uncatched error when evaluating %s" % repr(code))
