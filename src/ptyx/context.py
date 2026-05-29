@@ -97,5 +97,7 @@ for fname in (
 # If a document is compiled several times (to produce different versions of the same document),
 # PTYX_NUM is the compilation number (starting from 0).
 GLOBAL_CONTEXT["PTYX_NUM"] = 0
+# Should answers appear in the document? This enables to maintain a single document for both questions and answers.
+GLOBAL_CONTEXT["PTYX_WITH_ANSWERS"] = False
 GLOBAL_CONTEXT["latex"] = sympy2latex
 GLOBAL_CONTEXT["latex_verbatim"] = latex_verbatim
