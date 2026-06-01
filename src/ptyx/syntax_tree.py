@@ -15,6 +15,7 @@ from ptyx.pretty_print import term_color, TermColors
 
 Tag = str
 TagSyntax = Tuple[int, int, Optional[List[str]]]
+TagDict = dict[Tag, TagSyntax]
 NodeChild = Union[str, "Node"]
 S = TypeVar("S")
 T = TypeVar("T", bound=NodeChild)
@@ -150,7 +151,7 @@ class SyntaxTreeGenerator:
     # By contrast, in code arguments, inner strings should be detected:
     # in {val=="}"}, the bracket closing the tag is the second `}`, not the first one !
 
-    tags: Dict[Tag, TagSyntax] = {
+    tags: TagDict = {
         "ALERT": (2, 0, None),
         "ANS": (0, 0, ["@END", "@END_ANS"]),
         "ANSWER": (0, 1, None),

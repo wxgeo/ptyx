@@ -132,6 +132,16 @@ class CustomLatexPrinter(LatexPrinter):
         return LatexPrinter._print_Mul(self, expr)
         # return ' '.join(self._print(arg) for arg in expr.args)
 
+    def _print_dict(self, expr):
+        assert isinstance(expr, dict)
+        if expr:
+            lines = ["\\begin{tabular}{|*{%s}{c|}}" % len(expr), "\\hline"]
+            for items in [expr.keys(), expr.values()]:
+                lines.append(" & ".join(self._print(item) for item in items) + " \\\\\n\\hline")
+            lines.append("\\end{tabular}")
+            return "\n".join(lines)
+        return ""
+
     def _print_set(self, expr):
         if expr:
             return r"\left\{%s\right\}" % r"\,;\,".join(self._print(val) for val in expr)
