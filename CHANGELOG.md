@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v30.2.0 (2026-06-02)
+
+### Features
+
+- Add a default printer for dicts.
+  ([`262064e`](https://github.com/wxgeo/ptyx/commit/262064ea7f9740e6995f4bc8fcf2fa8b6c4054c9))
+
+- Add PTYX_WITH_ANSWERS in global context.
+  ([`ba73397`](https://github.com/wxgeo/ptyx/commit/ba7339734d3c55be023bd7f007e33a2fbc10f441))
+
+### Refactoring
+
+- Modernize legacy python code.
+  ([`4f91f6e`](https://github.com/wxgeo/ptyx/commit/4f91f6e53d04f34a9818166b9303675857144de4))
+
+
 ## v30.1.0 (2026-03-22)
 
 ### Bug Fixes
