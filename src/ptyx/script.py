@@ -237,7 +237,7 @@ def ptyx(parser=PtyxArgumentParser()) -> None:
     # ---------------------------------------------
 
     all_info: MultipleFilesCompilationInfo | None = None
-    compiler: "Compiler"
+    compiler: Compiler
 
     for input_name in options.filenames:
         # Read pTyX file.

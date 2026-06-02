@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # PtYx documentation build configuration file, created by
 # sphinx-quickstart on Sun Jul 27 19:41:37 2014.

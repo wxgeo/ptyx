@@ -6,7 +6,8 @@ import zlib
 from importlib import import_module, metadata
 from pathlib import Path
 from types import ModuleType
-from typing import Optional, Union, Callable, Iterable, Dict, Tuple, List, TypedDict, Any
+from typing import TypedDict, Any
+from collections.abc import Callable, Iterable
 
 from ptyx.pretty_print import pretty_box, yellow
 
@@ -26,12 +27,12 @@ from ptyx.utilities import advanced_split, numbers_to_floats, _float_me_if_you_c
 
 class State(TypedDict, total=False):
     syntax_tree: Node
-    seed: Optional[int]
+    seed: int | None
     input: str
-    path: Optional[Path]
+    path: Path | None
     loaded_extensions: dict[str, ModuleType]
     plain_ptyx_code: str
-    after_include: Optional[str]
+    after_include: str | None
 
 
 class LastEvaluatedExpressionInfo:
@@ -129,7 +130,7 @@ class LatexGenerator:
         """To overwrite."""
         self.clear()
 
-    def set_new_context(self, base_context: Optional[Dict] = None) -> dict[str, Any]:
+    def set_new_context(self, base_context: dict | None = None) -> dict[str, Any]:
         """Set a new context of evaluation for code, except for PTYX_* variables."""
         old_context = self.context
         if base_context is None:
@@ -172,7 +173,7 @@ class LatexGenerator:
     def parse_node(
         self,
         node: Node,
-        function: Optional[Union[Callable, Iterable[Callable]]] = None,
+        function: Callable | Iterable[Callable] | None = None,
         **options,
     ):
         """Parse a node in a pTyX syntax tree.
@@ -202,8 +203,8 @@ class LatexGenerator:
 
     def _parse_children(
         self,
-        children: Iterable[Union[str, Node]],
-        function: Optional[Union[Callable, Iterable[Callable]]] = None,
+        children: Iterable[str | Node],
+        function: Callable | Iterable[Callable] | None = None,
         **options,
     ) -> None:
         """Parse all children nodes.
@@ -562,7 +563,7 @@ class LatexGenerator:
         # what seems to be a very strange behaviour of the compiler !)
         pass
 
-    def _pick_and_parse_children(self, node: Node, children: List = None, target: str = "ITEM", **kw):
+    def _pick_and_parse_children(self, node: Node, children: list = None, target: str = "ITEM", **kw):
         # Choose only one between all the #ITEM sections inside a #PICK block.
         # Note that they may be some text or nodes before first #ITEM,
         # if so they should be left unmodified at their original position.
@@ -651,7 +652,7 @@ class LatexGenerator:
         elif last_value < 0:
             self.write("<0")
 
-    def _parse_DEBUG_tag(self, node: Optional[Node]) -> None:
+    def _parse_DEBUG_tag(self, node: Node | None) -> None:
         while True:
             msg = "Debug point. Enter command, or quit (q! + ENTER):"
             sep = len(msg) * "="
@@ -965,7 +966,7 @@ class Compiler:
         self._state["path"] = None
         self._state["input"] = code
 
-    def read_file(self, path: Union[Path, str]) -> None:
+    def read_file(self, path: Path | str) -> None:
         """Feed compiler with given file code."""
         # We must use `os.path.abspath()` here:
         #   - `Path.absolute()` would not normalize the path,
@@ -976,7 +977,7 @@ class Compiler:
         #      all the files are generated as a side effect.
         path = Path(os.path.abspath(os.path.expanduser(path)))
         self._state["path"] = path
-        with open(path, "r") as input_file:
+        with open(path) as input_file:
             self._state["input"] = input_file.read()
 
     @property
@@ -985,7 +986,7 @@ class Compiler:
         file_path = self.file_path
         return Path.cwd() if file_path is None else file_path.parent
 
-    def _resolve_input_file_path(self, path: Union[str, Path]) -> Path:
+    def _resolve_input_file_path(self, path: str | Path) -> Path:
         """Interpret `path` relatively to input ptyx file."""
         if isinstance(path, str):
             path = Path(path.strip())
@@ -1016,9 +1017,9 @@ class Compiler:
         # noinspection RegExpRedundantEscape
         extensions_list = re.findall(r"#LOAD\{\s*(\w+)\s*\}", code)
 
-        extensions: Dict[Tag, ModuleType] = {}
-        tags_syntax: Dict[Tag, TagSyntax] = {}
-        tags_source: Dict[Tag, str] = {}
+        extensions: dict[Tag, ModuleType] = {}
+        tags_syntax: dict[Tag, TagSyntax] = {}
+        tags_source: dict[Tag, str] = {}
         latex_generator_extensions = []
         for extension_name in extensions_list:
             print(f"Loading extension '{extension_name}'...")
@@ -1069,7 +1070,7 @@ class Compiler:
                 code = extensions[name].main(code, self)
         return code, extensions
 
-    def _read_seed(self, code: str) -> Tuple[str, Optional[int]]:
+    def _read_seed(self, code: str) -> tuple[str, int | None]:
         """Extract seed value from code, searching for #SEED{num} tag.
 
         Return the code without the #SEED{...} tag, and the seed value (if any, `None` else).
@@ -1188,7 +1189,7 @@ class Compiler:
             self.syntax_tree_generator.update_tags()
             self.latex_generator.parser.update_tags()
 
-    def load(self, *, code: str = None, path: Union[Path, str] = None) -> None:
+    def load(self, *, code: str | None = None, path: Path | str | None = None) -> None:
         """Reset state, parse pTyX code and generate the syntax tree.
 
         One may provide either directly the pTyX code, or the path of a pTyX file to be read.
@@ -1208,7 +1209,7 @@ class Compiler:
         self.preparse()
         self.generate_syntax_tree()
 
-    def parse(self, *, code: str = None, path: Union[Path, str] = None, **context) -> str:
+    def parse(self, *, code: str | None = None, path: Path | str | None = None, **context) -> str:
         """Convert ptyx code to plain LaTeX in one shot.
 
         This is mainly used for testing (in unit tests or in interactive mode).
@@ -1227,17 +1228,17 @@ class Compiler:
         return self._state["syntax_tree"]
 
     @property
-    def seed(self) -> Optional[int]:
+    def seed(self) -> int | None:
         return self._state["seed"]
 
     @property
-    def file_path(self) -> Optional[Path]:
+    def file_path(self) -> Path | None:
         return self._state["path"]
 
     @property
-    def plain_ptyx_code(self) -> Optional[str]:
+    def plain_ptyx_code(self) -> str | None:
         return self._state["plain_ptyx_code"]
 
     @property
-    def loaded_extensions(self) -> List[str]:
+    def loaded_extensions(self) -> list[str]:
         return list(self._state["loaded_extensions"].keys())

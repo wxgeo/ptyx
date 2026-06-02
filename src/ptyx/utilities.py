@@ -1,7 +1,8 @@
 import re
 from math import ceil, floor, isnan, isinf
 from pathlib import Path
-from typing import Sequence, Any
+from typing import Any
+from collections.abc import Sequence
 
 
 RE_VERBATIM_BLOCK = r"#VERBATIM\W.*?#END(?:_VERBATIM)?"

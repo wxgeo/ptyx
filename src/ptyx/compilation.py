@@ -8,7 +8,8 @@ import tempfile
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import Optional, Iterable, Sequence, NewType, Callable, Any
+from typing import NewType, Any
+from collections.abc import Iterable, Sequence, Callable
 
 import fitz
 
@@ -117,7 +118,7 @@ class MultipleFilesCompilationInfo:
             return self.info_dict[item]
 
 
-class _LoggedStream(object):
+class _LoggedStream:
     """Add logging to a data stream, like stdout or stderr.
 
     * `logfile` is a file already opened in appending mode ;
@@ -137,14 +138,14 @@ class _LoggedStream(object):
         self.logfile.flush()
 
 
-class _DevNull(object):
+class _DevNull:
     def write(self, *_):
         pass
 
     close = flush = write
 
 
-class Logging(object):
+class Logging:
     """Context manager. All output (sys.stdout/stderr) will be logged in a file.
 
     Note this logging occurs in addition to standard output, which is not suppressed.
@@ -473,14 +474,14 @@ def _link_file_to_parent(
 def generate_latex_file(
     texfile_path: Path,
     compiler: Compiler,
-    context: Optional[dict] = None,
+    context: dict | None = None,
     log=True,
 ) -> Path:
     """Generate latex from ptyx source file."""
     assert texfile_path.suffix == ".tex", texfile_path
     if log:
         # Output is redirected to a `.log` file.
-        logfile: Optional[Path] = texfile_path.parent / f"{texfile_path.stem}-python.log"
+        logfile: Path | None = texfile_path.parent / f"{texfile_path.stem}-python.log"
         print("\nLog file:", logfile, "\n")
     else:
         logfile = None
@@ -500,8 +501,8 @@ def generate_latex_file(
 def compile_ptyx_file(
     ptyx_file: Path,
     output_name: Path,
-    context: Optional[dict] = None,
-    quiet: Optional[bool] = None,
+    context: dict | None = None,
+    quiet: bool | None = None,
 ) -> SingleFileCompilationInfo | None:
     """Generate latex and/or pdf file from ptyx source file.
 
@@ -561,7 +562,7 @@ def _print_latex_errors(out: str, filename: Path) -> dict[str, str]:
 
 
 def compile_latex_to_pdf(
-    filename: Path, dest: Optional[Path] = None, quiet: Optional[bool] = False
+    filename: Path, dest: Path | None = None, quiet: bool | None = False
 ) -> SingleFileCompilationInfo:
     """Compile the latex file.
 
@@ -590,7 +591,7 @@ def compile_latex_to_pdf(
     )
 
 
-def _build_command(filename: Path, dest: Path, quiet: Optional[bool] = False) -> str:
+def _build_command(filename: Path, dest: Path, quiet: bool | None = False) -> str:
     """Generate the command used to compile the LaTeX file."""
     command: str = param["quiet_tex_command"] if quiet else param["tex_command"]
     command += f' -output-directory "{dest}" "{filename}"'

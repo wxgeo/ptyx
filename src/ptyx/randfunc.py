@@ -2,7 +2,8 @@ import random
 import functools
 from collections import namedtuple
 from math import gcd
-from typing import Iterable, Sequence, TypeVar
+from typing import TypeVar
+from collections.abc import Iterable, Sequence
 
 from numpy import array
 from ptyx.sys_info import SYMPY_AVAILABLE

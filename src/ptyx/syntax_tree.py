@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Sat Oct 23 15:09:44 2021
 
@@ -7,14 +6,15 @@ Created on Sat Oct 23 15:09:44 2021
 """
 
 import re
-from typing import Tuple, Optional, List, Dict, Union, TypeVar, Iterable, Set, Any
+from typing import Union, TypeVar, Any
+from collections.abc import Iterable
 
 from ptyx.errors import PtyxSyntaxError, PythonExpressionError
 from ptyx.utilities import find_closing_bracket
 from ptyx.pretty_print import term_color, TermColors
 
 Tag = str
-TagSyntax = Tuple[int, int, Optional[List[str]]]
+TagSyntax = tuple[int, int, list[str] | None]
 TagDict = dict[Tag, TagSyntax]
 NodeChild = Union[str, "Node"]
 S = TypeVar("S")
@@ -28,16 +28,16 @@ class Node:
     to a tag's content, or the argument number, if the node corresponds
     to a tag's argument."""
 
-    def __init__(self, name: Union[str, int]):
-        self.parent: Optional[Node] = None
+    def __init__(self, name: str | int):
+        self.parent: Node | None = None
         self.name = name
-        self.options: Optional[str] = None
-        self.children: List[NodeChild] = []
+        self.options: str | None = None
+        self.children: list[NodeChild] = []
 
     def __repr__(self):
         return f"<Node {self.name} at {hex(id(self))}>"
 
-    def add_child(self, child: T) -> Optional[T]:
+    def add_child(self, child: T) -> T | None:
         if not child:
             return None
         self.children.append(child)
@@ -217,7 +217,7 @@ class SyntaxTreeGenerator:
         # SyntaxTreeGenerator.
         # It is used by extensions to define new closing tags,
         # by calling `Compiler.add_new_tag()`.
-        self._found_tags: Set[Tag] = set()
+        self._found_tags: set[Tag] = set()
         self.reset()
 
     def reset(self) -> None:
