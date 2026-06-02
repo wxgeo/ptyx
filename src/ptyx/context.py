@@ -101,3 +101,15 @@ GLOBAL_CONTEXT["PTYX_NUM"] = 0
 GLOBAL_CONTEXT["PTYX_WITH_ANSWERS"] = False
 GLOBAL_CONTEXT["latex"] = sympy2latex
 GLOBAL_CONTEXT["latex_verbatim"] = latex_verbatim
+
+
+# To be defined later, this is only useful for inspection tools (typing, autocompletion, interactive doc and so on).
+def _write(latex: str) -> None:
+    """
+    Write string `latex` to the document.
+
+    This is used to append some text to the document from a Python code's block.
+    """
+
+
+GLOBAL_CONTEXT["write"] = _write
