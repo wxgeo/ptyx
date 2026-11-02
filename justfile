@@ -1,5 +1,7 @@
 project := "ptyx"
 
+list:
+    @just --list
 doc:
     @cd ".." && just doc {{project}}
 ruff:
