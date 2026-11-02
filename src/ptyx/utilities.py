@@ -1,11 +1,18 @@
 import re
+from collections.abc import Sequence
 from math import ceil, floor, isnan, isinf
 from pathlib import Path
-from typing import Any
-from collections.abc import Sequence
-
+from typing import Any, TypeVar
 
 RE_VERBATIM_BLOCK = r"#VERBATIM\W.*?#END(?:_VERBATIM)?"
+
+T = TypeVar("T")
+
+
+def nn(value: T | None) -> T:
+    """Tiny helper to assert that the value is not None. Helpful for static type checkers, notably in Qt."""
+    assert value is not None
+    return value
 
 
 def round_away_from_zero(val, ndigits=0) -> float:
