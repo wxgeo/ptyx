@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v30.3.0 (2026-11-12)
+
+### Features
+
+- Add a utility to assert that a value is not None, for static type checkers.
+  ([`353f5b4`](https://github.com/wxgeo/ptyx/commit/353f5b4d9853ea8ea012f4eca8f8a62829c75056))
+
+- Add default write function to global function, for autocompletion.
+  ([`a94a983`](https://github.com/wxgeo/ptyx/commit/a94a983e5964ce5dec832d570a9da7a66e00c207))
+
+
 ## v30.2.0 (2026-06-02)
 
 ### Features
