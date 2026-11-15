@@ -1,5 +1,6 @@
 import sys
 from enum import IntEnum
+from functools import partial
 
 
 class TermColors(IntEnum):
@@ -20,19 +21,19 @@ def bold(to_print: object):
     return f"\033[1m{to_print}\033[22m"
 
 
-def yellow(to_print: object, bold=False) -> str:
-    """Convert `to_print` as string and put it in yellow in shell."""
-    return term_color(to_print, color=TermColors.YELLOW, bold=bold)
+def colored(to_print: object, color: TermColors, bold=False) -> str:
+    """Convert `to_print` as string, color it as specified, then print it."""
+    return term_color(to_print, color=color, bold=bold)
 
 
-def red(to_print: object, bold=False) -> str:
-    """Convert `to_print` as string and put it in red in shell."""
-    return term_color(to_print, color=TermColors.RED, bold=bold)
-
-
-def green(to_print: object, bold=False) -> str:
-    """Convert `to_print` as string and put it in red in shell."""
-    return term_color(to_print, color=TermColors.GREEN, bold=bold)
+gray = partial(colored, color=TermColors.GRAY)
+red = partial(colored, color=TermColors.RED)
+green = partial(colored, color=TermColors.GREEN)
+yellow = partial(colored, color=TermColors.YELLOW)
+blue = partial(colored, color=TermColors.BLUE)
+purple = partial(colored, color=TermColors.PURPLE)
+cyan = partial(colored, color=TermColors.CYAN)
+white = partial(colored, color=TermColors.WHITE)
 
 
 def custom_print(msg: str, color: TermColors, title: str, bold=False, **kw) -> None:
