@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v30.4.0 (2026-11-17)
+
+### Features
+
+- Add new functions in the API for all the classic shell colors.
+  ([`4c6c992`](https://github.com/wxgeo/ptyx/commit/4c6c99243d6125f4052038460e74c490f038a034))
+
+
 ## v30.3.0 (2026-11-12)
 
 ### Features
